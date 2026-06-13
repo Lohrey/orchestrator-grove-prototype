@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Orchestrator Grove Prototype v9</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="styles.css?v=t_8ab80257" />
+  <link rel="stylesheet" href="styles-interactions.css?v=t_2b8d7eef" />
+</head>
+<body>
+  <main class="shell" aria-label="Orchestrator Grove fullscreen game">
+    <section class="game-card">
+      <div class="topbar screen-only">
+        <div>
+          <h1>Orchestrator Grove <span class="version">v9</span></h1>
+          <p class="subtitle">Polished grove visuals with smooth mouse-wheel zoom anchored under your cursor.</p>
+        </div>
+      </div>
+
+      <div class="game-stage" id="gameStage">
+        <canvas id="game" width="960" height="640" aria-label="2D automation game canvas"></canvas>
+        <div id="assignmentToast" class="assignment-toast" role="status" aria-live="polite" hidden></div>
+        <aside id="multiplayerPanel" class="multiplayer-panel" aria-label="Multiplayer controls">
+          <div class="multiplayer-head"><b>Multiplayer</b><span>Socket.IO PvP</span></div>
+          <button id="multiplayerHostBtn" type="button">Host separate instance</button>
+          <div class="multiplayer-join-row">
+            <input id="multiplayerJoinCode" type="text" autocomplete="off" placeholder="session code" />
+            <button id="multiplayerJoinBtn" type="button">Join</button>
+          </div>
+          <button id="multiplayerSaveBtn" type="button">Download session file</button>
+          <p id="multiplayerStatus" class="small status-text">Host opens a separate instance. P1 bottom-left, P2 top-right. Destroy the enemy throne.</p>
+          <a id="multiplayerSessionLink" class="multiplayer-session-link" href="#" hidden></a>
+        </aside>
+        <section id="teachPanel" class="teach-panel" aria-label="Teach by doing recorder" hidden>
+          <div class="teach-head">
+            <b>Teach by doing</b>
+            <span>Press E to pick up/deposit</span>
+          </div>
+          <div class="teach-actions">
+            <button id="teachRecordBtn" type="button">Record Loop</button>
+            <label>Bot <input id="teachBotId" type="number" min="1" value="1" /></label>
+            <button id="teachAssignBtn" type="button">Assign</button>
+          </div>
+          <p id="teachStatus" class="teach-status">Teach: press Record, do actions, assign to a bot.</p>
+          <ol id="teachSteps" class="teach-steps"><li class="empty">No recorded steps yet.</li></ol>
+        </section>
+        <aside id="botDrawer" class="bot-drawer is-collapsed" aria-label="Bots drawer">
+          <button id="botDrawerToggle" class="bot-drawer-toggle" type="button" aria-controls="botDrawerPanel" aria-expanded="false">Bots</button>
+          <section id="botDrawerPanel" class="bot-drawer-panel">
+            <h2>Bots</h2>
+            <div id="botList" class="bot-list"></div>
+          </section>
+        </aside>
+        <aside id="buildDrawer" class="build-drawer is-collapsed" aria-label="Build drawer">
+          <button id="buildDrawerToggle" class="build-drawer-toggle" type="button" aria-controls="buildPanel" aria-expanded="false">Build</button>
+          <section id="buildPanel" class="build-drawer-panel" aria-label="Building controls">
+            <h2>Build</h2>
+            <nav class="build-tabs" aria-label="Build categories">
+              <button type="button" class="is-active" data-build-tab="production" aria-selected="true">Production</button>
+              <button type="button" data-build-tab="storage" aria-selected="false">Storage</button>
+              <button type="button" data-build-tab="military" aria-selected="false">Military</button>
+            </nav>
+            <div class="build-category is-active" data-build-category="production">
+              <button type="button" data-build="sawbench">Place Sawbench</button>
+              <button type="button" data-build="workbench">Place Tool Bench</button>
+              <button type="button" data-build="factory">Place Bot Factory</button>
+            </div>
+            <div class="build-category" data-build-category="storage">
+              <button type="button" data-build="item_palette">Place Item Palette</button>
+            </div>
+            <div class="build-category" data-build-category="military">
+              <button type="button" data-build="smithery">Place Smithery</button>
+              <button type="button" data-build="bowmaker">Place Bowmaker</button>
+              <button type="button" data-build="defensetower">Place Defense Tower</button>
+            </div>
+            <div class="build-actions">
+              <button type="button" data-cancel-build>Cancel</button>
+              <span id="buildStatus">Choose a building, then click the map.</span>
+            </div>
+          </section>
+        </aside>
+        <aside id="zonesDrawer" class="zones-drawer is-collapsed" aria-label="Zones drawer">
+          <button id="zonesDrawerToggle" class="zones-drawer-toggle" type="button" aria-controls="zonesPanel" aria-expanded="false">Zones</button>
+          <section id="zonesPanel" class="zones-drawer-panel" aria-label="Zone controls">
+            <h2>Zones</h2>
+            <div id="zoneList" class="zone-list"><p class="empty">No zones yet.</p></div>
+            <button id="drawZoneDrawerButton" type="button">Draw zone</button>
+          </section>
+        </aside>
+        <button id="chatToggle" class="chat-toggle" type="button" aria-controls="chatOverlay" aria-expanded="true">Chat</button>
+        <section id="chatOverlay" class="canvas-chat" aria-label="Assistant chat overlay">
+          <div class="canvas-chat-head">
+            <div>
+              <b>Assistant Orchestrator</b>
+              <span class="chat-key-hint">Wheel zooms · Enter opens chat · L hides</span>
+            </div>
+            <button id="chatCollapse" type="button" aria-label="Hide chat">×</button>
+          </div>
+          <div id="chatLog" class="chat-log" aria-live="polite"></div>
+          <form id="chatForm" class="chat-form">
+            <input id="chatInput" type="text" autocomplete="off" placeholder="Try: bot 2 mine stone, bot 1 pick up logs from rect(x:100,y:200,w:80,h:60)" />
+            <button id="micButton" class="mic-button" type="button" aria-label="Start voice input" aria-pressed="false" title="Start voice input">🎙</button>
+            <button id="askButton" type="submit">Ask</button>
+          </form>
+          <p id="asrStatus" class="small asr-status" role="status" aria-live="polite">Voice: default Zipformer live + Whisper finalizer. Change mode in Esc → Voice.</p>
+          <div class="chips" id="quickCommands">
+            <button data-command="Bot 2 mine stone">Bot 2 mine</button>
+            <button data-command="Bot 1 pick up logs">Bot 1 pickup</button>
+            <button data-command="Bot 2 haul logs">Bot 2 logs</button>
+            <button data-command="Bot 3 make planks">Bot 3 planks</button>
+            <button data-command="Bot 3 make poles">Bot 3 poles</button>
+            <button data-command="Bot 4 craft axes">Bot 4 axes</button>
+            <button data-command="Bot 4 build bots">Bot 4 build</button>
+            <button data-insert="{{nearest_tree}}">+ nearest_tree</button>
+            <button data-insert="{{sawbench}}">+ sawbench</button>
+            <button data-insert="{{factory}}">+ factory</button>
+            <button id="drawZoneButton" type="button">Draw zone</button>
+          </div>
+        </section>
+      </div>
+    </section>
+
+  </main>
+
+  <div id="settingsOverlay" class="settings-overlay" hidden aria-hidden="true">
+    <section class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <header class="settings-head">
+        <div>
+          <h2 id="settingsTitle">Settings</h2>
+          <p>Hidden during play. Press Esc to open/close.</p>
+        </div>
+        <button id="settingsClose" type="button" aria-label="Close settings">×</button>
+      </header>
+
+      <nav class="settings-tabs" aria-label="Settings tabs">
+        <button type="button" class="is-active" data-settings-tab="controls" aria-selected="true">Controls</button>
+        <button type="button" data-settings-tab="stats" aria-selected="false">Stats</button>
+        <button type="button" data-settings-tab="voice" aria-selected="false">Voice</button>
+        <button type="button" data-settings-tab="ai" aria-selected="false">Local AI</button>
+        <button type="button" data-settings-tab="log" aria-selected="false">log (chat)</button>
+        <button type="button" data-settings-tab="programs" aria-selected="false">DSL</button>
+        <button type="button" data-settings-tab="dsl-wiki" aria-selected="false">DSL Wiki</button>
+      </nav>
+
+      <section class="settings-section settings-tab-panel is-active" data-settings-panel="controls">
+        <h3>Game Controls</h3>
+        <div class="hintbar">
+          <span><b>Camera:</b> WASD / Arrow keys pan</span>
+          <span><b>Move:</b> Right-click map</span>
+          <span><b>Action:</b> E picks loose logs, deposits carried logs, or operates benches</span>
+          <span><b>Drop:</b> Q drops the item in hand</span>
+          <span><b>Chat:</b> Enter opens · L toggles</span>
+          <span><b>Build:</b> B drawer</span>
+          <span><b>Settings:</b> Esc</span>
+        </div>
+        <section class="control-strip" aria-label="Performance controls">
+          <label>Target FPS <input id="targetFps" type="range" min="10" max="60" step="5" value="30" /> <b id="targetFpsValue">30</b></label>
+          <label>Max bots <input id="maxBots" type="range" min="4" max="80" step="1" value="24" /> <b id="maxBotsValue">24</b></label>
+          <span class="renderer-pill" id="rendererStatus">Renderer: probing…</span>
+        </section>
+      </section>
+
+      <section class="settings-section settings-tab-panel" data-settings-panel="stats">
+        <h3>Stats</h3>
+        <div class="statline settings-statline" id="statline">Loading…</div>
+        <h3>World Stores</h3>
+        <dl class="stores">
+          <div><dt>Sawbench logs</dt><dd id="sawLogs">0</dd></div>
+          <div><dt>Sawbench planks</dt><dd id="sawPlanks">0</dd></div>
+          <div><dt>Sawbench poles</dt><dd id="sawPoles">0</dd></div>
+          <div><dt>Factory planks</dt><dd id="factoryPlanks">0</dd></div>
+          <div><dt>Factory recipe</dt><dd id="factoryRecipe">L0 P0 Po0 S0</dd></div>
+          <div><dt>Loose logs</dt><dd id="looseLogs">0</dd></div>
+          <div><dt>Loose planks</dt><dd id="loosePlanks">0</dd></div>
+          <div><dt>Loose base/resources</dt><dd id="looseBase">sticks 0 · stones 0 · seeds 0 · poles 0 · axes 0 · pickaxes 0</dd></div>
+          <div><dt>Palette items</dt><dd id="paletteItems">0</dd></div>
+        </dl>
+      </section>
+
+      <section class="settings-section settings-tab-panel" data-settings-panel="voice">
+        <h3>Voice Input</h3>
+        <label class="stacked">Speech recognition mode
+          <select id="asrMode">
+            <option value="zipformer_whisper" selected>Sherpa Zipformer live + Whisper finalizer</option>
+            <option value="whisper_direct">Sherpa Whisper direct (no Zipformer, final-only)</option>
+            <option value="faster_whisper">faster-whisper server STT (browser recording upload)</option>
+          </select>
+        </label>
+        <p id="asrModeHelp" class="small status-text">Default: live Zipformer partial text while speaking, then Whisper-tiny final text when you stop.</p>
+        <p class="small">Use <b>Whisper direct</b> to bypass Zipformer completely. Use <b>faster-whisper</b> to record audio in the browser, upload it to the server, and insert the returned final transcript.</p>
+      </section>
+
+      <section class="settings-section settings-tab-panel ollama-panel" data-settings-panel="ai">
+        <h3>Local Ollama / Benchmark</h3>
+        <label class="stacked">Mode
+          <select id="llmMode">
+            <option value="mock">Mock parser (offline)</option>
+            <option value="ollama">Local Ollama JSON tool calls</option>
+          </select>
+        </label>
+        <label class="checkline">
+          <input id="templateRouting" type="checkbox" />
+          Enable legacy workflow-template routing in chat
+        </label>
+        <p class="small">Off by default so Local AI requests can be tested without keyword template auto-selection. Turn on to restore the mock parser and Ollama fallback templates.</p>
+        <label class="stacked">Endpoint
+          <input id="ollamaEndpoint" type="url" value="/ollama-proxy" />
+        </label>
+        <div class="endpoint-actions" aria-label="Ollama endpoint presets">
+          <button id="serverOllamaBtn" type="button">Use server proxy</button>
+          <button id="localOllamaBtn" type="button">Use my local Ollama</button>
+        </div>
+        <p class="small local-ollama-help">Local mode calls Ollama from <b>your browser</b>. Use <code>http://127.0.0.1:11434</code> and allow this site in Ollama CORS.</p>
+        <details id="localOllamaWindowsHelp" class="small local-ollama-help local-ollama-windows-help" hidden>
+          <summary>Windows Ollama setup</summary>
+          <p><b>PowerShell:</b></p>
+          <pre>$env:OLLAMA_HOST="127.0.0.1:11434"
+$env:OLLAMA_ORIGINS="https://docs.pau1.cloud"
+ollama serve</pre>
+          <p><b>CMD:</b></p>
+          <pre>set OLLAMA_HOST=127.0.0.1:11434
+set OLLAMA_ORIGINS=https://docs.pau1.cloud
+ollama serve</pre>
+          <p><b>Wichtig auf Windows:</b> Falls Ollama schon als App/Tray-Service läuft, kommt oft:</p>
+          <pre>bind: address already in use</pre>
+          <p>Dann:</p>
+          <ol>
+            <li>Ollama im Tray beenden / Quit Ollama</li>
+            <li>Terminal neu öffnen</li>
+            <li>PowerShell-Befehle ausführen</li>
+            <li><code>ollama serve</code></li>
+          </ol>
+          <p><b>Dauerhaft setzen PowerShell:</b></p>
+          <pre>setx OLLAMA_HOST "127.0.0.1:11434"
+setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
+          <p>Danach Ollama komplett neu starten.</p>
+          <p>Dann im Spiel: Esc → Local AI → Use my local Ollama.</p>
+        </details>
+        <div class="model-row">
+          <label class="stacked grow">Model
+            <select id="ollamaModel">
+              <option value="gemma4:12b" selected>gemma4:12b</option>
+              <option value="gemma4-26b-a4b-local:latest">gemma4-26b-a4b-local:latest</option>
+              <option value="bonsai8b-q1:latest">bonsai8b-q1:latest fallback</option>
+              <option value="llama3:latest">llama3:latest fallback</option>
+            </select>
+          </label>
+          <button id="refreshModels" type="button">Refresh</button>
+        </div>
+        <button id="benchmarkBtn" type="button">Run JSON tool-call benchmark</button>
+        <p id="ollamaStatus" class="small status-text">Default model: gemma4:12b. Click Refresh to load your exact local Ollama model names.</p>
+      </section>
+
+      <section class="settings-section settings-tab-panel" data-settings-panel="log">
+        <h3>Chat AI log</h3>
+        <p class="small">Latest first. Mirrors the browser console: request sent to the parser/AI and returned result.</p>
+        <pre id="aiLog" class="program-view ai-log">No chat requests yet.</pre>
+      </section>
+
+      <section class="settings-section settings-tab-panel" data-settings-panel="programs">
+        <h3>DSL Templates</h3>
+        <p class="small">Inspectable loop programs assigned to bots.</p>
+        <select id="programSelect" class="full-width"></select>
+        <pre id="programView" class="program-view"></pre>
+      </section>
+
+      <section class="settings-section settings-tab-panel" data-settings-panel="dsl-wiki">
+        <h3>DSL Action Wiki</h3>
+        <p class="small">Same action context injected into Local AI prompts, so JSON answers know which loop-step ops exist.</p>
+        <pre id="dslWikiView" class="program-view dsl-wiki-view"></pre>
+      </section>
+    </section>
+  </div>
+
+  <div id="botMenu" class="entity-menu" hidden></div>
+  <div id="structureMenu" class="entity-menu" hidden></div>
+
+  <script src="game.js?v=t_7384ba5d"></script>
+</body>
+</html>

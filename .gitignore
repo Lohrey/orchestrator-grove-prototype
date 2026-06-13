@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Logs / runtime
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Generated smoke / verification artifacts
+*.png
+*.webm
+*.mp4
+.kanban-*.html
+
+# Local editor files
+.vscode/
+.idea/

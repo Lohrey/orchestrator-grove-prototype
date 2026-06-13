@@ -1,0 +1,28 @@
+// Frontend rendering boundary.
+// Canvas code consumes this plain snapshot instead of the mutable Game instance,
+// so future frontends can render the same domain state without inheriting Game internals.
+export function createRenderState(game) {
+  return {
+    W: game.W,
+    H: game.H,
+    map: { ...game.map },
+    camera: { ...game.camera },
+    zones: game.zones,
+    rocks: game.rocks,
+    holes: game.holes,
+    trees: game.trees,
+    hempPlants: game.hempPlants,
+    items: game.items,
+    structures: game.structures,
+    monsters: game.monsters,
+    projectiles: game.projectiles,
+    bots: game.bots,
+    player: game.player,
+    assistant: game.assistant,
+    placementType: game.placementType,
+    zoneDraft: game.zoneDraft,
+    mouse: { ...game.mouse },
+    multiplayer: game.multiplayer,
+    floaters: game.floaters
+  };
+}

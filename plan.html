@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Orchestrator Grove v7 — Resources, Tools, Bot Assembly</title>
+  <style>
+    :root{color-scheme:dark;--bg:#090d0c;--panel:#111816;--panel2:#0d1211;--text:#edf4ef;--muted:#a8b5ae;--line:#26322e;--green:#7bbf86;--gold:#d1a85d;--blue:#86b3cf;--red:#c86b5f}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(circle at 10% 8%,rgba(123,191,134,.16),transparent 28%),linear-gradient(180deg,#090d0c,#050706);color:var(--text);line-height:1.6}
+    main{max-width:1080px;margin:auto;padding:48px 20px 80px} h1{font-size:clamp(2.2rem,5vw,4.8rem);line-height:.95;letter-spacing:-.06em;margin:0 0 14px} h2{margin-top:38px;font-size:1.55rem} p,li{color:var(--muted)} a{color:var(--blue)} .kicker{color:var(--green);font-weight:800;text-transform:uppercase;letter-spacing:.14em}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin:24px 0}.card{border:1px solid var(--line);background:linear-gradient(180deg,var(--panel),var(--panel2));border-radius:18px;padding:18px}.tag{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:4px 9px;margin:3px;color:var(--gold);background:#151812} code,pre{font-family:"JetBrains Mono",Consolas,monospace} pre{white-space:pre-wrap;background:#070a09;border:1px solid var(--line);border-radius:16px;padding:16px;color:#dce7e1}.links{display:flex;gap:10px;flex-wrap:wrap}.btn{border:1px solid var(--line);background:#121a17;border-radius:12px;padding:10px 12px;color:var(--text);text-decoration:none}.ok{color:var(--green);font-weight:800}.warn{color:var(--gold);font-weight:800}.bad{color:var(--red);font-weight:800}
+  </style>
+</head>
+<body><main>
+  <div class="kicker">Prototype v7</div>
+  <h1>Orchestrator Grove</h1>
+  <p>Autonauts-inspired browser automation game: bots run looped programs, but the player only talks to an assistant/orchestrator. v7 adds stable refs plus testable base resources, crude tool crafting, plank/pole processing, and Basic Bot assembly requirements.</p>
+  <div class="links">
+    <a class="btn" href="./index.html">Open game</a>
+    <a class="btn" href="./README.md">README</a>
+    <a class="btn" href="./parent-verification-v2.png">Verification screenshot</a>
+  </div>
+
+  <h2>What changed from v1</h2>
+  <div class="grid">
+    <section class="card"><b>DSL bot programs</b><p>Templates are data objects with allowlisted ops and a program-counter interpreter. The UI shows the JSON-like program templates.</p></section>
+    <section class="card"><b>Local LLM benchmark</b><p>Ollama endpoint/model selector, server/local preset buttons, mock vs local mode, JSON tool-call benchmark, latency/eval-count display, fallback validation.</p></section>
+    <section class="card"><b>Performance controls</b><p>Idle bots park at depot instead of following; max bot cap defaults to 24; FPS cap defaults to 30; bot-list rendering is throttled/capped.</p></section>
+    <section class="card"><b>WebGPU path</b><p>Progressive WebGPU probe runs when available and reports renderer state; Canvas 2D remains the compatible fallback.</p></section>
+    <section class="card"><b>Live voice input</b><p>Mic button streams 16 kHz Float32 PCM to a Sherpa-ONNX online Zipformer WebSocket API and inserts partial/final text at the current cursor.</p></section>
+    <section class="card"><b>Clickable world</b><p>Bots hover/click with DSL menus. Structures right-click into small menus and can append names like sawbench 2 to the chat cursor.</p></section>
+    <section class="card"><b>Building UI</b><p>Build is now a left-edge drawer with a B shortcut and category tabs; Storage starts with an Item Palette that type-locks on first inserted item.</p></section>
+    <section class="card"><b>Modular source</b><p>The old large game.js is now a boot file; implementation lives in src/data, src/chat, src/assistant, src/world, and src/utils.</p></section>
+    <section class="card"><b>v5 UI</b><p>Fullscreen canvas with 1:1 backing-store resize (no stretch), formatted chat bubbles, Enter opens chat, Stats tab in settings, right-edge Bots drawer, left-edge Build drawer, and assignment toast.</p></section>
+    <section class="card"><b>Gemma4 backend</b><p>Ollama now uses Paul-compatible local model names such as gemma4:12b as the frontend default; Refresh loads the exact names from the browser machine.</p></section>
+    <section class="card"><b>World Object Registry</b><p>Bots, structures, loose items, and zones expose stable refs like structure:3, item:7, and zone:1 for the LLM/tool-call schema.</p></section>
+    <section class="card"><b>Parameterized templates</b><p>Programs now have slots for targetSawbench, sourceSawbench, targetFactory, and zone; the bot menu shows resolved steps.</p></section>
+    <section class="card"><b>Drawn/radius zones</b><p>Players can draw rectangle zones on the canvas or say “small area around sawbench 2” to scope searches.</p></section>
+    <section class="card"><b>v7 resource chain</b><p>Loose sticks, stones, tree seeds, crude axes, poles, tool benches, and Basic Bot recipe inputs now move through the same bot-program mechanics.</p></section>
+  </div>
+
+  <h2>Current DSL shape</h2>
+  <pre>{
+  "id": "haul_logs",
+  "name": "Haul Logs",
+  "slots": {
+    "targetSawbench": { "kind": "structure", "type": "sawbench" },
+    "zone": { "kind": "zone", "optional": true }
+  },
+  "steps": [
+    { "op": "if_inventory", "type": "log", "goto": 3 },
+    { "op": "find_item", "type": "log", "zone": "$zone" },
+    { "op": "pick_up", "type": "log" },
+    { "op": "deliver_to_sawbench", "type": "log", "target": "$targetSawbench" },
+    { "op": "loop" }
+  ]
+}</pre>
+  <p>Allowed ops include <span class="tag">find_nearest_tree</span><span class="tag">find_item</span><span class="tag">move_to_target</span><span class="tag">chop_tree</span><span class="tag">pick_up</span><span class="tag">deliver_to_sawbench</span><span class="tag">process_sawbench</span><span class="tag">process_poles</span><span class="tag">deliver_to_workbench</span><span class="tag">craft_workbench</span><span class="tag">deliver_to_factory</span><span class="tag">assemble_bot</span><span class="tag">idle_parking</span><span class="tag">loop</span>.</p>
+
+  <h2>Current resource test loop</h2>
+  <ol>
+    <li>Craft crude axes at the tool bench from loose <code>stick</code> + <code>stone</code>.</li>
+    <li>Use loose crude axes to chop trees into logs; bot axes last 100 hits and felled trees drop sticks and tree seeds.</li>
+    <li>Haul logs to a sawbench, process logs into planks, then planks into poles.</li>
+    <li>Run <code>build_bots</code> so the factory receives <code>1 log + 3 planks + 1 pole + 1 tree_seed</code> and creates a new idle bot.</li>
+  </ol>
+
+  <h2>Voice ASR server status</h2>
+  <ul>
+    <li><span class="ok">Running:</span> <code>sherpa-onnx</code> online Zipformer API at <code>/asr/ws</code>, with Whisper second-pass finalization.</li>
+    <li><span class="ok">Models:</span> <code>sherpa-onnx-streaming-zipformer-en-20M-2023-02-17</code> + <code>sherpa-onnx-whisper-tiny.en</code>.</li>
+    <li><span class="ok">Protocol:</span> browser sends 16 kHz mono <code>Float32Array</code> PCM chunks; server streams <code>partial</code>/<code>final</code> JSON events.</li>
+    <li><span class="ok">UI:</span> transcript is inserted at the current chat cursor; variable chips can be inserted between spoken segments.</li>
+  </ul>
+
+  <h2>OpenAI relay status</h2>
+  <ul>
+    <li><span class="warn">Skipped:</span> ChatGPT/OpenAI relay because <code>agent-api-hub</code> has no OpenAI API key configured; subscription access alone cannot be used by this server.</li>
+  </ul>
+
+  <h2>Ollama server status</h2>
+  <ul>
+    <li><span class="ok">Running:</span> Docker container <code>ollama-local</code> on <code>127.0.0.1:11434</code>.</li>
+    <li><span class="ok">Models installed:</span> local names are loaded from <code>ollama list</code>; expected default is <code>gemma4:12b</code>.</li>
+    <li><span class="ok">Default:</span> <code>gemma4:12b</code>.</li>
+    <li><span class="ok">Removed:</span> old <code>gemma3:1b</code>, <code>gemma3:4b</code>, <code>gemma3:12b</code>.</li>
+  </ul>
+
+  <h2>Remote / local browser Ollama</h2>
+  <p>The public build defaults to <code>/ollama-proxy</code>. To use your own GPU, Settings → Local AI → <b>Use my local Ollama</b> sets <code>http://127.0.0.1:11434</code>, which points at the browser machine. Start/restart Ollama with CORS for this site:</p>
+  <pre>ollama pull gemma4:12b
+OLLAMA_HOST=127.0.0.1:11434 OLLAMA_ORIGINS=https://docs.pau1.cloud ollama serve</pre>
+
+  <h2>Verified outputs</h2>
+  <ul>
+    <li><span class="ok">Local:</span> JS syntax OK, Playwright 0 errors/warnings, Enter-to-chat verified, canvas CSS/backing scale 1:1, local/server Ollama preset buttons verified.</li>
+    <li><span class="ok">Gameplay:</span> Drawn zone created, Bot 1 scoped to zone 1, sawbench 2 targeted, Build drawer placed Item Palette, palette locked to logs after first insert, assignment toast displayed while chat closed.</li>
+    <li><span class="ok">v7 resource loop:</span> Local Playwright smoke crafted a crude axe, chopped with tool durability, processed logs → planks → poles, supplied the Basic Bot recipe, and increased bot count from 4 to 5.</li>
+    <li><span class="ok">Renderer:</span> WebGPU entity probe active in headless-with-flags test; Canvas fallback remains available.</li>
+    <li><span class="ok">Public:</span> files are served over HTTPS from docs.pau1.cloud; same-origin <code>/ollama-proxy</code> loads the server model list and benchmark endpoint.</li>
+    <li><span class="ok">Voice:</span> <code>/asr/health</code> returns ready; public WSS test returned streaming partials and final transcription.</li>
+  </ul>
+
+  <h2>Next engineering steps</h2>
+  <ol>
+    <li>Replace the WebGPU probe with real instanced rendering for bots/items/trees if the game grows beyond hundreds of entities.</li>
+    <li>Add authentication/rate limiting to the public Ollama proxy before broader sharing.</li>
+    <li>Add save/load for world + DSL programs via LocalStorage.</li>
+    <li>Add benchmark suite presets: command-to-tool-call accuracy, latency, eval tokens, invalid JSON rate, and gameplay success.</li>
+  </ol>
+</main></body></html>
