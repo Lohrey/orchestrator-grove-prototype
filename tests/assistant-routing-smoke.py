@@ -54,12 +54,12 @@ def loose_near_structure(page, structure_id: int, item_type: str) -> int:
 def produce_planks_at(page, sawbench_id: int) -> None:
     assign(page, f"{{ botId: 1, program: 'haul_logs', targetStructureId: {sawbench_id} }}")
     page.wait_for_function(
-        f"window.getGameState().structures.find(s => s.id === {sawbench_id}).logs >= 1",
+        f"""
+        () => window.getGameState().structures.find(s => s.id === {sawbench_id}).processing?.label === 'sawing log' ||
+              window.getGameState().stores.loosePlanks >= 2
+        """,
         timeout=10000,
     )
-    assign(page, "{ botId: 1, program: 'idle' }")
-
-    assign(page, f"{{ botId: 2, program: 'make_planks', targetStructureId: {sawbench_id} }}")
     page.wait_for_function(
         f"""
         () => window.getGameState().structures.find(s => s.id === {sawbench_id}).planks === 0 &&
@@ -67,7 +67,7 @@ def produce_planks_at(page, sawbench_id: int) -> None:
         """,
         timeout=10000,
     )
-    assign(page, "{ botId: 2, program: 'idle' }")
+    assign(page, "{ botId: 1, program: 'idle' }")
     assert loose_near_structure(page, sawbench_id, "plank") >= 2, page.evaluate("window.getGameState()")
 
 

@@ -39,6 +39,40 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             def fake_ollama(route, request):
                 body = request.post_data_json
                 captured.append(body)
+                user_prompt = body["messages"][1]["content"]
+                if "invalid-json-debug" in user_prompt:
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=json.dumps({"message": {"content": "I cannot comply yet: use bot 1, then maybe { not valid JSON"}}),
+                    )
+                    return
+                if "locked-dsl-debug" in user_prompt:
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=json.dumps(
+                            {
+                                "message": {
+                                    "content": json.dumps(
+                                        {
+                                            "dsl_assignments": [
+                                                {
+                                                    "botId": 2,
+                                                    "program": {
+                                                        "id": "bad_locked_loop",
+                                                        "name": "Bad locked loop",
+                                                        "steps": [{"op": "chop_tree"}, {"op": "loop"}],
+                                                    },
+                                                }
+                                            ]
+                                        }
+                                    )
+                                }
+                            }
+                        ),
+                    )
+                    return
                 route.fulfill(
                     status=200,
                     content_type="application/json",
@@ -70,6 +104,10 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             assert "Bot DSL Action Wiki" in wiki_text
             assert "find_nearest_tree" in wiki_text
             assert "if_inventory" in wiki_text
+            assert "use_held_item" in wiki_text
+            assert "deposit_to_player" in wiki_text
+            assert "take_from_player" in wiki_text
+            assert "targetKind" in wiki_text
             assert "loop()" in wiki_text
             assert "crude_shovel" in wiki_text
 
@@ -89,10 +127,52 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
 
             assert captured, "Ollama request was not captured"
             system_prompt = captured[0]["messages"][0]["content"]
-            assert "DSL Action Wiki" in system_prompt
-            assert "find_nearest_tree" in system_prompt
-            assert "deliver_to_factory" in system_prompt
-            assert "JSON loop step sequences" in system_prompt
+            user_prompt = captured[0]["messages"][1]["content"]
+            assert "strict JSON compiler" in system_prompt
+            assert "Preferred shape" in system_prompt
+            assert "never output markdown or JavaScript" in system_prompt
+            assert '"equippedPacks"' in user_prompt
+            assert '"id":"starter_automation"' in user_prompt
+            assert "deposit_to_structure" in user_prompt
+
+            page.evaluate("window.setAssistantLoadout(['starter_automation'])")
+            page.fill("#chatInput", "locked-dsl-debug please")
+            page.click("#askButton")
+            page.wait_for_function("() => document.getElementById('ollamaStatus').textContent.includes('locked op chop_tree')")
+            bot2 = page.evaluate("window.getGameState().bots.find(b => b.id === 2)")
+            assert bot2["program"] != "taught_loop", bot2
+            starter_user_prompt = captured[-1]["messages"][1]["content"]
+            assert '"id":"starter_automation"' in starter_user_prompt, starter_user_prompt
+            assert '"id":"woodworking"' not in starter_user_prompt, starter_user_prompt
+            assert '"unlockedOps":["pick_up","drop_item","move_to_structure","use_held_item","deposit_to_player","take_from_player","loop","wait"]' in starter_user_prompt, starter_user_prompt
+            assert "deposit_to_structure(type" not in starter_user_prompt, starter_user_prompt
+            assert "chop_tree(zone" not in starter_user_prompt, starter_user_prompt
+            assert "use_held_item(targetKind" in starter_user_prompt, starter_user_prompt
+            assert '"op":"deposit_to_structure"' not in starter_user_prompt, starter_user_prompt
+            locked_tool_error = page.evaluate(
+                """
+                () => {
+                  try {
+                    window.validateAssistantToolCalls([{ name: 'assignBotProgram', arguments: { botId: 2, program: 'chop_wood' } }]);
+                    return null;
+                  } catch (err) {
+                    return err.message;
+                  }
+                }
+                """
+            )
+            assert "locked" in locked_tool_error, locked_tool_error
+
+            page.fill("#chatInput", "invalid-json-debug please")
+            page.click("#askButton")
+            page.wait_for_function("() => document.getElementById('aiLog').textContent.includes('model returned invalid JSON') && document.getElementById('chatLog').textContent.includes('Raw model response')")
+            ai_log = page.locator("#aiLog").inner_text()
+            assert "Final prompt:" in ai_log, ai_log
+            assert "Parsed JSON / error:" in ai_log, ai_log
+            assert "model returned invalid JSON" in ai_log, ai_log
+            chat_html = page.locator("#chatLog").inner_html()
+            assert "raw-llm-response" in chat_html, chat_html
+            assert "I cannot comply yet" in chat_html, chat_html
 
             browser.close()
     finally:

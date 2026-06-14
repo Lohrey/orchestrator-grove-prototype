@@ -8,6 +8,7 @@ export function createRenderState(game) {
     map: { ...game.map },
     camera: { ...game.camera },
     zones: game.zones,
+    mapFeatures: game.mapFeatures || [],
     rocks: game.rocks,
     holes: game.holes,
     trees: game.trees,

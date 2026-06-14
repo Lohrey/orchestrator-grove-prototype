@@ -1,40 +1,13 @@
-import { BUILDING_TYPES } from './data.js?v=t_fc028066';
+import { BUILDING_TYPES } from './data.js?v=t_c4955ba2_player_storage';
 import { clamp } from './utils.js?v=20260613-player-tools';
-
-const ITEM_COLORS = {
-  log: '#9a6034',
-  plank: '#d8aa63',
-  pole: '#c9b77d',
-  stick: '#a86f3c',
-  stone: '#a9b0aa',
-  tree_seed: '#a7d095',
-  crude_axe: '#86b6d6',
-  crude_pickaxe: '#d0bf86',
-  crude_shovel: '#bd8b58',
-  wooden_sword: '#c7b683',
-  wooden_shield: '#a88755',
-  hemp: '#8fbf76',
-  hemp_seed: '#b8d58a',
-  bow: '#cda66d'
-};
-
-const ITEM_LABELS = {
-  log: 'log',
-  plank: 'plank',
-  pole: 'pole',
-  stick: 'stick',
-  stone: 'stone',
-  tree_seed: 'tree seed',
-  crude_axe: 'crude axe',
-  crude_pickaxe: 'crude pickaxe',
-  crude_shovel: 'crude shovel',
-  wooden_sword: 'wooden sword',
-  wooden_shield: 'wooden shield',
-  hemp: 'hemp',
-  hemp_seed: 'hemp seed',
-  bow: 'bow'
-};
-const itemLabel = type => ITEM_LABELS[type] || type;
+import {
+  drawBuildingAsset,
+  drawBuildingPreviewAsset,
+  drawHeldToolAsset,
+  drawItemAsset,
+  drawMiniItemAsset,
+  itemLabel
+} from './visual-assets.js?v=t_ba2f046e';
 
 export function drawWorld(renderState, ctx) {
   const game = renderState;
@@ -47,6 +20,7 @@ export function drawWorld(renderState, ctx) {
   c.scale(game.camera.zoom || 1, game.camera.zoom || 1);
   c.translate(-game.camera.x, -game.camera.y);
   drawMapBase(game, c);
+  drawMapFeatures(game, c);
   drawGrid(game, c);
   drawZones(game, c);
   for (const hole of game.holes || []) drawHole(c, hole);
@@ -85,37 +59,207 @@ function drawViewportBackdrop(game, c) {
 }
 
 function drawMapBase(game, c) {
-  const g = c.createLinearGradient(0, 0, game.map.width, game.map.height);
-  g.addColorStop(0, '#1b2a1f');
-  g.addColorStop(0.48, '#19251c');
-  g.addColorStop(1, '#101912');
-  c.fillStyle = g;
-  c.fillRect(0, 0, game.map.width, game.map.height);
+  const width = game.map.width;
+  const height = game.map.height;
+  const base = c.createLinearGradient(0, 0, width, height);
+  base.addColorStop(0, '#325936');
+  base.addColorStop(0.28, '#25482d');
+  base.addColorStop(0.62, '#1e3826');
+  base.addColorStop(1, '#14251b');
+  c.fillStyle = base;
+  c.fillRect(0, 0, width, height);
+
+  const sunlight = c.createRadialGradient(width * .18, height * .15, 0, width * .18, height * .15, width * .64);
+  sunlight.addColorStop(0, 'rgba(177, 211, 104, .28)');
+  sunlight.addColorStop(.48, 'rgba(106, 156, 74, .09)');
+  sunlight.addColorStop(1, 'rgba(106, 156, 74, 0)');
+  c.fillStyle = sunlight;
+  c.fillRect(0, 0, width, height);
 
   c.save();
-  c.globalAlpha = .22;
-  c.fillStyle = '#233321';
-  for (let y = 28; y < game.map.height; y += 136) {
-    for (let x = 22 + ((y / 136) % 2) * 42; x < game.map.width; x += 168) {
-      c.beginPath();
-      c.ellipse(x, y, 54, 15, -0.32, 0, Math.PI * 2);
-      c.fill();
+  drawPainterlyGroundPatches(c, width, height);
+  drawLushStream(c, width, height);
+  drawGoldenTrail(c, width, height);
+  drawTerrainSprites(c, width, height);
+  c.restore();
+
+  const vignette = c.createRadialGradient(width * .48, height * .42, width * .08, width * .48, height * .42, width * .72);
+  vignette.addColorStop(0, 'rgba(255,255,255,0)');
+  vignette.addColorStop(.58, 'rgba(13, 28, 18, 0)');
+  vignette.addColorStop(1, 'rgba(8, 15, 11, .38)');
+  c.fillStyle = vignette;
+  c.fillRect(0, 0, width, height);
+}
+
+
+function drawMapFeatures(game, c) {
+  for (const feature of game.mapFeatures || []) {
+    if (feature.type === 'lake') drawLakeFeature(c, feature);
+    if (feature.type === 'camper_van') drawCamperVanFeature(c, feature);
+  }
+}
+
+function drawLakeFeature(c, feature) {
+  c.save();
+  const rx = feature.rx || 210;
+  const ry = feature.ry || 120;
+  drawShadow(c, feature.x, feature.y + ry * .2, rx * .86, ry * .22, .22);
+  const water = c.createRadialGradient(feature.x - rx * .22, feature.y - ry * .25, 12, feature.x, feature.y, rx);
+  water.addColorStop(0, 'rgba(105, 177, 180, .82)');
+  water.addColorStop(.5, 'rgba(37, 111, 125, .76)');
+  water.addColorStop(1, 'rgba(18, 58, 68, .9)');
+  c.fillStyle = water;
+  c.strokeStyle = 'rgba(176, 220, 205, .5)';
+  c.lineWidth = 4;
+  c.beginPath();
+  c.ellipse(feature.x, feature.y, rx, ry, feature.ownerId === 'p2' ? -0.18 : 0.18, 0, Math.PI * 2);
+  c.fill(); c.stroke();
+  c.strokeStyle = 'rgba(235, 246, 225, .26)';
+  c.lineWidth = 2;
+  for (let i = -1; i <= 1; i++) {
+    c.beginPath();
+    c.ellipse(feature.x + i * rx * .18, feature.y + i * 7, rx * (.52 - Math.abs(i) * .08), ry * .22, feature.ownerId === 'p2' ? -0.18 : 0.18, 0.12, Math.PI - 0.12);
+    c.stroke();
+  }
+  drawNameTag(c, feature.label || 'lake', feature.x, feature.y - ry - 18);
+  c.restore();
+}
+
+function drawCamperVanFeature(c, feature) {
+  c.save();
+  c.translate(feature.x, feature.y);
+  c.rotate(feature.rotation || 0);
+  drawShadow(c, 0, 26, (feature.w || 118) * .55, 14, .28);
+  const w = feature.w || 118;
+  const h = feature.h || 58;
+  c.fillStyle = '#d7d0b4';
+  c.strokeStyle = '#17221c';
+  c.lineWidth = 3;
+  roundedRect(c, -w / 2, -h / 2, w, h, 16);
+  c.fill(); c.stroke();
+  c.fillStyle = '#345862';
+  roundedRect(c, -w * .28, -h * .22, w * .28, h * .34, 7); c.fill();
+  roundedRect(c, w * .05, -h * .22, w * .26, h * .34, 7); c.fill();
+  c.fillStyle = '#7d512f';
+  roundedRect(c, -w * .47, -h * .04, w * .16, h * .34, 5); c.fill();
+  c.fillStyle = '#101612';
+  c.beginPath(); c.arc(-w * .28, h * .42, 10, 0, Math.PI * 2); c.arc(w * .32, h * .42, 10, 0, Math.PI * 2); c.fill();
+  c.strokeStyle = '#f0e7c6'; c.lineWidth = 2;
+  c.beginPath(); c.moveTo(-w * .45, -h * .36); c.lineTo(w * .42, -h * .36); c.stroke();
+  c.restore();
+  drawNameTag(c, feature.label || 'camper van', feature.x, feature.y - (feature.h || 58) - 18);
+}
+
+function drawPainterlyGroundPatches(c, width, height) {
+  const patches = [
+    ['#4f7d3d', .22, 92, 32, -0.25, 28, 128, 176],
+    ['#78a24b', .16, 64, 18, 0.38, 82, 154, 218],
+    ['#1b3322', .20, 118, 38, -0.12, 140, 214, 284],
+    ['#9aa64f', .11, 46, 13, 0.18, 24, 92, 168]
+  ];
+  for (const [color, alpha, rx, ry, rotation, offsetX, stepY, stepX] of patches) {
+    c.fillStyle = color;
+    c.globalAlpha = alpha;
+    for (let y = offsetX; y < height + 60; y += stepY) {
+      for (let x = (offsetX * 3 + ((y / stepY) % 2) * 67) % stepX; x < width + 80; x += stepX) {
+        const jitter = terrainNoise(x, y) - .5;
+        c.beginPath();
+        c.ellipse(x + jitter * 28, y + jitter * 22, rx * (.72 + terrainNoise(y, x) * .55), ry * (.7 + terrainNoise(x + 99, y) * .5), rotation + jitter * .25, 0, Math.PI * 2);
+        c.fill();
+      }
     }
   }
-  c.globalAlpha = .15;
-  c.strokeStyle = '#8a6a42';
-  c.lineWidth = 28;
+  c.globalAlpha = 1;
+}
+
+function drawLushStream(c, width, height) {
+  c.save();
   c.lineCap = 'round';
+  c.lineJoin = 'round';
+  const stream = c.createLinearGradient(0, 0, width, height);
+  stream.addColorStop(0, 'rgba(86, 151, 130, .34)');
+  stream.addColorStop(.55, 'rgba(58, 116, 104, .24)');
+  stream.addColorStop(1, 'rgba(34, 75, 77, .18)');
+  c.strokeStyle = stream;
+  c.lineWidth = 58;
   c.beginPath();
-  c.moveTo(90, game.map.height - 120);
-  c.bezierCurveTo(330, 510, 610, 720, game.map.width - 120, 250);
+  c.moveTo(width * .03, height * .78);
+  c.bezierCurveTo(width * .18, height * .60, width * .28, height * .70, width * .42, height * .50);
+  c.bezierCurveTo(width * .56, height * .30, width * .70, height * .42, width * .96, height * .16);
+  c.stroke();
+  c.strokeStyle = 'rgba(181, 224, 178, .16)';
+  c.lineWidth = 8;
+  c.beginPath();
+  c.moveTo(width * .08, height * .74);
+  c.bezierCurveTo(width * .28, height * .62, width * .33, height * .62, width * .48, height * .46);
+  c.bezierCurveTo(width * .61, height * .33, width * .76, height * .39, width * .91, height * .22);
   c.stroke();
   c.restore();
 }
 
+function drawGoldenTrail(c, width, height) {
+  c.save();
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  c.strokeStyle = 'rgba(151, 112, 55, .22)';
+  c.lineWidth = 34;
+  c.beginPath();
+  c.moveTo(80, height - 130);
+  c.bezierCurveTo(350, 520, 640, 760, width - 120, 250);
+  c.stroke();
+  c.strokeStyle = 'rgba(231, 188, 91, .12)';
+  c.lineWidth = 5;
+  c.beginPath();
+  c.moveTo(120, height - 155);
+  c.bezierCurveTo(420, 585, 670, 700, width - 170, 285);
+  c.stroke();
+  c.restore();
+}
+
+function drawTerrainSprites(c, width, height) {
+  c.save();
+  c.lineCap = 'round';
+  for (let y = 34; y < height; y += 66) {
+    for (let x = 24 + ((y / 66) % 2) * 31; x < width; x += 78) {
+      const n = terrainNoise(x, y);
+      if (n < .28) continue;
+      const bladeCount = n > .82 ? 5 : 3;
+      c.strokeStyle = n > .66 ? 'rgba(152, 196, 92, .34)' : 'rgba(83, 143, 72, .28)';
+      c.lineWidth = n > .72 ? 2 : 1.2;
+      for (let i = 0; i < bladeCount; i++) {
+        const bx = x + (i - 2) * 4 + (terrainNoise(y + i * 17, x) - .5) * 9;
+        const by = y + (terrainNoise(x + i * 23, y) - .5) * 12;
+        const lean = (terrainNoise(bx, by) - .5) * 10;
+        c.beginPath();
+        c.moveTo(bx, by + 8);
+        c.quadraticCurveTo(bx + lean * .35, by, bx + lean, by - 10 - n * 6);
+        c.stroke();
+      }
+      if (n > .91) {
+        c.fillStyle = 'rgba(232, 199, 91, .64)';
+        c.beginPath();
+        c.arc(x + 10, y - 8, 2.3, 0, Math.PI * 2);
+        c.fill();
+      }
+      if (n > .96) {
+        c.fillStyle = 'rgba(220, 234, 160, .44)';
+        c.beginPath();
+        c.ellipse(x - 14, y + 12, 9, 4, -.4, 0, Math.PI * 2);
+        c.fill();
+      }
+    }
+  }
+  c.restore();
+}
+
+function terrainNoise(x, y) {
+  const value = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+  return value - Math.floor(value);
+}
+
 function drawGrid(game, c) {
   c.save();
-  c.strokeStyle = 'rgba(232, 239, 232, .035)';
+  c.strokeStyle = 'rgba(232, 239, 232, .022)';
   c.lineWidth = 1;
   for (let x = 0; x <= game.map.width; x += 48) {
     c.beginPath(); c.moveTo(x, 0); c.lineTo(x, game.map.height); c.stroke();
@@ -123,7 +267,7 @@ function drawGrid(game, c) {
   for (let y = 0; y <= game.map.height; y += 48) {
     c.beginPath(); c.moveTo(0, y); c.lineTo(game.map.width, y); c.stroke();
   }
-  c.strokeStyle = 'rgba(211,169,95,.12)';
+  c.strokeStyle = 'rgba(211,169,95,.18)';
   c.lineWidth = 2;
   c.strokeRect(0, 0, game.map.width, game.map.height);
   c.restore();
@@ -247,7 +391,6 @@ function drawHempPlant(game, c, h, now) {
 function drawStructure(game, c, s, now) {
   const hover = game.mouse.hoverStructure === s;
   const def = BUILDING_TYPES[s.type] || { color: '#6b766f' };
-  const x = s.x - s.w / 2, y = s.y - s.h / 2;
   c.save();
   if (s.rangedAttack && hover) {
     c.save();
@@ -258,55 +401,38 @@ function drawStructure(game, c, s, now) {
     c.restore();
   }
   drawShadow(c, s.x, s.y + s.h * .42, s.w * .56, s.h * .18, .28);
-  const grad = c.createLinearGradient(x, y, x, y + s.h);
-  grad.addColorStop(0, lighten(def.color || '#6b766f', .14));
-  grad.addColorStop(1, darken(def.color || '#6b766f', .18));
-  c.fillStyle = grad;
-  c.strokeStyle = hover ? '#fff4d0' : 'rgba(14, 20, 17, .9)';
-  c.lineWidth = hover ? 3 : 1.5;
-  roundedRect(c, x, y, s.w, s.h, 9);
-  c.fill(); c.stroke();
-  c.fillStyle = 'rgba(255,255,255,.10)';
-  roundedRect(c, x + 5, y + 5, s.w - 10, Math.max(8, s.h * .28), 6);
-  c.fill();
+  drawBuildingAsset(c, s, def, { hover, now });
 
-  if (s.type === 'sawbench') drawSawbenchIcon(c, s.x, s.y);
-  else if (s.type === 'workbench') drawWorkbenchIcon(c, s.x, s.y);
-  else if (s.type === 'factory') drawFactoryIcon(c, s.x, s.y, now);
-  else if (s.type === 'smithery') drawSmitheryIcon(c, s.x, s.y);
-  else if (s.type === 'bowmaker') drawBowmakerIcon(c, s.x, s.y);
-  else if (s.type === 'defensetower') drawDefenseTowerIcon(c, s.x, s.y);
-  else if (s.type === 'throne') drawThroneIcon(c, s.x, s.y);
-  else if (s.type === 'item_palette') drawPaletteIcon(c, s.x, s.y);
-
-  c.font = '700 12px system-ui';
-  c.textAlign = 'center';
-  c.lineWidth = 3;
-  c.strokeStyle = 'rgba(3, 6, 5, .72)';
-  c.fillStyle = '#f5faf6';
-  c.strokeText(s.name, s.x, s.y + 5);
-  c.fillText(s.name, s.x, s.y + 5);
-  c.font = '11px system-ui';
-  c.fillStyle = '#ffe3a7';
-  const line = s.type === 'throne'
-    ? `${s.ownerLabel || 'player'} · ${Math.max(0, Math.ceil(s.hp ?? 0))}/${s.maxHp || 120} HP`
-    : s.type === 'item_palette'
-      ? `${s.storageType || 'empty'} ${s.stored || 0}/${s.capacity || 0}`
-    : s.type === 'workbench'
-      ? `S${s.sticks || 0} R${s.stones || 0} ${(s.workbenchRecipe || 'crude_axe').replace('crude_', '')}`
-      : s.type === 'factory'
-        ? `L${s.logs || 0} P${s.planks || 0} Po${s.poles || 0} Se${s.tree_seeds || 0}`
-        : s.type === 'smithery'
-          ? `S${s.sticks || 0} P${s.planks || 0} ${(s.smitheryRecipe || 'wooden_sword').replace('wooden_', '')}`
-          : s.type === 'bowmaker'
-            ? `S${s.sticks || 0}/2 H${s.hemps || 0}/3 B${s.bows || 0}`
-            : s.type === 'defensetower'
-              ? `R${s.rangedAttack?.range || 260} · ${s.rangedAttack?.damage || 1}/s`
-              : `L${s.logs || 0} P${s.planks || 0} Po${s.poles || 0}`;
-  c.strokeText(line, s.x, s.y + 22);
-  c.fillText(line, s.x, s.y + 22);
-  if (s.type === 'throne') drawBar(c, s.x - 42, s.y + s.h / 2 + 8, 84, 7, Math.max(0, s.hp || 0) / Math.max(1, s.maxHp || 120), s.ownerId === 'p1' ? '#80a9c9' : '#c86b5f');
-  if (s.processing) drawBar(c, s.x - 28, s.y + s.h / 2 + 8, 56, 6, 1 - Math.max(0, s.processing.remaining || 0) / Math.max(0.1, s.processing.total || 1), '#d3a95f');
+  if (hover) {
+    c.font = '700 12px system-ui';
+    c.textAlign = 'center';
+    c.lineWidth = 3;
+    c.strokeStyle = 'rgba(3, 6, 5, .72)';
+    c.fillStyle = '#f5faf6';
+    c.strokeText(s.name, s.x, s.y + 5);
+    c.fillText(s.name, s.x, s.y + 5);
+    c.font = '11px system-ui';
+    c.fillStyle = '#ffe3a7';
+    const line = s.type === 'throne'
+      ? `${s.ownerLabel || 'player'} · ${Math.max(0, Math.ceil(s.hp ?? 0))}/${s.maxHp || 120} HP`
+      : s.type === 'item_palette'
+        ? `${s.storageType || 'empty'} ${s.stored || 0}/${s.capacity || 0}`
+      : s.type === 'workbench'
+        ? `S${s.sticks || 0} R${s.stones || 0} ${(s.workbenchRecipe || 'crude_axe').replace('crude_', '')}`
+        : s.type === 'factory'
+          ? `L${s.logs || 0} P${s.planks || 0} Po${s.poles || 0} Se${s.tree_seeds || 0}`
+          : s.type === 'smithery'
+            ? `S${s.sticks || 0} P${s.planks || 0} ${(s.smitheryRecipe || 'wooden_sword').replace('wooden_', '')}`
+            : s.type === 'bowmaker'
+              ? `S${s.sticks || 0}/2 H${s.hemps || 0}/3 B${s.bows || 0}`
+              : s.type === 'defensetower'
+                ? `R${s.rangedAttack?.range || 260} · ${s.rangedAttack?.damage || 1}/s`
+                : `L${s.logs || 0} P${s.planks || 0} Po${s.poles || 0}`;
+    c.strokeText(line, s.x, s.y + 22);
+    c.fillText(line, s.x, s.y + 22);
+    if (s.type === 'throne') drawBar(c, s.x - 42, s.y + s.h / 2 + 8, 84, 7, Math.max(0, s.hp || 0) / Math.max(1, s.maxHp || 120), s.ownerId === 'p1' ? '#80a9c9' : '#c86b5f');
+    if (s.processing) drawBar(c, s.x - 28, s.y + s.h / 2 + 8, 56, 6, 1 - Math.max(0, s.processing.remaining || 0) / Math.max(0.1, s.processing.total || 1), '#d3a95f');
+  }
   c.restore();
 }
 
@@ -324,22 +450,6 @@ function drawProjectile(c, p) {
   c.restore();
 }
 
-function drawDefenseTowerIcon(c, x, y) {
-  c.save();
-  c.fillStyle = '#2c332f';
-  c.strokeStyle = '#e6d6a8';
-  c.lineWidth = 2;
-  roundedRect(c, x - 16, y - 28, 32, 44, 5); c.fill(); c.stroke();
-  c.fillStyle = '#6f7661';
-  c.fillRect(x - 20, y + 12, 40, 11);
-  c.strokeRect(x - 20, y + 12, 40, 11);
-  c.strokeStyle = '#f1dfb8';
-  c.beginPath(); c.moveTo(x - 22, y - 8); c.lineTo(x + 22, y - 8); c.stroke();
-  c.fillStyle = '#d3a95f';
-  c.beginPath(); c.moveTo(x + 26, y - 8); c.lineTo(x + 15, y - 13); c.lineTo(x + 15, y - 3); c.closePath(); c.fill();
-  c.restore();
-}
-
 function drawItem(game, c, i, now) {
   const hover = game.mouse.hoverItem === i;
   const bob = Math.sin(now / 400 + i.bob) * 2;
@@ -352,17 +462,7 @@ function drawItem(game, c, i, now) {
     c.strokeStyle = '#fff4d0'; c.lineWidth = 2;
     c.beginPath(); c.arc(0, 0, 17, 0, Math.PI * 2); c.stroke();
   }
-  c.fillStyle = ITEM_COLORS[i.type] || '#d3a95f';
-  c.strokeStyle = 'rgba(6,10,8,.72)';
-  c.lineWidth = 1.5;
-  if (i.type === 'stone') { c.beginPath(); c.arc(0, 0, 7, 0, Math.PI * 2); c.fill(); c.stroke(); }
-  else if (i.type === 'tree_seed' || i.type === 'hemp_seed') { c.beginPath(); c.ellipse(0, 0, 5, 7, -.5, 0, Math.PI * 2); c.fill(); c.stroke(); }
-  else if (i.type === 'hemp') { c.beginPath(); c.ellipse(0, 1, 9, 6, .15, 0, Math.PI * 2); c.fill(); c.stroke(); c.strokeStyle = '#d8f0c8'; c.beginPath(); c.moveTo(-6,-4); c.lineTo(4,5); c.moveTo(0,-5); c.lineTo(7,4); c.stroke(); }
-  else if (i.type === 'bow') { c.strokeStyle = '#3b2617'; c.lineWidth = 2; c.beginPath(); c.arc(-2, 0, 10, -1.2, 1.2); c.stroke(); c.strokeStyle = '#f1dfb8'; c.beginPath(); c.moveTo(2, -9); c.lineTo(2, 9); c.stroke(); }
-  else if (i.type === 'crude_axe') { c.fillRect(-9, -2, 18, 4); c.strokeRect(-9, -2, 18, 4); c.fillRect(3, -9, 7, 11); c.strokeRect(3, -9, 7, 11); }
-  else if (i.type === 'crude_pickaxe') { c.fillRect(-10, -2, 20, 4); c.strokeRect(-10, -2, 20, 4); c.fillRect(-8, -9, 6, 11); c.strokeRect(-8, -9, 6, 11); }
-  else if (i.type === 'crude_shovel') { c.fillRect(-2, -10, 4, 19); c.strokeRect(-2, -10, 4, 19); c.beginPath(); c.ellipse(0, 11, 8, 5, 0, 0, Math.PI * 2); c.fill(); c.stroke(); }
-  else { roundedRect(c, -9, -5, 18, 10, 3); c.fill(); c.stroke(); }
+  drawItemAsset(c, i.type);
   if (hover) drawNameTag(c, itemLabel(i.type), 0, -24);
   c.restore();
 }
@@ -414,7 +514,10 @@ function drawBot(game, c, b, now) {
   c.textAlign = 'center';
   c.fillText(b.id, b.x, b.y + 3);
   if (b.inventory) drawMiniItem(c, b.x - 1, b.y - 24, b.inventory.type);
-  if (b.tool) { c.strokeStyle = b.tool.type === 'crude_axe' ? '#86b6d6' : '#d0bf86'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(b.x + 10, b.y - 12); c.lineTo(b.x + 19, b.y - 22); c.stroke(); }
+  if (b.tool) drawHeldToolAsset(c, b.x + 15, b.y - 17, b.tool.type);
+  if (b.equipment?.weapon) drawHeldToolAsset(c, b.x + 17, b.y - 5, b.equipment.weapon);
+  if (b.equipment?.shield) drawHeldToolAsset(c, b.x - 17, b.y - 7, b.equipment.shield);
+  if (hover) drawNameTag(c, b.name || `Bot ${b.id}`, b.x, b.y - b.r - 24);
   c.restore();
 }
 
@@ -453,6 +556,8 @@ function drawPlayer(game, c, now) {
     drawMiniItem(c, game.player.x, game.player.y - 25, game.player.inventory.type);
     drawNameTag(c, game.player.inventory.type, game.player.x, game.player.y - 34);
   }
+  if (game.player.equipment?.weapon) drawHeldToolAsset(c, game.player.x + 19, game.player.y - 5, game.player.equipment.weapon);
+  if (game.player.equipment?.shield) drawHeldToolAsset(c, game.player.x - 18, game.player.y - 5, game.player.equipment.shield);
   drawAssistant(c, game.assistant.x, game.assistant.y, now);
   c.restore();
 }
@@ -493,12 +598,7 @@ function drawPlacement(game, c) {
   const def = BUILDING_TYPES[game.placementType];
   c.save();
   c.globalAlpha = .72;
-  c.fillStyle = def.color;
-  c.strokeStyle = '#fff4d0';
-  c.lineWidth = 2;
-  c.setLineDash([7, 5]);
-  roundedRect(c, game.mouse.x - def.w / 2, game.mouse.y - def.h / 2, def.w, def.h, 10);
-  c.fill(); c.stroke();
+  drawBuildingPreviewAsset(c, game.mouse.x - def.w / 2, game.mouse.y - def.h / 2, def.w, def.h, { ...def, type: game.placementType });
   c.restore();
 }
 
@@ -537,7 +637,7 @@ function drawHud(game, c) {
   c.save();
   const zoom = Math.round((game.camera.zoom || 1) * 100);
   const mp = game.multiplayer?.enabled ? ` · Multiplayer ${game.multiplayer.sessionId || 'session'} · destroy enemy throne` : '';
-  const text = `WASD / arrows pan · Mouse wheel zoom ${zoom}% · Right-click moves/attacks/deposits · E acts · B build${mp}`;
+  const text = `WASD / arrows pan · Hold Shift = fast pan · Mouse wheel zoom ${zoom}% · Right-click moves/attacks/deposits · E acts · B build${mp}`;
   c.font = '700 13px system-ui';
   const w = Math.min(game.W - 32, c.measureText(text).width + 28);
   const h = 32;
@@ -550,70 +650,10 @@ function drawHud(game, c) {
   c.restore();
 }
 
-function drawSawbenchIcon(c, x, y) {
-  c.strokeStyle = '#5d341d'; c.lineWidth = 4;
-  c.beginPath(); c.moveTo(x - 18, y - 12); c.lineTo(x + 18, y - 12); c.moveTo(x - 16, y + 14); c.lineTo(x + 16, y + 14); c.stroke();
-  c.fillStyle = '#c58a4e'; roundedRect(c, x - 21, y - 4, 42, 9, 4); c.fill();
-}
-function drawWorkbenchIcon(c, x, y) {
-  c.fillStyle = '#d0bf86'; roundedRect(c, x - 18, y - 12, 36, 9, 3); c.fill();
-  c.strokeStyle = '#26322d'; c.lineWidth = 3; c.beginPath(); c.moveTo(x - 9, y + 12); c.lineTo(x + 9, y - 10); c.stroke();
-}
-function drawThroneIcon(c, x, y) {
-  c.save();
-  c.fillStyle = '#d3a95f';
-  c.strokeStyle = '#251a10';
-  c.lineWidth = 3;
-  roundedRect(c, x - 26, y - 14, 52, 36, 8); c.fill(); c.stroke();
-  c.fillStyle = '#6f4428';
-  c.fillRect(x - 21, y - 29, 12, 19); c.fillRect(x + 9, y - 29, 12, 19);
-  c.fillStyle = '#ffe3a7';
-  c.beginPath(); c.moveTo(x - 28, y - 30); c.lineTo(x - 20, y - 41); c.lineTo(x - 12, y - 30); c.lineTo(x, y - 43); c.lineTo(x + 12, y - 30); c.lineTo(x + 20, y - 41); c.lineTo(x + 28, y - 30); c.closePath(); c.fill(); c.stroke();
-  c.restore();
-}
-
-function drawFactoryIcon(c, x, y, now) {
-  c.fillStyle = 'rgba(9,14,12,.55)'; roundedRect(c, x - 20, y - 13, 40, 28, 5); c.fill();
-  c.fillStyle = '#d3a95f'; c.fillRect(x - 15, y - 20, 7, 12); c.fillRect(x + 8, y - 23, 7, 15);
-  c.fillStyle = `rgba(232,238,232,${.12 + .08 * Math.sin(now / 450)})`; c.beginPath(); c.arc(x + 18, y - 28, 6, 0, Math.PI * 2); c.fill();
-}
-
-function drawSmitheryIcon(c, x, y) {
-  c.save();
-  c.strokeStyle = '#1f2723';
-  c.lineWidth = 3;
-  c.fillStyle = '#d3a95f';
-  c.beginPath(); c.moveTo(x - 22, y + 11); c.lineTo(x + 8, y - 19); c.lineTo(x + 15, y - 12); c.lineTo(x - 15, y + 18); c.closePath(); c.fill(); c.stroke();
-  c.fillStyle = '#8a6842';
-  roundedRect(c, x - 7, y - 15, 26, 18, 5); c.fill(); c.stroke();
-  c.strokeStyle = '#f5faf6';
-  c.lineWidth = 2;
-  c.beginPath(); c.moveTo(x + 3, y - 10); c.lineTo(x + 15, y + 2); c.moveTo(x + 14, y - 10); c.lineTo(x + 3, y + 1); c.stroke();
-  c.restore();
-}
-
-function drawBowmakerIcon(c, x, y) {
-  c.save();
-  c.strokeStyle = '#1f2723'; c.lineWidth = 3;
-  c.fillStyle = '#cda66d';
-  c.beginPath(); c.arc(x - 2, y, 21, -1.25, 1.25); c.stroke();
-  c.strokeStyle = '#f1dfb8'; c.lineWidth = 2; c.beginPath(); c.moveTo(x + 5, y - 19); c.lineTo(x + 5, y + 19); c.stroke();
-  c.fillStyle = '#8fbf76'; roundedRect(c, x - 28, y + 7, 18, 9, 4); c.fill(); c.stroke();
-  c.restore();
-}
-
-function drawPaletteIcon(c, x, y) {
-  c.fillStyle = '#d8aa63'; roundedRect(c, x - 19, y - 10, 38, 20, 4); c.fill();
-  c.strokeStyle = '#5d341d'; c.lineWidth = 2; c.beginPath(); c.moveTo(x - 16, y - 2); c.lineTo(x + 16, y - 2); c.stroke();
-}
-
 function drawMiniItem(c, x, y, type) {
   c.save();
   c.translate(x, y);
-  c.fillStyle = ITEM_COLORS[type] || '#d3a95f';
-  c.strokeStyle = 'rgba(5,8,7,.75)';
-  c.lineWidth = 1;
-  roundedRect(c, -7, -5, 14, 10, 3); c.fill(); c.stroke();
+  drawMiniItemAsset(c, type);
   c.restore();
 }
 function drawTrunk(c, x, y, w, h, color) {
@@ -669,3 +709,4 @@ function parseHex(hex) {
   const clean = String(hex).replace('#', '').slice(0, 6).padEnd(6, '0');
   return [parseInt(clean.slice(0, 2), 16), parseInt(clean.slice(2, 4), 16), parseInt(clean.slice(4, 6), 16)].map(n => Number.isFinite(n) ? n : 0);
 }
+

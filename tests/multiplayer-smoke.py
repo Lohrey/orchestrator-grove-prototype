@@ -27,16 +27,37 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
         assert state["multiplayer"]["enabled"] is True, state["multiplayer"]
         assert state["multiplayer"]["sessionId"] == "smoke-room"
         assert state["player"]["x"] < 500 and state["player"]["y"] > 2000, state["player"]
-        thrones = state["multiplayer"]["thrones"]
-        assert len(thrones) == 2, thrones
-        assert any(t["ownerId"] == "p1" and t["x"] < 400 and t["y"] > 2100 for t in thrones), thrones
-        assert any(t["ownerId"] == "p2" and t["x"] > 3300 and t["y"] < 400 for t in thrones), thrones
-        enemy = next(t for t in thrones if t["ownerId"] == "p2")
-        after = page.evaluate("id => { window.teachDebug.attackThrone(id); return window.getGameState().multiplayer; }", enemy["id"])
-        damaged = next(t for t in after["thrones"] if t["ownerId"] == "p2")
-        assert damaged["hp"] == 110, damaged
+        mp = state["multiplayer"]
+        assert mp["mapMode"] == "online_lakes", mp
+        assert mp["aiWave"]["enabled"] is False, mp.get("aiWave")
+        assert mp["thrones"] == [], mp["thrones"]
+        features = mp["mapFeatures"]
+        lakes = [f for f in features if f["type"] == "lake"]
+        campers = [f for f in features if f["type"] == "camper_van"]
+        assert len(lakes) == 2 and len(campers) == 2, features
+        p1_camper = next(f for f in campers if f["ownerId"] == "p1")
+        assert p1_camper["x"] < 700 and p1_camper["y"] > 1900, p1_camper
+        bots_near_camper = [
+            b for b in state["bots"]
+            if ((b["x"] - p1_camper["x"]) ** 2 + (b["y"] - p1_camper["y"]) ** 2) ** 0.5 < 160
+        ]
+        assert len(bots_near_camper) >= 2, {"camper": p1_camper, "bots": state["bots"]}
         assert page.locator("#multiplayerPanel").is_visible()
         assert "Download session" in page.locator("#multiplayerSaveBtn").inner_text()
+        page.locator("#multiplayerDrawerToggle").click()
+        page.wait_for_function("() => document.getElementById('gameStage').classList.contains('has-open-drawer')")
+        drawer_box = page.locator("#multiplayerDrawer").bounding_box()
+        assert drawer_box is not None
+        toggle_boxes = page.evaluate("""
+        () => ['botDrawerToggle','buildDrawerToggle','zonesDrawerToggle','multiplayerDrawerToggle'].map(id => {
+          const r = document.getElementById(id).getBoundingClientRect();
+          return { id, left: Math.round(r.left), right: Math.round(r.right) };
+        })
+        """)
+        expected_left = round(drawer_box["x"] - 43)
+        assert all(abs(t["left"] - expected_left) <= 1 for t in toggle_boxes), {"expected_left": expected_left, "toggles": toggle_boxes}
+        page.locator("#multiplayerDrawerToggle").click()
+        page.wait_for_function("() => !document.getElementById('gameStage').classList.contains('has-open-drawer') && document.getElementById('multiplayerDrawer').classList.contains('is-collapsed')")
         browser.close()
     server.shutdown()
 

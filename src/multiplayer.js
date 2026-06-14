@@ -44,7 +44,7 @@ export function createMultiplayerController({ game, dom, addChat }) {
     state.role = role;
     const snapshot = game.startMultiplayerSession({ sessionId, role, playerId });
     window.multiplayerDebug = api;
-    setStatus(`${role === 'host' ? 'Hosting' : 'Joined'} ${sessionId} as ${playerId}. Socket pending.`);
+    setStatus(`${role === 'host' ? 'Hosting' : 'Joined'} online lake-camp ${sessionId} as ${playerId}. Socket pending.`);
     setSessionLink(sessionId, role === 'host' ? 'client' : 'host');
     return snapshot;
   }
@@ -82,7 +82,7 @@ export function createMultiplayerController({ game, dom, addChat }) {
     }
     const snapshot = startLocalSession({ role: 'host', sessionId, playerId: 'p1' });
     await connectSocket();
-    addChat?.('system', `Multiplayer host ready. Session <code>${sessionId}</code>. Player 1 starts bottom-left; Player 2 starts top-right. Destroy the enemy throne.`);
+    addChat?.('system', `Online multiplayer host ready. Session <code>${sessionId}</code>. Player 1 and Player 2 start beside opposing lake camper vans.`);
     return snapshot;
   }
 
@@ -90,7 +90,7 @@ export function createMultiplayerController({ game, dom, addChat }) {
     const id = sessionId || randomSessionId();
     const snapshot = startLocalSession({ role: 'client', sessionId: id, playerId: 'p2' });
     await connectSocket();
-    addChat?.('system', `Joined multiplayer session <code>${id}</code> as Player 2.`);
+    addChat?.('system', `Joined online lake-camp session <code>${id}</code> as Player 2.`);
     return snapshot;
   }
 
@@ -115,6 +115,12 @@ export function createMultiplayerController({ game, dom, addChat }) {
     const params = new URLSearchParams(window.location.search);
     const mode = params.get('multiplayer');
     const sessionId = params.get('session') || randomSessionId();
+    if (mode === 'local-ai') {
+      game.startLocalAiMatch({ sessionId });
+      setStatus(`Local vs AI ${sessionId}: Dota-like throne lane with AI creep waves.`);
+      addChat?.('system', `Local vs AI ready. Defend your throne, push the lane, and survive enemy creep waves.`);
+      return;
+    }
     if (mode === 'host') hostSession({ openSeparate: false, sessionId });
     if (mode === 'client' || mode === 'join') joinSession(sessionId);
   }

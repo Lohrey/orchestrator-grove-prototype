@@ -4,8 +4,71 @@ export const ALLOWED_OPS = [
   'find_nearest_tree', 'find_stone_deposit', 'find_hemp', 'find_item', 'find_dig_spot', 'move_to_target', 'chop_tree', 'search_tree', 'chop_hemp', 'search_hemp', 'mine_stone', 'dig_hole', 'pick_up', 'pick_up_from_storage', 'pick_up_specific',
   'deliver_to_sawbench', 'process_sawbench', 'process_poles', 'fetch_plank_from_sawbench', 'fetch_pole_from_sawbench',
   'deliver_to_workbench', 'craft_workbench', 'deliver_to_factory', 'assemble_bot', 'idle_parking', 'wait', 'loop', 'if_inventory',
-  'move_to_structure', 'deposit_to_structure', 'find_dug_hole', 'plant_seed'
+  'move_to_structure', 'deposit_to_structure', 'drop_item', 'find_dug_hole', 'plant_seed', 'use_held_item',
+  'deposit_to_player', 'take_from_player'
 ];
+
+export const ASSISTANT_KNOWLEDGE_PACKS = {
+  starter_automation: {
+    id: 'starter_automation',
+    name: 'Starter Automation',
+    concepts: ['Bots repeat short JSON step loops.', 'Trust user-provided bot names/ids in requests; the game resolves them after JSON validation.', 'End repeating work with {"op":"loop"}.', 'The player can act like a one-slot storage building for automation: use deposit_to_player to bring an item to the player, and take_from_player to take one carried item from the player.'],
+    vocabulary: ['bot', 'loop', 'repeat', 'keep doing', 'idle', 'stop', 'player', 'me', 'bring', 'give', 'take from player'],
+    optionalContext: ['availableBotNames', 'availableItemTypes', 'currentPlayerInventory'],
+    unlockedOps: ['pick_up', 'drop_item', 'move_to_structure', 'use_held_item', 'deposit_to_player', 'take_from_player', 'loop', 'wait'],
+    examples: [
+      { intent: 'bot 1 pick up logs forever', dsl: { steps: [{ op: 'pick_up', type: 'log' }, { op: 'loop' }] } },
+      { intent: 'bot 1 bring log to me', dsl: { steps: [{ op: 'pick_up', type: 'log' }, { op: 'deposit_to_player', type: 'log' }, { op: 'loop' }] } },
+      { intent: 'bot 1 take stone from me', dsl: { steps: [{ op: 'take_from_player', type: 'stone' }, { op: 'loop' }] } }
+    ]
+  },
+  woodworking: {
+    id: 'woodworking',
+    name: 'Woodworking',
+    concepts: ['Logs feed sawbenches.', 'A sawbench turns logs into planks and planks into poles.'],
+    vocabulary: ['log', 'wood', 'sawbench', 'saw bench', 'plank', 'board', 'pole'],
+    optionalContext: ['availableBuildingNames'],
+    unlockedOps: ['pick_up', 'deposit_to_structure', 'use_held_item', 'chop_tree', 'search_tree', 'loop'],
+    examples: [
+      { intent: 'bot 1 keep sawbench full of logs', dsl: { steps: [{ op: 'pick_up', type: 'log' }, { op: 'deposit_to_structure', type: 'log', target: 'sawbench 1' }, { op: 'loop' }] } }
+    ]
+  },
+  logistics: {
+    id: 'logistics',
+    name: 'Logistics',
+    concepts: ['Item palettes are storage sources.', 'Use the building name from the request as source/target; the game resolves it after JSON validation.'],
+    vocabulary: ['haul', 'feed', 'fill', 'storage', 'palette', 'from', 'to'],
+    optionalContext: ['availableBuildingNames', 'availableItemTypes'],
+    unlockedOps: ['pick_up_from_storage', 'deposit_to_structure', 'drop_item', 'use_held_item', 'loop'],
+    examples: [
+      { intent: 'take logs from storage to sawbench', dsl: { steps: [{ op: 'pick_up_from_storage', type: 'log', source: 'item palette 1' }, { op: 'deposit_to_structure', type: 'log', target: 'sawbench 1' }, { op: 'loop' }] } }
+    ]
+  },
+  farming: {
+    id: 'farming',
+    name: 'Farming',
+    concepts: ['Tree seeds can be planted in open dug holes.', 'Searching trees finds sticks and tree seeds.'],
+    vocabulary: ['plant', 'seed', 'tree seed', 'dug hole', 'search tree'],
+    optionalContext: ['availableItemTypes'],
+    unlockedOps: ['pick_up', 'plant_seed', 'use_held_item', 'search_tree', 'loop'],
+    examples: [
+      { intent: 'bot 1 plant tree seeds', dsl: { steps: [{ op: 'pick_up', type: 'tree_seed' }, { op: 'plant_seed' }, { op: 'loop' }] } }
+    ]
+  },
+  mining_tools: {
+    id: 'mining_tools',
+    name: 'Mining + Tools',
+    concepts: ['Stone deposits produce stone when mined.', 'Hemp can be searched or chopped for seeds/fiber.'],
+    vocabulary: ['mine', 'stone', 'rock', 'pickaxe', 'hemp', 'search hemp'],
+    optionalContext: ['availableItemTypes'],
+    unlockedOps: ['mine_stone', 'chop_hemp', 'use_held_item', 'search_hemp', 'loop'],
+    examples: [
+      { intent: 'bot 1 mine stone', dsl: { steps: [{ op: 'mine_stone' }, { op: 'loop' }] } }
+    ]
+  }
+};
+
+export const DEFAULT_ASSISTANT_LOADOUT = ['starter_automation', 'woodworking', 'logistics', 'farming', 'mining_tools'];
 
 export const PROGRAM_TEMPLATES = {
   chop_wood: {
@@ -185,15 +248,16 @@ export const PROGRAM_TEMPLATES = {
 
 export const DSL_ACTION_WIKI = {
   title: 'Bot DSL Action Wiki',
-  purpose: 'Reference for AI/router prompts and Settings. Bot programs are JSON step loops; each step uses one allowed op plus the listed args. End repeating workflows with {"op":"loop"}.',
+  purpose: 'Reference for AI/router prompts and Settings. Bot programs are JSON step loops; each step uses one allowed op plus the listed args. End repeating workflows with {"op":"loop"}. Assistant knowledge packs decide which concepts/ops are in prompt context.',
   outputShape: {
     toolCall: { name: 'assignBotProgram', arguments: { botId: 1, program: 'chop_wood', targetStructureId: 1, zone: { kind: 'rect', x: 100, y: 200, w: 80, h: 60 } } },
-    dslProgram: { id: 'custom_loop', steps: [{ op: 'find_nearest_tree', zone: '$zone' }, { op: 'move_to_target' }, { op: 'chop_tree' }, { op: 'loop' }] }
+    dslAssignment: { botId: 1, program: { id: 'custom_loop', name: 'Feed sawbench logs', steps: [{ op: 'pick_up', type: 'log' }, { op: 'deposit_to_structure', type: 'log', structureId: 1 }, { op: 'loop' }] } }
   },
   args: {
     zone: 'Optional search area. Use {kind:"rect",x,y,w,h}, {kind:"radius",centerStructureId,radius}, a zone id/ref, or "$zone" inside templates.',
     target: 'Structure target. Use numeric structure IDs from Game.objects for sawbench/workbench/factory/palette targets.',
     type: 'Item/resource type: log, plank, pole, stick, stone, tree_seed, crude_axe, crude_pickaxe, crude_shovel.',
+    targetKind: 'Generic target for use_held_item: tree, hemp, stone_deposit, dig_spot, dug_hole, structure, or ground. Validation resolves this to the concrete op and keeps knowledge-pack locks.',
     source: 'Optional source structure, usually a sawbench for loose planks/poles near production or an item_palette for storage pickup.',
     goto: 'Zero-based step index used by if_inventory when the bot already holds the required item.'
   },
@@ -227,7 +291,11 @@ export const DSL_ACTION_WIKI = {
     { op: 'loop', args: [], description: 'Jump back to the first step; place at the end of repeating workflows.' },
     { op: 'if_inventory', args: ['type', 'goto'], description: 'If bot already holds type, jump to step index goto; otherwise continue.' },
     { op: 'move_to_structure', args: ['target'], description: 'Teach-by-doing action: walk to a recorded/named structure.' },
+    { op: 'use_held_item', args: ['targetKind', 'target', 'type', 'zone'], description: 'AI-friendly generic held-item action. Validation normalizes it to chop_tree, chop_hemp, mine_stone, dig_hole, plant_seed, deposit_to_structure, or drop_item; it cannot bypass locked concrete ops.' },
+    { op: 'deposit_to_player', args: ['type'], description: 'Move to the player and give them the carried item if the player storage/inventory slot is empty. Not recordable; included in Starter Automation.' },
+    { op: 'take_from_player', args: ['type'], description: 'Move to the player and take one matching item from the player storage/inventory slot when the bot has empty hands. Not recordable; included in Starter Automation.' },
     { op: 'deposit_to_structure', args: ['type', 'target'], description: 'Teach-by-doing action: move to the recorded/named structure and deposit the held item there when the building is ready.' },
+    { op: 'drop_item', args: ['type', 'zone'], description: 'Teach-by-doing action: move to the recorded/card-selected ground zone and drop the held item there.' },
     { op: 'find_dug_hole', args: ['zone'], description: 'Select an open dug hole in zone for planting.' },
     { op: 'plant_seed', args: [], description: 'Plant a carried tree_seed in the targeted dug hole.' }
   ],
@@ -235,15 +303,21 @@ export const DSL_ACTION_WIKI = {
     { name: 'Chop wood loop', steps: PROGRAM_TEMPLATES.chop_wood.steps },
     { name: 'Dig holes loop', steps: PROGRAM_TEMPLATES.dig_holes.steps },
     { name: 'Pick up planks from a rectangle', steps: [{ op: 'if_inventory', type: 'plank', goto: 4 }, { op: 'find_item', type: 'plank', zone: { kind: 'rect', x: 100, y: 200, w: 80, h: 60 } }, { op: 'move_to_target' }, { op: 'pick_up_specific', type: 'plank' }, { op: 'loop' }] },
+    { name: 'Bring item to player', steps: [{ op: 'pick_up', type: 'log' }, { op: 'deposit_to_player', type: 'log' }, { op: 'loop' }] },
+    { name: 'Take item from player', steps: [{ op: 'take_from_player', type: 'stone' }, { op: 'loop' }] },
     { name: 'Plant trees in holes', steps: PROGRAM_TEMPLATES.plant_trees.steps },
     { name: 'Search hemp for seeds', steps: [{ op: 'find_hemp', zone: '$zone' }, { op: 'move_to_target' }, { op: 'search_hemp' }, { op: 'loop' }] }
   ]
 };
 
 export function formatDslActionWiki() {
+  const packLines = Object.values(ASSISTANT_KNOWLEDGE_PACKS).map(pack => `- ${pack.id}: ops ${pack.unlockedOps.join(', ')}; vocab ${pack.vocabulary.join(', ')}`);
   const lines = [
     `${DSL_ACTION_WIKI.title}: ${DSL_ACTION_WIKI.purpose}`,
     `Allowed ops: ${ALLOWED_OPS.join(', ')}.`,
+    '',
+    'Assistant knowledge packs:',
+    ...packLines,
     '',
     'Arguments:',
     ...Object.entries(DSL_ACTION_WIKI.args).map(([name, description]) => `- ${name}: ${description}`),

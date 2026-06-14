@@ -6,7 +6,7 @@
   <title>Orchestrator Grove Prototype v9</title>
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="styles.css?v=t_8ab80257" />
-  <link rel="stylesheet" href="styles-interactions.css?v=t_2b8d7eef" />
+  <link rel="stylesheet" href="styles-interactions.css?v=t_f62dde4d_modes" />
 </head>
 <body>
   <main class="shell" aria-label="Orchestrator Grove fullscreen game">
@@ -20,19 +20,42 @@
 
       <div class="game-stage" id="gameStage">
         <canvas id="game" width="960" height="640" aria-label="2D automation game canvas"></canvas>
-        <div id="assignmentToast" class="assignment-toast" role="status" aria-live="polite" hidden></div>
-        <aside id="multiplayerPanel" class="multiplayer-panel" aria-label="Multiplayer controls">
-          <div class="multiplayer-head"><b>Multiplayer</b><span>Socket.IO PvP</span></div>
-          <button id="multiplayerHostBtn" type="button">Host separate instance</button>
-          <div class="multiplayer-join-row">
-            <input id="multiplayerJoinCode" type="text" autocomplete="off" placeholder="session code" />
-            <button id="multiplayerJoinBtn" type="button">Join</button>
+        <section id="mainMenuOverlay" class="main-menu-overlay" aria-label="Main menu" hidden>
+          <div class="main-menu-card" role="dialog" aria-modal="true" aria-labelledby="mainMenuTitle">
+            <p class="eyebrow">Orchestrator Grove</p>
+            <h2 id="mainMenuTitle">Choose how to start</h2>
+            <p class="main-menu-copy">Start fresh, continue the browser save, play local vs AI, or host online multiplayer.</p>
+            <div class="main-menu-actions">
+              <button id="mainMenuNewBtn" type="button">Start new game</button>
+              <button id="mainMenuLoadBtn" type="button">Load saved game</button>
+              <button id="mainMenuLocalAiBtn" type="button">Local vs AI</button>
+              <button id="mainMenuHostBtn" type="button">Host online multiplayer</button>
+              <label class="main-menu-join">
+                <span>Join code</span>
+                <input id="mainMenuJoinCode" type="text" autocomplete="off" placeholder="session code" />
+              </label>
+              <button id="mainMenuJoinBtn" type="button">Join multiplayer</button>
+            </div>
+            <p id="mainMenuStatus" class="small status-text">A browser-cache save will appear here after you use Esc → Save.</p>
           </div>
-          <button id="multiplayerSaveBtn" type="button">Download session file</button>
-          <p id="multiplayerStatus" class="small status-text">Host opens a separate instance. P1 bottom-left, P2 top-right. Destroy the enemy throne.</p>
-          <a id="multiplayerSessionLink" class="multiplayer-session-link" href="#" hidden></a>
+        </section>
+        <div id="assignmentToast" class="assignment-toast" role="status" aria-live="polite" hidden></div>
+        <aside id="multiplayerDrawer" class="multiplayer-drawer is-collapsed" aria-label="Multiplayer drawer">
+          <button id="multiplayerDrawerToggle" class="multiplayer-drawer-toggle" type="button" aria-controls="multiplayerPanel" aria-expanded="false">Multiplayer</button>
+          <section id="multiplayerPanel" class="multiplayer-panel" aria-label="Multiplayer controls">
+            <div class="multiplayer-head"><b>Multiplayer</b><span>Socket.IO PvP</span></div>
+            <button id="multiplayerHostBtn" type="button">Host online lake-camp instance</button>
+            <div class="multiplayer-join-row">
+              <input id="multiplayerJoinCode" type="text" autocomplete="off" placeholder="session code" />
+              <button id="multiplayerJoinBtn" type="button">Join</button>
+            </div>
+            <button id="multiplayerSaveBtn" type="button">Download session file</button>
+            <p id="multiplayerStatus" class="small status-text">Host opens an online lake-camp map. P1 and P2 each start beside an opposing lake camper van.</p>
+            <a id="multiplayerSessionLink" class="multiplayer-session-link" href="#" hidden></a>
+          </section>
         </aside>
         <section id="teachPanel" class="teach-panel" aria-label="Teach by doing recorder" hidden>
+          <button id="teachCloseBtn" class="teach-close" type="button" aria-label="Close teach by doing window" title="Close teach by doing window">×</button>
           <div class="teach-head">
             <b>Teach by doing</b>
             <span>Press E to pick up/deposit</span>
@@ -49,7 +72,14 @@
           <button id="botDrawerToggle" class="bot-drawer-toggle" type="button" aria-controls="botDrawerPanel" aria-expanded="false">Bots</button>
           <section id="botDrawerPanel" class="bot-drawer-panel">
             <h2>Bots</h2>
-            <div id="botList" class="bot-list"></div>
+            <label class="bot-search-label" for="botSearch">Search bots</label>
+            <input id="botSearch" class="bot-search-input" type="search" autocomplete="off" placeholder="Filter by bot name" />
+            <form id="botTeamForm" class="bot-team-form" aria-label="Create bot team">
+              <label>Team name <input id="botTeamName" type="text" autocomplete="off" maxlength="28" placeholder="Woodcutters" /></label>
+              <label>Color <input id="botTeamColor" type="color" value="#5d8063" /></label>
+              <button id="botTeamCreate" type="submit">Create team</button>
+            </form>
+            <div id="botList" class="bot-list" aria-label="Bot teams and cards"></div>
           </section>
         </aside>
         <aside id="buildDrawer" class="build-drawer is-collapsed" aria-label="Build drawer">
@@ -62,17 +92,38 @@
               <button type="button" data-build-tab="military" aria-selected="false">Military</button>
             </nav>
             <div class="build-category is-active" data-build-category="production">
-              <button type="button" data-build="sawbench">Place Sawbench</button>
-              <button type="button" data-build="workbench">Place Tool Bench</button>
-              <button type="button" data-build="factory">Place Bot Factory</button>
+              <button type="button" data-build="sawbench" aria-label="Place Sawbench">
+                <span class="build-icon" aria-hidden="true">🪚</span>
+                <span class="build-copy"><b>Sawbench</b><small>Logs → planks</small></span>
+              </button>
+              <button type="button" data-build="workbench" aria-label="Place Tool Bench">
+                <span class="build-icon" aria-hidden="true">🪓</span>
+                <span class="build-copy"><b>Tool Bench</b><small>Craft axes/tools</small></span>
+              </button>
+              <button type="button" data-build="factory" aria-label="Place Bot Factory">
+                <span class="build-icon" aria-hidden="true">🤖</span>
+                <span class="build-copy"><b>Bot Factory</b><small>Assemble bots</small></span>
+              </button>
             </div>
             <div class="build-category" data-build-category="storage">
-              <button type="button" data-build="item_palette">Place Item Palette</button>
+              <button type="button" data-build="item_palette" aria-label="Place Item Palette">
+                <span class="build-icon" aria-hidden="true">📦</span>
+                <span class="build-copy"><b>Item Palette</b><small>Store resources</small></span>
+              </button>
             </div>
             <div class="build-category" data-build-category="military">
-              <button type="button" data-build="smithery">Place Smithery</button>
-              <button type="button" data-build="bowmaker">Place Bowmaker</button>
-              <button type="button" data-build="defensetower">Place Defense Tower</button>
+              <button type="button" data-build="smithery" aria-label="Place Smithery">
+                <span class="build-icon" aria-hidden="true">⚔️</span>
+                <span class="build-copy"><b>Smithery</b><small>Swords & shields</small></span>
+              </button>
+              <button type="button" data-build="bowmaker" aria-label="Place Bowmaker">
+                <span class="build-icon" aria-hidden="true">🏹</span>
+                <span class="build-copy"><b>Bowmaker</b><small>Craft ranged bows</small></span>
+              </button>
+              <button type="button" data-build="defensetower" aria-label="Place Defense Tower">
+                <span class="build-icon" aria-hidden="true">🛡️</span>
+                <span class="build-copy"><b>Defense Tower</b><small>Guards the base</small></span>
+              </button>
             </div>
             <div class="build-actions">
               <button type="button" data-cancel-build>Cancel</button>
@@ -127,8 +178,8 @@
     <section class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
       <header class="settings-head">
         <div>
-          <h2 id="settingsTitle">Settings</h2>
-          <p>Hidden during play. Press Esc to open/close.</p>
+          <h2 id="settingsTitle">Game Menu</h2>
+          <p>Game menu. Press Esc to pause/resume single-player.</p>
         </div>
         <button id="settingsClose" type="button" aria-label="Close settings">×</button>
       </header>
@@ -137,11 +188,34 @@
         <button type="button" class="is-active" data-settings-tab="controls" aria-selected="true">Controls</button>
         <button type="button" data-settings-tab="stats" aria-selected="false">Stats</button>
         <button type="button" data-settings-tab="voice" aria-selected="false">Voice</button>
+        <button type="button" data-settings-tab="audio" aria-selected="false">Audio</button>
         <button type="button" data-settings-tab="ai" aria-selected="false">Local AI</button>
+        <button type="button" data-settings-tab="knowledge" aria-selected="false">Knowledge Packs</button>
         <button type="button" data-settings-tab="log" aria-selected="false">log (chat)</button>
         <button type="button" data-settings-tab="programs" aria-selected="false">DSL</button>
         <button type="button" data-settings-tab="dsl-wiki" aria-selected="false">DSL Wiki</button>
       </nav>
+
+      <section class="settings-section game-menu-actions-panel" aria-label="Pause and save controls">
+        <h3>Pause / Save</h3>
+        <div class="pause-save-actions">
+          <button id="resumeGameBtn" type="button">Resume game</button>
+          <button id="pauseGameBtn" type="button">Pause game</button>
+          <button id="saveGameBtn" type="button">Save game</button>
+          <button id="loadGameBtn" type="button">Load saved game</button>
+          <button id="quitToMainMenuBtn" type="button" class="danger-action">Quit to main menu</button>
+        </div>
+        <div id="quitSavePrompt" class="quit-save-prompt" role="alertdialog" aria-live="polite" hidden>
+          <b>Save before quitting?</b>
+          <p class="small status-text">This game has not been saved in the last 30 seconds.</p>
+          <div class="quit-save-actions">
+            <button id="saveAndQuitBtn" type="button">Save & quit</button>
+            <button id="quitWithoutSaveBtn" type="button" class="danger-action">Quit without saving</button>
+            <button id="cancelQuitBtn" type="button">Cancel</button>
+          </div>
+        </div>
+        <p id="saveGameStatus" class="small status-text">Single-player can be paused and saved to this browser cache.</p>
+      </section>
 
       <section class="settings-section settings-tab-panel is-active" data-settings-panel="controls">
         <h3>Game Controls</h3>
@@ -152,7 +226,7 @@
           <span><b>Drop:</b> Q drops the item in hand</span>
           <span><b>Chat:</b> Enter opens · L toggles</span>
           <span><b>Build:</b> B drawer</span>
-          <span><b>Settings:</b> Esc</span>
+          <span><b>Game menu:</b> Esc pauses single-player</span>
         </div>
         <section class="control-strip" aria-label="Performance controls">
           <label>Target FPS <input id="targetFps" type="range" min="10" max="60" step="5" value="30" /> <b id="targetFpsValue">30</b></label>
@@ -189,6 +263,31 @@
         </label>
         <p id="asrModeHelp" class="small status-text">Default: live Zipformer partial text while speaking, then Whisper-tiny final text when you stop.</p>
         <p class="small">Use <b>Whisper direct</b> to bypass Zipformer completely. Use <b>faster-whisper</b> to record audio in the browser, upload it to the server, and insert the returned final transcript.</p>
+      </section>
+
+      <section class="settings-section settings-tab-panel" data-settings-panel="audio">
+        <h3>Audio</h3>
+        <label class="checkline">
+          <input id="audioSfxToggle" type="checkbox" checked />
+          Enable generated action sound effects
+        </label>
+        <label class="stacked">SFX volume
+          <input id="audioSfxVolume" type="range" min="0" max="1" step="0.01" value="0.42" />
+        </label>
+        <button id="audioSfxTest" type="button">Test SFX</button>
+        <h3>Cozy background radio</h3>
+        <p class="small">Uses free listener-supported SomaFM direct MP3 streams. Start requires a click because browsers block autoplay.</p>
+        <label class="stacked">Station
+          <select id="audioStation"></select>
+        </label>
+        <label class="stacked">Music volume
+          <input id="audioMusicVolume" type="range" min="0" max="1" step="0.01" value="0.28" />
+        </label>
+        <div class="endpoint-actions" aria-label="Background radio controls">
+          <button id="audioMusicStart" type="button">Start cozy radio</button>
+          <button id="audioMusicStop" type="button">Stop radio</button>
+        </div>
+        <p id="audioMusicStatus" class="small status-text">Audio loading…</p>
       </section>
 
       <section class="settings-section settings-tab-panel ollama-panel" data-settings-panel="ai">
@@ -252,9 +351,28 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
         <p id="ollamaStatus" class="small status-text">Default model: gemma4:12b. Click Refresh to load your exact local Ollama model names.</p>
       </section>
 
+      <section class="settings-section settings-tab-panel" data-settings-panel="knowledge">
+        <h3>Assistant Knowledge Packs</h3>
+        <p class="small">Choose which DSL concepts, vocabulary, operations, and optional runtime name lists are equipped for the assistant parser and Ollama prompt. Saved in this browser.</p>
+        <div id="knowledgePackList" class="knowledge-pack-list"></div>
+        <div class="endpoint-actions" aria-label="Knowledge pack actions">
+          <button id="resetKnowledgePacks" type="button">Reset to default loadout</button>
+        </div>
+        <p id="knowledgePackStatus" class="small status-text">Loading knowledge packs…</p>
+        <h3>Base system prompt</h3>
+        <p class="small">Minimal fixed instruction sent as the system message. It teaches the required JSON shape; world/name context stays in the user knowledge message below.</p>
+        <pre id="assistantBasePromptView" class="program-view assistant-base-prompt-view">Base prompt preview will appear after the world loads.</pre>
+        <h3>LLM knowledge message</h3>
+        <p class="small">Everything dynamic sent to the model: selected packs, unlocked ops, optional runtime name lists, minimal bot/building/zone context, and the current request.</p>
+        <pre id="assistantLoadoutView" class="program-view assistant-loadout-view"></pre>
+        <h3>Final AI prompt preview</h3>
+        <p class="small">Exact system/user prompt messages generated from the current world context, selected packs, template-routing setting, and the current chat draft (or a placeholder request).</p>
+        <pre id="assistantPromptPreview" class="program-view assistant-prompt-preview">Prompt preview will appear after the world loads.</pre>
+      </section>
+
       <section class="settings-section settings-tab-panel" data-settings-panel="log">
         <h3>Chat AI log</h3>
-        <p class="small">Latest first. Mirrors the browser console: request sent to the parser/AI and returned result.</p>
+        <p class="small">Latest first. Mirrors the browser console: request, final prompt, raw LLM answer, and parsed/validated JSON or error.</p>
         <pre id="aiLog" class="program-view ai-log">No chat requests yet.</pre>
       </section>
 
@@ -276,6 +394,6 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
   <div id="botMenu" class="entity-menu" hidden></div>
   <div id="structureMenu" class="entity-menu" hidden></div>
 
-  <script src="game.js?v=t_7384ba5d"></script>
+  <script src="game.js?v=t_f62dde4d_modes"></script>
 </body>
 </html>

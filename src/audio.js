@@ -1,0 +1,176 @@
+const SFX_KEY = 'orchestratorGrove.audio.sfxEnabled';
+const SFX_VOLUME_KEY = 'orchestratorGrove.audio.sfxVolume';
+const MUSIC_VOLUME_KEY = 'orchestratorGrove.audio.musicVolume';
+const MUSIC_STATION_KEY = 'orchestratorGrove.audio.musicStation';
+
+export const COZY_RADIO_STATIONS = {
+  groovesalad: {
+    label: 'SomaFM Groove Salad · chill/downtempo',
+    url: 'https://ice2.somafm.com/groovesalad-128-mp3',
+    source: 'SomaFM free listener-supported online radio'
+  },
+  dronezone: {
+    label: 'SomaFM Drone Zone · warm ambient',
+    url: 'https://ice1.somafm.com/dronezone-128-mp3',
+    source: 'SomaFM free listener-supported online radio'
+  }
+};
+
+const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+const storageGet = (key, fallback = '') => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
+const storageSet = (key, value) => { try { localStorage.setItem(key, String(value)); } catch {} };
+const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value)));
+
+export function createAudioController() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  const state = {
+    ctx: null,
+    master: null,
+    enabled: storageGet(SFX_KEY, 'true') !== 'false',
+    sfxVolume: clamp(storageGet(SFX_VOLUME_KEY, '0.42'), 0, 1),
+    musicVolume: clamp(storageGet(MUSIC_VOLUME_KEY, '0.28'), 0, 1),
+    station: storageGet(MUSIC_STATION_KEY, 'groovesalad'),
+    lastPlayed: new Map(),
+    music: new Audio()
+  };
+  state.music.preload = 'none';
+  state.music.loop = false;
+  state.music.volume = state.musicVolume;
+
+  function ensureContext() {
+    if (!AudioContextClass) return null;
+    if (!state.ctx) {
+      state.ctx = new AudioContextClass();
+      state.master = state.ctx.createGain();
+      state.master.gain.value = state.sfxVolume;
+      state.master.connect(state.ctx.destination);
+    }
+    if (state.ctx.state === 'suspended') state.ctx.resume().catch(() => {});
+    return state.ctx;
+  }
+
+  function createNoiseBuffer(ctx, duration = 0.16) {
+    const frames = Math.max(1, Math.floor(ctx.sampleRate * duration));
+    const buffer = ctx.createBuffer(1, frames, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1;
+    return buffer;
+  }
+
+  function tone(ctx, { at = 0, freq = 440, duration = 0.12, type = 'sine', gain = 0.14, endFreq = null }) {
+    const t0 = ctx.currentTime + at;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    if (endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), t0 + duration);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+    osc.connect(g).connect(state.master);
+    osc.start(t0); osc.stop(t0 + duration + 0.03);
+  }
+
+  function noise(ctx, { at = 0, duration = 0.12, gain = 0.1, filter = 900, type = 'bandpass' }) {
+    const t0 = ctx.currentTime + at;
+    const src = ctx.createBufferSource();
+    const f = ctx.createBiquadFilter();
+    const g = ctx.createGain();
+    src.buffer = createNoiseBuffer(ctx, duration);
+    f.type = type; f.frequency.value = filter; f.Q.value = 1.1;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+    src.connect(f).connect(g).connect(state.master);
+    src.start(t0); src.stop(t0 + duration + 0.02);
+  }
+
+  const recipes = {
+    ui_click: ctx => { tone(ctx, { freq: 640, endFreq: 840, duration: 0.055, type: 'triangle', gain: 0.06 }); },
+    ui_error: ctx => { tone(ctx, { freq: 190, endFreq: 130, duration: 0.15, type: 'sawtooth', gain: 0.08 }); },
+    move: ctx => { noise(ctx, { duration: 0.06, gain: 0.035, filter: 420, type: 'lowpass' }); },
+    build: ctx => { noise(ctx, { duration: 0.12, gain: 0.11, filter: 520 }); tone(ctx, { at: 0.06, freq: 330, duration: 0.1, type: 'triangle', gain: 0.07 }); },
+    bot_online: ctx => { tone(ctx, { freq: 360, duration: 0.07, type: 'triangle', gain: 0.05 }); tone(ctx, { at: 0.07, freq: 520, duration: 0.09, type: 'triangle', gain: 0.06 }); },
+    pickup: ctx => { tone(ctx, { freq: 720, endFreq: 980, duration: 0.08, type: 'triangle', gain: 0.06 }); },
+    equip: ctx => { tone(ctx, { freq: 460, duration: 0.06, type: 'square', gain: 0.045 }); tone(ctx, { at: 0.05, freq: 690, duration: 0.08, type: 'triangle', gain: 0.07 }); },
+    drop: ctx => { noise(ctx, { duration: 0.09, gain: 0.075, filter: 310, type: 'lowpass' }); tone(ctx, { freq: 150, duration: 0.08, type: 'sine', gain: 0.035 }); },
+    deposit: ctx => { noise(ctx, { duration: 0.08, gain: 0.06, filter: 650 }); tone(ctx, { at: 0.04, freq: 410, duration: 0.08, type: 'triangle', gain: 0.045 }); },
+    storage: ctx => { tone(ctx, { freq: 310, duration: 0.05, type: 'triangle', gain: 0.05 }); tone(ctx, { at: 0.045, freq: 390, duration: 0.08, type: 'triangle', gain: 0.04 }); },
+    chop: ctx => { noise(ctx, { duration: 0.12, gain: 0.14, filter: 760 }); tone(ctx, { freq: 115, duration: 0.08, type: 'triangle', gain: 0.06 }); },
+    mine: ctx => { tone(ctx, { freq: 160, endFreq: 92, duration: 0.09, type: 'square', gain: 0.08 }); noise(ctx, { at: 0.015, duration: 0.13, gain: 0.1, filter: 1750 }); },
+    dig: ctx => { noise(ctx, { duration: 0.16, gain: 0.12, filter: 260, type: 'lowpass' }); },
+    plant: ctx => { tone(ctx, { freq: 420, endFreq: 650, duration: 0.12, type: 'sine', gain: 0.06 }); noise(ctx, { at: 0.03, duration: 0.1, gain: 0.035, filter: 950 }); },
+    search: ctx => { noise(ctx, { duration: 0.11, gain: 0.045, filter: 1200 }); tone(ctx, { at: 0.05, freq: 760, duration: 0.06, type: 'sine', gain: 0.035 }); },
+    harvest: ctx => { noise(ctx, { duration: 0.16, gain: 0.09, filter: 980 }); tone(ctx, { at: 0.08, freq: 550, duration: 0.09, type: 'triangle', gain: 0.05 }); },
+    craft_start: ctx => { tone(ctx, { freq: 260, duration: 0.09, type: 'triangle', gain: 0.05 }); noise(ctx, { at: 0.04, duration: 0.12, gain: 0.055, filter: 700 }); },
+    craft_done: ctx => { tone(ctx, { freq: 500, duration: 0.07, type: 'triangle', gain: 0.06 }); tone(ctx, { at: 0.07, freq: 760, duration: 0.1, type: 'triangle', gain: 0.07 }); },
+    arrow: ctx => { noise(ctx, { duration: 0.08, gain: 0.055, filter: 2100, type: 'highpass' }); tone(ctx, { freq: 980, endFreq: 500, duration: 0.08, type: 'sine', gain: 0.035 }); },
+    hit: ctx => { noise(ctx, { duration: 0.09, gain: 0.09, filter: 420 }); tone(ctx, { freq: 120, duration: 0.07, type: 'triangle', gain: 0.05 }); },
+    victory: ctx => { [392, 523, 659].forEach((freq, i) => tone(ctx, { at: i * 0.08, freq, duration: 0.14, type: 'triangle', gain: 0.06 })); },
+    switch: ctx => { tone(ctx, { freq: 300, endFreq: 680, duration: 0.1, type: 'triangle', gain: 0.055 }); }
+  };
+
+  function play(name, detail = {}) {
+    if (!state.enabled) return false;
+    const ctx = ensureContext();
+    const recipe = recipes[name] || recipes.ui_click;
+    if (!ctx || !recipe) return false;
+    const key = detail.cooldownKey || name;
+    const minGap = detail.minGapMs ?? 75;
+    const last = state.lastPlayed.get(key) || 0;
+    if (now() - last < minGap) return false;
+    state.lastPlayed.set(key, now());
+    state.master.gain.value = state.sfxVolume;
+    recipe(ctx, detail);
+    return true;
+  }
+
+  function setSfxEnabled(enabled) {
+    state.enabled = !!enabled;
+    storageSet(SFX_KEY, state.enabled ? 'true' : 'false');
+    if (state.enabled) play('ui_click');
+    return state.enabled;
+  }
+
+  function setSfxVolume(value) {
+    state.sfxVolume = clamp(value, 0, 1);
+    storageSet(SFX_VOLUME_KEY, state.sfxVolume);
+    if (state.master) state.master.gain.value = state.sfxVolume;
+    return state.sfxVolume;
+  }
+
+  async function startMusic(stationKey = state.station) {
+    const key = COZY_RADIO_STATIONS[stationKey] ? stationKey : 'groovesalad';
+    state.station = key;
+    storageSet(MUSIC_STATION_KEY, key);
+    state.music.src = COZY_RADIO_STATIONS[key].url;
+    state.music.volume = state.musicVolume;
+    await state.music.play();
+    return COZY_RADIO_STATIONS[key];
+  }
+
+  function stopMusic() {
+    state.music.pause();
+    state.music.removeAttribute('src');
+    state.music.load();
+  }
+
+  function setMusicVolume(value) {
+    state.musicVolume = clamp(value, 0, 1);
+    state.music.volume = state.musicVolume;
+    storageSet(MUSIC_VOLUME_KEY, state.musicVolume);
+    return state.musicVolume;
+  }
+
+  return {
+    state,
+    stations: COZY_RADIO_STATIONS,
+    play,
+    setSfxEnabled,
+    setSfxVolume,
+    startMusic,
+    stopMusic,
+    setMusicVolume,
+    isMusicPlaying: () => !state.music.paused && !!state.music.src
+  };
+}
