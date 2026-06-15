@@ -74,6 +74,11 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
         bot = next(b for b in page.evaluate("window.getGameState().bots") if b["id"] == 1)
         assert bot["taughtLoop"][0]["type"] == "crude_axe" and bot["taughtLoop"][1]["op"] == "chop_tree", bot
 
+        page.evaluate("window.teachDebug.openBotMenu(2)")
+        page.wait_for_selector("#botMenu [data-bot-json-editor]")
+        bot2_json = page.locator("#botMenu [data-bot-json-editor]").input_value()
+        assert "Idle / Depot Parking" in bot2_json and "Menu JSON Loop" not in bot2_json, bot2_json
+
         page.evaluate("window.teachDebug.openBotMenu(1)")
         page.wait_for_selector("#botMenu [data-bot-program-steps] .bot-program-step-card")
         page.locator("#botMenu [data-bot-program-steps] [data-bot-step-type='0']").evaluate(

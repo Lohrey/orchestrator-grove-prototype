@@ -1,8 +1,30 @@
 import { PROGRAMS, PROGRAM_TEMPLATES, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, DSL_ACTION_WIKI } from './data.js?v=t_c4955ba2_player_storage';
 
+export const LOCAL_AI_PROVIDERS = {
+  ollama: {
+    id: 'ollama',
+    label: 'Ollama',
+    backendLabel: 'Ollama',
+    baseUrl: null
+  },
+  tabbyapi: {
+    id: 'tabbyapi',
+    label: 'Qwen2.5-Coder 7B Instruct EXL2 6.5bpw (TabbyAPI)',
+    backendLabel: 'TabbyAPI / ExLlama',
+    baseUrl: 'http://127.0.0.1:5000/v1',
+    chatCompletionsUrl: 'http://127.0.0.1:5000/v1/chat/completions',
+    defaultModel: 'Qwen2.5-Coder-7B-Instruct-exl2-6_5'
+  }
+};
+
 export function defaultOllamaEndpoint() {
   if (location.hostname === 'docs.pau1.cloud') return '/ollama-proxy';
   return 'http://127.0.0.1:11434';
+}
+
+export function getDefaultProviderConfig(provider = 'ollama') {
+  if (provider === 'tabbyapi') return { provider, endpoint: LOCAL_AI_PROVIDERS.tabbyapi.baseUrl, model: LOCAL_AI_PROVIDERS.tabbyapi.defaultModel };
+  return { provider: 'ollama', endpoint: defaultOllamaEndpoint(), model: preferredOllamaModel(OLLAMA_MODEL_PREFERENCES) || 'gemma4:12b' };
 }
 
 const OLLAMA_MODEL_PREFERENCES = [
@@ -409,6 +431,18 @@ export function buildOllamaRequestBody(text, game, { model, enableTemplates = fa
   return { body, prompt };
 }
 
+export function buildOpenAiCompatibleRequestBody(text, game, { model, enableTemplates = false, loadout = DEFAULT_ASSISTANT_LOADOUT, temperature = 0.1 } = {}) {
+  const prompt = buildOllamaPrompt(text, game, { enableTemplates, loadout });
+  const body = {
+    model,
+    temperature,
+    stream: false,
+    response_format: { type: 'json_object' },
+    messages: prompt.messages
+  };
+  return { body, prompt };
+}
+
 function parseJsonObject(text) {
   if (typeof text === 'object' && text) return text;
   const clean = String(text || '').trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
@@ -529,6 +563,44 @@ export async function refreshOllamaModels({ endpointInput, modelSelect, statusEl
   return names;
 }
 
+function appendModelOptions(modelSelect, names, { preserve = [] } = {}) {
+  const unique = [...new Set([...names, ...preserve].filter(Boolean))];
+  modelSelect.innerHTML = unique.length ? '' : '<option value="">No models found</option>';
+  for (const name of unique) {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name === LOCAL_AI_PROVIDERS.tabbyapi.defaultModel
+      ? 'Qwen2.5-Coder 7B Instruct EXL2 6.5bpw (TabbyAPI)'
+      : name;
+    modelSelect.appendChild(option);
+  }
+  return unique;
+}
+
+export async function refreshLocalAiModels({ provider, endpointInput, modelSelect, statusEl }) {
+  const endpoint = endpointInput.value.trim().replace(/\/$/, '') || getDefaultProviderConfig(provider).endpoint;
+  if (provider === 'tabbyapi') {
+    statusEl.textContent = `Loading models from ${endpoint}/models ...`;
+    const res = await fetch(`${endpoint}/models`);
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    const data = await res.json();
+    const names = (Array.isArray(data?.data) ? data.data : [])
+      .map(model => model.id)
+      .filter(Boolean)
+      .sort();
+    appendModelOptions(modelSelect, names, { preserve: [LOCAL_AI_PROVIDERS.tabbyapi.defaultModel] });
+    modelSelect.value = names.includes(LOCAL_AI_PROVIDERS.tabbyapi.defaultModel)
+      ? LOCAL_AI_PROVIDERS.tabbyapi.defaultModel
+      : (names[0] || LOCAL_AI_PROVIDERS.tabbyapi.defaultModel);
+    statusEl.textContent = `Loaded ${names.length || 1} TabbyAPI model(s). Selected ${modelSelect.value}.`;
+    return names;
+  }
+  const names = await refreshOllamaModels({ endpointInput, modelSelect, statusEl });
+  appendModelOptions(modelSelect, names, { preserve: [LOCAL_AI_PROVIDERS.tabbyapi.defaultModel] });
+  if (!modelSelect.value && names[0]) modelSelect.value = names[0];
+  return names;
+}
+
 export async function parseWithOllama(text, game, { endpoint, model, enableTemplates = false, loadout = DEFAULT_ASSISTANT_LOADOUT }) {
   if (!model) {
     const fallback = enableTemplates ? parseAssistantRequest(text, game, { enableTemplates: true, loadout }) : { help: true, source: 'ollama', calls: [] };
@@ -625,5 +697,96 @@ export async function parseWithOllama(text, game, { endpoint, model, enableTempl
     console.warn('[Orchestrator chat AI] Ollama failed/fell back', { sent: sentDebug || { url, body: requestBody }, returned });
     const fallback = enableTemplates ? parseAssistantRequest(text, game, { enableTemplates: true, loadout }) : { help: true, source: 'ollama', calls: [] };
     return { ...fallback, fallback: true, meta: enableTemplates ? `Ollama failed: ${e.message}; workflow template fallback.` : `Ollama failed: ${e.message}; workflow template fallback disabled.`, debug: { sent: sentDebug || { url, body: requestBody }, returned } };
+  }
+}
+
+export async function parseWithOpenAiCompatible(text, game, { endpoint, model, enableTemplates = false, loadout = DEFAULT_ASSISTANT_LOADOUT, providerLabel = 'OpenAI-compatible local model' }) {
+  if (!model) {
+    const fallback = enableTemplates ? parseAssistantRequest(text, game, { enableTemplates: true, loadout }) : { help: true, source: 'openai-compatible', calls: [] };
+    return { ...fallback, fallback: true, meta: enableTemplates ? 'No model selected; workflow template fallback.' : 'No model selected; workflow template fallback disabled.', debug: { sent: { endpoint, model, text, enableTemplates, loadout: normalizeAssistantLoadout(loadout) }, returned: { error: 'No model selected.' } } };
+  }
+  const started = performance.now();
+  const url = `${endpoint.replace(/\/$/, '')}/chat/completions`;
+  const previousAttempts = [];
+  let requestBody = null;
+  let sentDebug = null;
+  let returned = null;
+
+  const withPreviousAttempts = value => previousAttempts.length ? { ...value, previousAttempts } : value;
+  const markModelResponseFailure = err => {
+    err.retryAllowed = true;
+    return err;
+  };
+  const markTransportFailure = err => {
+    err.retryAllowed = false;
+    return err;
+  };
+  const recordFailedAttempt = (attempt, error) => {
+    const failedReturned = { ...(returned || {}), error: error.message };
+    previousAttempts.push({ attempt, sent: sentDebug || { url, body: requestBody }, returned: failedReturned });
+    returned = failedReturned;
+  };
+
+  const runAttempt = async attempt => {
+    const built = buildOpenAiCompatibleRequestBody(text, game, { model, enableTemplates, loadout, temperature: 0.1 });
+    requestBody = built.body;
+    sentDebug = { url, body: requestBody, request: { text, model, endpoint, enableTemplates, loadout: normalizeAssistantLoadout(loadout), attempt }, finalPrompt: built.prompt.finalPrompt };
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) });
+    const httpBody = await res.text().catch(() => '');
+    if (!res.ok) {
+      returned = { status: res.status, statusText: res.statusText, rawHttpBody: httpBody, rawResponse: httpBody, error: `${res.status} ${res.statusText}` };
+      throw markTransportFailure(new Error(`${res.status} ${res.statusText}`));
+    }
+    let data = null;
+    try {
+      data = JSON.parse(httpBody || '{}');
+    } catch (err) {
+      returned = { status: res.status, statusText: res.statusText, rawHttpBody: httpBody, rawResponse: httpBody, error: `HTTP response was not JSON: ${err.message}` };
+      throw markTransportFailure(new Error('HTTP response was not JSON'));
+    }
+    const content = data.choices?.[0]?.message?.content || '';
+    returned = { status: res.status, statusText: res.statusText, response: data, rawHttpBody: httpBody, rawResponse: content, content };
+    let json = null;
+    try {
+      json = parseJsonObject(content);
+    } catch (err) {
+      returned = { ...returned, parseError: err.message, error: err.message };
+      throw markModelResponseFailure(err);
+    }
+    const rawCalls = json.tool_calls || json.calls || [];
+    const rawDslAssignments = json.dsl_assignments || json.dslAssignments || [];
+    if (!rawCalls.length && !rawDslAssignments.length && (json.help || json.reason || json.error)) {
+      const reason = json.reason || json.error || 'The requested command needs an unavailable DSL operation.';
+      returned = { ...returned, parsed: json, validCalls: [], validDslAssignments: [], validationErrors: { toolCalls: null, dslAssignments: null } };
+      return {
+        help: true,
+        calls: [],
+        dslAssignments: [],
+        source: 'openai-compatible',
+        meta: `${providerLabel} ${model}: ${reason}${attempt > 1 ? ' (retried once)' : ''}`,
+        debug: { sent: sentDebug, returned: withPreviousAttempts(returned) }
+      };
+    }
+    let calls = [], dslAssignments = [], callError = null, dslError = null;
+    try { calls = validateToolCalls(rawCalls, game, { loadout }); } catch (err) { callError = err; }
+    try { dslAssignments = validateDslAssignments(rawDslAssignments, game, { loadout }); } catch (err) { dslError = err; }
+    returned = { ...returned, parsed: json, validCalls: calls, validDslAssignments: dslAssignments, validationErrors: { toolCalls: callError?.message || null, dslAssignments: dslError?.message || null } };
+    if (!calls.length && !dslAssignments.length && (callError || dslError)) throw markModelResponseFailure(callError || dslError);
+    return { calls, dslAssignments, source: 'openai-compatible', meta: `${providerLabel} ${model}: ${Math.round(performance.now() - started)}ms, valid calls=${calls.length}, DSL=${dslAssignments.length}${attempt > 1 ? ', retried once' : ''}`, debug: { sent: sentDebug, returned: withPreviousAttempts(returned) } };
+  };
+
+  try {
+    try {
+      return await runAttempt(1);
+    } catch (firstError) {
+      recordFailedAttempt(1, firstError);
+      if (!firstError.retryAllowed) throw firstError;
+      return await runAttempt(2);
+    }
+  } catch (e) {
+    if (previousAttempts.length < 2 && sentDebug) recordFailedAttempt(previousAttempts.length + 1, e);
+    returned = withPreviousAttempts({ ...(returned || {}), error: e.message });
+    const fallback = enableTemplates ? parseAssistantRequest(text, game, { enableTemplates: true, loadout }) : { help: true, source: 'openai-compatible', calls: [] };
+    return { ...fallback, fallback: true, meta: enableTemplates ? `${providerLabel} failed: ${e.message}; workflow template fallback.` : `${providerLabel} failed: ${e.message}; workflow template fallback disabled.`, debug: { sent: sentDebug || { url, body: requestBody }, returned } };
   }
 }

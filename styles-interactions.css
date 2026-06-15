@@ -582,6 +582,33 @@
 .entity-menu > b { display: inline-block; margin-bottom: 6px; }
 .entity-menu > button[data-close] { float: right; padding: 2px 8px; border-radius: 999px; }
 .entity-menu p { margin: 6px 0 10px; color: var(--muted); font-size: 12px; }
+.bot-menu-title {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.bot-menu-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bot-menu-title-row > b {
+  margin: 0;
+  font-size: 15px;
+}
+.bot-menu-name-status {
+  margin: 0;
+  color: #9abf8f;
+  font-size: 11px;
+}
+.bot-menu-title button[data-edit-bot-name] {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+}
 .tool-selector {
   display: flex;
   flex-wrap: wrap;

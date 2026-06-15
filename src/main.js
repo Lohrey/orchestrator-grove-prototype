@@ -4,17 +4,17 @@ import { createAudioController } from './audio.js?v=t_cb4d09e8_audio';
 import { Game } from './world.js?v=t_f62dde4d_modes';
 import { createMultiplayerController } from './multiplayer.js?v=t_f62dde4d_modes';
 import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f';
-import { buildOllamaRequestBody, defaultOllamaEndpoint, formatOllamaFinalPrompt, normalizeAssistantLoadout, parseAssistantRequest, parseWithOllama, refreshOllamaModels, summarizeAssistantLoadout, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_6481763f_use_held_item';
+import { LOCAL_AI_PROVIDERS, buildOllamaRequestBody, buildOpenAiCompatibleRequestBody, defaultOllamaEndpoint, formatOllamaFinalPrompt, getDefaultProviderConfig, normalizeAssistantLoadout, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, summarizeAssistantLoadout, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_6481763f_use_held_item';
 import { escapeHtml } from './utils.js?v=20260613-player-tools';
 
 export function startGame() {
   const $ = id => document.getElementById(id);
   const dom = {
     canvas: $('game'), gameStage: $('gameStage'), chatLog: $('chatLog'), chatForm: $('chatForm'), chatInput: $('chatInput'), micButton: $('micButton'), asrStatus: $('asrStatus'), quickCommands: $('quickCommands'), drawZoneButton: $('drawZoneButton'),
-    botList: $('botList'), statline: $('statline'), rendererStatus: $('rendererStatus'), targetFps: $('targetFps'), targetFpsValue: $('targetFpsValue'), maxBots: $('maxBots'), maxBotsValue: $('maxBotsValue'),
+    botList: $('botList'), statline: $('statline'), rendererStatus: $('rendererStatus'), targetFps: $('targetFps'), targetFpsValue: $('targetFpsValue'), maxBots: $('maxBots'), maxBotsValue: $('maxBotsValue'), performanceProfile: $('performanceProfile'), applyAutoPerformance: $('applyAutoPerformance'), detectedGpu: $('detectedGpu'), detectedVram: $('detectedVram'), detectedProfile: $('detectedProfile'), recommendedBots: $('recommendedBots'), recommendedFps: $('recommendedFps'), performanceNotes: $('performanceNotes'),
     teachPanel: $('teachPanel'), teachCloseBtn: $('teachCloseBtn'), teachRecordBtn: $('teachRecordBtn'), teachAssignBtn: $('teachAssignBtn'), teachBotId: $('teachBotId'), teachStatus: $('teachStatus'), teachSteps: $('teachSteps'),
     sawLogs: $('sawLogs'), sawPlanks: $('sawPlanks'), sawPoles: $('sawPoles'), factoryPlanks: $('factoryPlanks'), factoryRecipe: $('factoryRecipe'), looseLogs: $('looseLogs'), loosePlanks: $('loosePlanks'), looseBase: $('looseBase'), paletteItems: $('paletteItems'), programSelect: $('programSelect'), programView: $('programView'),
-    llmMode: $('llmMode'), templateRouting: $('templateRouting'), ollamaEndpoint: $('ollamaEndpoint'), ollamaModel: $('ollamaModel'), refreshModels: $('refreshModels'), benchmarkBtn: $('benchmarkBtn'), ollamaStatus: $('ollamaStatus'), serverOllamaBtn: $('serverOllamaBtn'), localOllamaBtn: $('localOllamaBtn'), localOllamaWindowsHelp: $('localOllamaWindowsHelp'), asrMode: $('asrMode'), asrModeHelp: $('asrModeHelp'),
+    llmMode: $('llmMode'), templateRouting: $('templateRouting'), ollamaEndpoint: $('ollamaEndpoint'), ollamaModel: $('ollamaModel'), refreshModels: $('refreshModels'), benchmarkBtn: $('benchmarkBtn'), ollamaStatus: $('ollamaStatus'), llmProviderLabel: $('llmProviderLabel'), serverOllamaBtn: $('serverOllamaBtn'), localOllamaBtn: $('localOllamaBtn'), localTabbyBtn: $('localTabbyBtn'), localOllamaWindowsHelp: $('localOllamaWindowsHelp'), localTabbyHelp: $('localTabbyHelp'), asrMode: $('asrMode'), asrModeHelp: $('asrModeHelp'),
     buildPanel: $('buildPanel'), buildStatus: $('buildStatus'), buildDrawer: $('buildDrawer'), buildDrawerToggle: $('buildDrawerToggle'), zonesPanel: $('zonesPanel'), zonesDrawer: $('zonesDrawer'), zonesDrawerToggle: $('zonesDrawerToggle'), zoneList: $('zoneList'), drawZoneDrawerButton: $('drawZoneDrawerButton'), botMenu: $('botMenu'), structureMenu: $('structureMenu'),
     settingsOverlay: $('settingsOverlay'), settingsClose: $('settingsClose'), chatOverlay: $('chatOverlay'), chatToggle: $('chatToggle'), chatCollapse: $('chatCollapse'), assignmentToast: $('assignmentToast'),
     aiLog: $('aiLog'), dslWikiView: $('dslWikiView'), botDrawer: $('botDrawer'), botDrawerToggle: $('botDrawerToggle'), botSearch: $('botSearch'), botTeamForm: $('botTeamForm'), botTeamName: $('botTeamName'), botTeamColor: $('botTeamColor'), botTeamCreate: $('botTeamCreate'),
@@ -65,8 +65,15 @@ export function startGame() {
   const ASR_MODE_KEY = 'orchestratorGrove.asrMode';
   const TEMPLATE_ROUTING_KEY = 'orchestratorGrove.templateRoutingEnabled';
   const ASSISTANT_LOADOUT_KEY = 'orchestratorGrove.assistantLoadout.v1';
+  const SETTINGS_KEY = 'orchestratorGrove.settings.v1';
   const SAVE_KEY = 'orchestratorGrove.save.v1';
   const RECENT_SAVE_MS = 30000;
+  const PERFORMANCE_PRESETS = {
+    battery_saver: { label: 'Battery saver', targetFps: 30, maxBots: 48 },
+    balanced: { label: 'Balanced', targetFps: 45, maxBots: 96 },
+    high_density: { label: 'High density', targetFps: 60, maxBots: 180 },
+    stress_test: { label: 'Stress test', targetFps: 60, maxBots: 320 }
+  };
   const ASR_MODES = {
     zipformer_whisper: {
       status: 'Voice: Zipformer live partials + Whisper finalizer.',
@@ -83,6 +90,122 @@ export function startGame() {
   };
   const storageGet = key => { try { return localStorage.getItem(key); } catch { return null; } };
   const storageSet = (key, value) => { try { localStorage.setItem(key, value); return true; } catch { return false; } };
+  const readJson = (key, fallback = null) => {
+    const raw = storageGet(key);
+    if (!raw) return fallback;
+    try { return JSON.parse(raw); } catch { return fallback; }
+  };
+  function getSelectedProvider() {
+    return dom.llmMode?.value === 'tabbyapi' ? 'tabbyapi' : 'ollama';
+  }
+  function getCurrentLocalAiConfig() {
+    const provider = getSelectedProvider();
+    const defaults = getDefaultProviderConfig(provider);
+    return {
+      provider,
+      endpoint: (dom.ollamaEndpoint?.value || defaults.endpoint || '').trim().replace(/\/$/, '') || defaults.endpoint,
+      model: dom.ollamaModel?.value || defaults.model
+    };
+  }
+  function saveBrowserSettings() {
+    const settings = {
+      llmMode: dom.llmMode?.value || 'mock',
+      templateRouting: getTemplateRoutingEnabled(),
+      asrMode: getAsrMode(),
+      performanceProfile: dom.performanceProfile?.value || 'auto',
+      targetFps: Number(dom.targetFps?.value || game?.targetFps || 60),
+      maxBots: Number(dom.maxBots?.value || game?.maxBots || 12),
+      ai: getCurrentLocalAiConfig()
+    };
+    return storageSet(SETTINGS_KEY, JSON.stringify(settings));
+  }
+  const clampBotLimit = value => {
+    const min = Number(dom.maxBots?.min || 4);
+    const max = Number(dom.maxBots?.max || 1000);
+    return Math.max(min, Math.min(max, Math.round(Number(value) || min)));
+  };
+  function getRendererRecommendation(renderer = game?.renderer) {
+    const profile = renderer?.preset || 'balanced';
+    const recommendedTargetFps = Number(renderer?.recommendedTargetFps || PERFORMANCE_PRESETS[profile]?.targetFps || PERFORMANCE_PRESETS.balanced.targetFps);
+    const recommendedMaxBots = Number(renderer?.recommendedMaxBots || PERFORMANCE_PRESETS[profile]?.maxBots || PERFORMANCE_PRESETS.balanced.maxBots);
+    const maxBotsCap = Math.max(recommendedMaxBots, Number(renderer?.maxBotsCap || 300));
+    return {
+      profile,
+      gpuText: renderer?.gpuText || renderer?.label || renderer?.text || 'Unknown GPU',
+      inferredVramGb: renderer?.inferredVramGb ?? null,
+      recommendedTargetFps,
+      recommendedMaxBots,
+      maxBotsCap,
+      notes: Array.isArray(renderer?.notes) ? renderer.notes : [],
+      rendererText: renderer?.text || 'Canvas 2D fallback',
+      webgpu: !!renderer?.webgpu,
+      confidence: renderer?.confidence || 'low'
+    };
+  }
+  function setMaxBotsUiLimit(limit) {
+    if (!dom.maxBots) return;
+    const safeLimit = Math.max(Number(dom.maxBots.min || 4), Math.min(1000, Math.round(Number(limit) || 1000)));
+    dom.maxBots.max = String(safeLimit);
+    dom.maxBots.step = '1';
+    if (Number(dom.maxBots.value) > safeLimit) dom.maxBots.value = String(safeLimit);
+    if (game && Number(game.maxBots) > safeLimit) game.maxBots = safeLimit;
+  }
+  function setPerformanceProfileValue(profile) {
+    if (!dom.performanceProfile) return;
+    dom.performanceProfile.value = dom.performanceProfile.querySelector(`option[value="${profile}"]`) ? profile : 'custom';
+  }
+  function syncPerformanceUi(message = '') {
+    const recommendation = getRendererRecommendation();
+    setMaxBotsUiLimit(recommendation.maxBotsCap);
+    if (dom.targetFpsValue) dom.targetFpsValue.textContent = String(game.targetFps);
+    if (dom.maxBotsValue) dom.maxBotsValue.textContent = String(game.maxBots);
+    if (dom.rendererStatus) dom.rendererStatus.textContent = `Renderer: ${recommendation.rendererText}`;
+    if (dom.detectedGpu) dom.detectedGpu.textContent = recommendation.gpuText;
+    if (dom.detectedVram) dom.detectedVram.textContent = recommendation.inferredVramGb ? `~${recommendation.inferredVramGb} GB` : 'Unknown / browser not exposed';
+    if (dom.detectedProfile) dom.detectedProfile.textContent = recommendation.profile.replace(/_/g, ' ');
+    if (dom.recommendedBots) dom.recommendedBots.textContent = `${recommendation.recommendedMaxBots} (cap ${recommendation.maxBotsCap})`;
+    if (dom.recommendedFps) dom.recommendedFps.textContent = String(recommendation.recommendedTargetFps);
+    if (dom.performanceNotes) {
+      const noteText = recommendation.notes.filter(Boolean).join(' ');
+      dom.performanceNotes.textContent = message || noteText || `Using a ${recommendation.confidence}-confidence hardware heuristic.`;
+    }
+  }
+  function applyPerformancePreset(profile, { save = true } = {}) {
+    const recommendation = getRendererRecommendation();
+    const targetProfile = profile === 'auto' ? recommendation.profile : profile;
+    const preset = PERFORMANCE_PRESETS[targetProfile] || PERFORMANCE_PRESETS.balanced;
+    const nextFps = profile === 'auto' ? recommendation.recommendedTargetFps : preset.targetFps;
+    const baseBots = profile === 'auto' ? recommendation.recommendedMaxBots : preset.maxBots;
+    game.targetFps = Number(nextFps);
+    setMaxBotsUiLimit(recommendation.maxBotsCap);
+    game.maxBots = clampBotLimit(Math.min(baseBots, recommendation.maxBotsCap));
+    if (dom.targetFps) dom.targetFps.value = String(game.targetFps);
+    if (dom.maxBots) dom.maxBots.value = String(game.maxBots);
+    setPerformanceProfileValue(profile);
+    syncPerformanceUi(profile === 'auto' ? 'Applied hardware-based performance recommendation.' : `Applied ${preset.label.toLowerCase()} preset.`);
+    if (save) saveBrowserSettings();
+  }
+  function syncProviderUi() {
+    const provider = getSelectedProvider();
+    const providerConfig = LOCAL_AI_PROVIDERS[provider];
+    if (dom.llmProviderLabel) dom.llmProviderLabel.textContent = `Provider: ${provider === 'tabbyapi' ? providerConfig.backendLabel : providerConfig.label}`;
+    const endpoint = (dom.ollamaEndpoint.value || '').trim().replace(/\/$/, '');
+    const isLocalOllama = provider === 'ollama' && endpoint === 'http://127.0.0.1:11434';
+    if (dom.localOllamaWindowsHelp) dom.localOllamaWindowsHelp.hidden = !isLocalOllama;
+    if (dom.localTabbyHelp) dom.localTabbyHelp.hidden = provider !== 'tabbyapi';
+    if (dom.serverOllamaBtn) dom.serverOllamaBtn.disabled = provider === 'tabbyapi';
+    if (dom.localOllamaBtn) dom.localOllamaBtn.disabled = provider === 'tabbyapi';
+  }
+  function setLocalAiProvider(provider, { endpoint, model, status } = {}) {
+    const defaults = getDefaultProviderConfig(provider);
+    dom.llmMode.value = provider;
+    dom.ollamaEndpoint.value = (endpoint || defaults.endpoint || '').replace(/\/$/, '');
+    dom.ollamaModel.value = model || defaults.model;
+    if (status) dom.ollamaStatus.textContent = status;
+    syncProviderUi();
+    updateAssistantPromptPreview();
+    saveBrowserSettings();
+  }
   function readAssistantLoadout() {
     const raw = storageGet(ASSISTANT_LOADOUT_KEY);
     if (!raw) return normalizeAssistantLoadout(DEFAULT_ASSISTANT_LOADOUT);
@@ -113,8 +236,10 @@ export function startGame() {
       return dom.assistantPromptPreview.textContent;
     }
     const requestText = (dom.chatInput?.value || '').trim() || '[current user request will appear here]';
-    const model = dom.ollamaModel?.value || 'gemma4:12b';
-    const { prompt } = buildOllamaRequestBody(requestText, game, { model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() });
+    const { provider, model } = getCurrentLocalAiConfig();
+    const { prompt } = provider === 'tabbyapi'
+      ? buildOpenAiCompatibleRequestBody(requestText, game, { model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), temperature: 0.1 })
+      : buildOllamaRequestBody(requestText, game, { model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() });
     if (dom.assistantBasePromptView) dom.assistantBasePromptView.textContent = prompt.systemPrompt;
     if (dom.assistantLoadoutView) dom.assistantLoadoutView.textContent = JSON.stringify(prompt.knowledge, null, 2);
     dom.assistantPromptPreview.textContent = prompt.finalPrompt;
@@ -159,16 +284,47 @@ export function startGame() {
   }
 
   let game;
-  const storedAsrMode = storageGet(ASR_MODE_KEY);
+  const storedSettings = readJson(SETTINGS_KEY, null);
+  const storedPerformanceProfile = storedSettings?.performanceProfile || 'auto';
+  const storedAsrMode = storedSettings?.asrMode || storageGet(ASR_MODE_KEY);
   if (ASR_MODES[storedAsrMode] && dom.asrMode) dom.asrMode.value = storedAsrMode;
-  if (dom.templateRouting) dom.templateRouting.checked = storageGet(TEMPLATE_ROUTING_KEY) === 'true';
+  if (dom.templateRouting) dom.templateRouting.checked = typeof storedSettings?.templateRouting === 'boolean' ? storedSettings.templateRouting : storageGet(TEMPLATE_ROUTING_KEY) === 'true';
   syncAsrModeUi();
   const chat = createChatController({ chatInput: dom.chatInput, chatForm: dom.chatForm, micButton: dom.micButton, asrStatus: dom.asrStatus, quickCommands: dom.quickCommands, getAsrMode, onSubmit: text => handleAssistant(text) });
   game = new Game({ canvas: dom.canvas, chat, dom, isChatActive: () => isChatOpen() });
   const audio = createAudioController();
   game.audio = audio;
-  probeRenderer().then(renderer => { game.renderer = renderer; }).catch(err => { game.renderer = { text: 'Canvas 2D fallback', webgpu: false, reason: err.message }; });
+  setPerformanceProfileValue(storedPerformanceProfile);
+  probeRenderer().then(renderer => {
+    game.renderer = renderer;
+    if (storedSettings?.targetFps || storedSettings?.maxBots) {
+      syncPerformanceUi('Loaded performance settings from this browser.');
+      return;
+    }
+    applyPerformancePreset(storedPerformanceProfile === 'custom' ? 'auto' : storedPerformanceProfile, { save: true });
+  }).catch(err => {
+    game.renderer = { text: 'Canvas 2D fallback', webgpu: false, reason: err.message };
+    syncPerformanceUi('Renderer probe failed; using conservative fallback heuristics.');
+  });
   const multiplayer = createMultiplayerController({ game, dom, addChat });
+  if (storedSettings?.targetFps && dom.targetFps) {
+    game.targetFps = Number(storedSettings.targetFps);
+    dom.targetFps.value = String(game.targetFps);
+    dom.targetFpsValue.textContent = String(game.targetFps);
+  }
+  if (storedSettings?.maxBots && dom.maxBots) {
+    game.maxBots = Number(storedSettings.maxBots);
+    dom.maxBots.value = String(game.maxBots);
+    dom.maxBotsValue.textContent = String(game.maxBots);
+  }
+  syncPerformanceUi(storedSettings?.targetFps || storedSettings?.maxBots ? 'Loaded performance settings from this browser.' : '');
+  if (storedSettings?.ai?.provider || storedSettings?.llmMode === 'tabbyapi') {
+    const provider = storedSettings.ai?.provider || 'tabbyapi';
+    const defaults = getDefaultProviderConfig(provider);
+    dom.llmMode.value = storedSettings.llmMode || provider;
+    dom.ollamaEndpoint.value = (storedSettings.ai?.endpoint || defaults.endpoint || '').replace(/\/$/, '');
+    dom.ollamaModel.value = storedSettings.ai?.model || defaults.model;
+  }
 
   function setSettingsOpen(open) {
     dom.settingsOverlay.hidden = !open;
@@ -247,6 +403,46 @@ export function startGame() {
     syncDrawerStack();
   }
   function toggleMultiplayerDrawer() { setMultiplayerDrawerOpen(dom.multiplayerDrawer?.classList.contains('is-collapsed')); }
+  function closeOpenUiPanels() {
+    let closed = false;
+    if (dom.teachPanel && !dom.teachPanel.hidden) {
+      game.closeTeachPanel();
+      closed = true;
+    }
+    if (dom.botMenu && !dom.botMenu.hidden) {
+      game.hideMenus();
+      closed = true;
+    }
+    if (dom.structureMenu && !dom.structureMenu.hidden) {
+      game.hideMenus();
+      closed = true;
+    }
+    if (isChatOpen()) {
+      setChatOpen(false);
+      closed = true;
+    }
+    if (dom.botDrawer && !dom.botDrawer.classList.contains('is-collapsed')) {
+      setBotDrawerOpen(false);
+      closed = true;
+    }
+    if (dom.buildDrawer && !dom.buildDrawer.classList.contains('is-collapsed')) {
+      setBuildDrawerOpen(false);
+      closed = true;
+    }
+    if (dom.zonesDrawer && !dom.zonesDrawer.classList.contains('is-collapsed')) {
+      setZonesDrawerOpen(false);
+      closed = true;
+    }
+    if (dom.multiplayerDrawer && !dom.multiplayerDrawer.classList.contains('is-collapsed')) {
+      setMultiplayerDrawerOpen(false);
+      closed = true;
+    }
+    if (dom.settingsOverlay && !dom.settingsOverlay.hidden) {
+      setSettingsOpen(false);
+      closed = true;
+    }
+    return closed;
+  }
   function hasSavedGame() { return !!storageGet(SAVE_KEY); }
   let lastSuccessfulSaveAt = 0;
   function getLastSaveAgeMs() { return lastSuccessfulSaveAt ? Date.now() - lastSuccessfulSaveAt : Infinity; }
@@ -300,8 +496,10 @@ export function startGame() {
       const state = game.loadSave(parsedSave);
       lastSuccessfulSaveAt = Date.parse(parsedSave.savedAt) || 0;
       setQuitSavePromptOpen(false);
-      if (dom.targetFps) { dom.targetFps.value = String(game.targetFps); dom.targetFpsValue.textContent = String(game.targetFps); }
-      if (dom.maxBots) { dom.maxBots.value = String(game.maxBots); dom.maxBotsValue.textContent = String(game.maxBots); }
+      if (dom.targetFps) dom.targetFps.value = String(game.targetFps);
+      if (dom.maxBots) dom.maxBots.value = String(game.maxBots);
+      setPerformanceProfileValue('custom');
+      syncPerformanceUi('Loaded saved game from browser cache.');
       if (closeMenus) { setMainMenuOpen(false); setSettingsOpen(false); }
       game.setPaused(false);
       syncSaveUi('Loaded saved game from browser cache.');
@@ -407,23 +605,19 @@ export function startGame() {
 
   async function handleAssistant(text) {
     addChat('user', escapeHtml(text));
-    if (dom.llmMode.value === 'ollama') {
-      const endpoint = (dom.ollamaEndpoint.value.trim().replace(/\/$/, '') || defaultOllamaEndpoint());
-      const parsed = await parseWithOllama(text, game, { endpoint, model: dom.ollamaModel.value, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() });
+    if (dom.llmMode.value === 'ollama' || dom.llmMode.value === 'tabbyapi') {
+      const { provider, endpoint, model } = getCurrentLocalAiConfig();
+      const parsed = provider === 'tabbyapi'
+        ? await parseWithOpenAiCompatible(text, game, { endpoint, model, providerLabel: LOCAL_AI_PROVIDERS.tabbyapi.backendLabel, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() })
+        : await parseWithOllama(text, game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() });
       const { debug, ...parsedForLog } = parsed;
-      logChatAi({ mode: 'ollama', sent: debug?.sent || { endpoint, model: dom.ollamaModel.value, text, loadout: getAssistantLoadout() }, returned: debug?.returned || parsedForLog });
+      logChatAi({ mode: provider === 'tabbyapi' ? LOCAL_AI_PROVIDERS.tabbyapi.backendLabel : 'ollama', sent: debug?.sent || { endpoint, model, text, loadout: getAssistantLoadout() }, returned: debug?.returned || parsedForLog });
       handleParsed(parsed);
     } else {
       const parsed = parseAssistantRequest(text, game, { enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() });
       logChatAi({ mode: 'mock parser', sent: { text, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() }, returned: parsed });
       handleParsed(parsed);
     }
-  }
-
-  function syncLocalOllamaHelp() {
-    const endpoint = (dom.ollamaEndpoint.value || '').trim().replace(/\/$/, '');
-    const isLocalOllama = dom.llmMode.value === 'ollama' && endpoint === 'http://127.0.0.1:11434';
-    if (dom.localOllamaWindowsHelp) dom.localOllamaWindowsHelp.hidden = !isLocalOllama;
   }
 
   function syncAudioUi(message = '') {
@@ -482,15 +676,49 @@ export function startGame() {
     if (res.ok) showAssignmentToast(`Assigned recorded loop to <b>Bot ${botId}</b>.`);
     else if (dom.teachStatus) dom.teachStatus.textContent = res.error;
   });
-  dom.targetFps.addEventListener('input', () => { game.targetFps = Number(dom.targetFps.value); dom.targetFpsValue.textContent = String(game.targetFps); });
-  dom.maxBots.addEventListener('input', () => { game.maxBots = Number(dom.maxBots.value); dom.maxBotsValue.textContent = String(game.maxBots); });
-  dom.refreshModels.addEventListener('click', async () => { try { await refreshOllamaModels({ endpointInput: dom.ollamaEndpoint, modelSelect: dom.ollamaModel, statusEl: dom.ollamaStatus }); updateAssistantPromptPreview(); } catch (e) { dom.ollamaStatus.textContent = `Could not load models: ${e.message}`; } });
-  dom.llmMode.addEventListener('change', () => { syncLocalOllamaHelp(); updateAssistantPromptPreview(); });
-  dom.ollamaEndpoint.addEventListener('input', () => { syncLocalOllamaHelp(); updateAssistantPromptPreview(); });
-  dom.ollamaModel?.addEventListener('change', updateAssistantPromptPreview);
+  dom.targetFps.addEventListener('input', () => {
+    game.targetFps = Number(dom.targetFps.value);
+    setPerformanceProfileValue('custom');
+    syncPerformanceUi('Saved a custom performance profile to this browser.');
+    saveBrowserSettings();
+  });
+  dom.maxBots.addEventListener('input', () => {
+    game.maxBots = clampBotLimit(dom.maxBots.value);
+    dom.maxBots.value = String(game.maxBots);
+    setPerformanceProfileValue('custom');
+    syncPerformanceUi('Saved a custom performance profile to this browser.');
+    saveBrowserSettings();
+  });
+  dom.performanceProfile?.addEventListener('change', () => {
+    const selected = dom.performanceProfile.value;
+    if (selected === 'custom') {
+      syncPerformanceUi('Custom profile selected. Adjust the sliders to save exact values.');
+      saveBrowserSettings();
+      return;
+    }
+    applyPerformancePreset(selected, { save: true });
+  });
+  dom.applyAutoPerformance?.addEventListener('click', () => applyPerformancePreset('auto', { save: true }));
+  dom.refreshModels.addEventListener('click', async () => { try { await refreshLocalAiModels({ provider: getSelectedProvider(), endpointInput: dom.ollamaEndpoint, modelSelect: dom.ollamaModel, statusEl: dom.ollamaStatus }); updateAssistantPromptPreview(); saveBrowserSettings(); } catch (e) { dom.ollamaStatus.textContent = `Could not load models: ${e.message}`; } });
+  dom.llmMode.addEventListener('change', () => {
+    const provider = getSelectedProvider();
+    const defaults = getDefaultProviderConfig(provider);
+    if (provider === 'tabbyapi') {
+      dom.ollamaEndpoint.value = LOCAL_AI_PROVIDERS.tabbyapi.baseUrl;
+      dom.ollamaModel.value = LOCAL_AI_PROVIDERS.tabbyapi.defaultModel;
+    } else {
+      if (!dom.ollamaEndpoint.value || dom.ollamaEndpoint.value === LOCAL_AI_PROVIDERS.tabbyapi.baseUrl) dom.ollamaEndpoint.value = defaults.endpoint;
+      if (!dom.ollamaModel.value || dom.ollamaModel.value === LOCAL_AI_PROVIDERS.tabbyapi.defaultModel) dom.ollamaModel.value = defaults.model;
+    }
+    syncProviderUi();
+    updateAssistantPromptPreview();
+    saveBrowserSettings();
+  });
+  dom.ollamaEndpoint.addEventListener('input', () => { syncProviderUi(); updateAssistantPromptPreview(); saveBrowserSettings(); });
+  dom.ollamaModel?.addEventListener('change', () => { updateAssistantPromptPreview(); saveBrowserSettings(); });
   dom.chatInput?.addEventListener('input', updateAssistantPromptPreview);
-  dom.asrMode?.addEventListener('change', () => { storageSet(ASR_MODE_KEY, getAsrMode()); syncAsrModeUi(); });
-  dom.templateRouting?.addEventListener('change', () => { storageSet(TEMPLATE_ROUTING_KEY, String(getTemplateRoutingEnabled())); updateAssistantPromptPreview(); });
+  dom.asrMode?.addEventListener('change', () => { storageSet(ASR_MODE_KEY, getAsrMode()); syncAsrModeUi(); saveBrowserSettings(); });
+  dom.templateRouting?.addEventListener('change', () => { storageSet(TEMPLATE_ROUTING_KEY, String(getTemplateRoutingEnabled())); updateAssistantPromptPreview(); saveBrowserSettings(); });
   dom.knowledgePackList?.addEventListener('change', e => {
     if (!e.target.matches('[data-knowledge-pack]')) return;
     const ids = [...dom.knowledgePackList.querySelectorAll('[data-knowledge-pack]:checked')].map(input => input.dataset.knowledgePack);
@@ -499,22 +727,28 @@ export function startGame() {
   dom.resetKnowledgePacks?.addEventListener('click', () => persistAssistantLoadout(DEFAULT_ASSISTANT_LOADOUT));
   dom.serverOllamaBtn?.addEventListener('click', () => {
     const serverProxy = location.hostname === 'docs.pau1.cloud' ? '/ollama-proxy' : 'https://docs.pau1.cloud/ollama-proxy';
-    dom.llmMode.value = 'ollama';
-    dom.ollamaEndpoint.value = serverProxy;
-    dom.ollamaStatus.textContent = 'Server proxy selected. Click Refresh to load VPS Ollama models.';
-    syncLocalOllamaHelp();
-    updateAssistantPromptPreview();
+    setLocalAiProvider('ollama', { endpoint: serverProxy, status: 'Server proxy selected. Click Refresh to load VPS Ollama models.' });
   });
   dom.localOllamaBtn?.addEventListener('click', () => {
-    dom.llmMode.value = 'ollama';
-    dom.ollamaEndpoint.value = 'http://127.0.0.1:11434';
-    dom.ollamaStatus.textContent = 'Local Ollama selected. Start Ollama on your machine with CORS for https://docs.pau1.cloud, then click Refresh.';
-    syncLocalOllamaHelp();
-    updateAssistantPromptPreview();
+    setLocalAiProvider('ollama', { endpoint: 'http://127.0.0.1:11434', status: 'Local Ollama selected. Start Ollama on your machine with CORS for https://docs.pau1.cloud, then click Refresh.' });
   });
-  dom.benchmarkBtn.addEventListener('click', async () => { const endpoint = (dom.ollamaEndpoint.value.trim().replace(/\/$/, '') || defaultOllamaEndpoint()); const started = performance.now(); try { const parsed = await parseWithOllama('Bot 1 chop wood', game, { endpoint, model: dom.ollamaModel.value, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() }); dom.ollamaStatus.textContent = `${parsed.meta || 'Benchmark'} valid calls=${parsed.calls?.length || 0}, total=${Math.round(performance.now()-started)}ms`; } catch (e) { dom.ollamaStatus.textContent = `Benchmark failed: ${e.message}`; } });
-  dom.ollamaEndpoint.value = defaultOllamaEndpoint();
-  syncLocalOllamaHelp();
+  dom.localTabbyBtn?.addEventListener('click', () => {
+    setLocalAiProvider('tabbyapi', { endpoint: LOCAL_AI_PROVIDERS.tabbyapi.baseUrl, model: LOCAL_AI_PROVIDERS.tabbyapi.defaultModel, status: 'Local TabbyAPI selected. Requests go to the OpenAI-compatible /v1/chat/completions endpoint.' });
+  });
+  dom.benchmarkBtn.addEventListener('click', async () => {
+    const { provider, endpoint, model } = getCurrentLocalAiConfig();
+    const started = performance.now();
+    try {
+      const parsed = provider === 'tabbyapi'
+        ? await parseWithOpenAiCompatible('Bot 1 chop wood', game, { endpoint, model, providerLabel: LOCAL_AI_PROVIDERS.tabbyapi.backendLabel, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() })
+        : await parseWithOllama('Bot 1 chop wood', game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() });
+      dom.ollamaStatus.textContent = `${parsed.meta || 'Benchmark'} valid calls=${parsed.calls?.length || 0}, total=${Math.round(performance.now()-started)}ms`;
+    } catch (e) {
+      dom.ollamaStatus.textContent = `Benchmark failed: ${e.message}`;
+    }
+  });
+  if (!dom.ollamaEndpoint.value) dom.ollamaEndpoint.value = defaultOllamaEndpoint();
+  syncProviderUi();
   updateAssistantPromptPreview();
   dom.settingsClose.addEventListener('click', () => setSettingsOpen(false));
   dom.resumeGameBtn?.addEventListener('click', () => setSettingsOpen(false));
@@ -542,14 +776,14 @@ export function startGame() {
   dom.drawZoneDrawerButton?.addEventListener('click', beginDrawZone);
   setSettingsTab('controls');
   setBuildTab('production');
+  saveBrowserSettings();
 
   window.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     if (k === 'escape') {
       e.preventDefault();
-      if (dom.teachPanel && !dom.teachPanel.hidden) { game.closeTeachPanel(); return; }
-      if (isChatOpen()) setChatOpen(false);
-      toggleSettings();
+      if (closeOpenUiPanels()) return;
+      setSettingsOpen(true);
       return;
     }
     if (k === 'enter' && !chat.isTypingTarget(e.target) && dom.settingsOverlay.hidden) { e.preventDefault(); if (!isChatOpen()) { setBuildDrawerOpen(false); setZonesDrawerOpen(false); game.hideMenus(); setChatOpen(true); } else dom.chatInput.focus(); return; }
@@ -599,7 +833,7 @@ export function startGame() {
     interact: () => game.interact(),
     assignToBot: botId => game.assignRecordedLoopToBot(botId),
     pauseBot: botId => { const bot = game.findBot(botId); if (!bot) return null; bot.paused = true; return window.getGameState(); },
-    openBotMenu: botId => { const bot = game.findBot(botId); if (!bot) return null; game.showBotMenu(bot, 320, 240); return window.getGameState(); },
+    openBotMenu: botId => { const bot = game.findBot(botId); if (!bot) return null; game.showBotMenu(bot, 320, 240, { refreshEdit: true }); return window.getGameState(); },
     setBotName: (botId, name) => { game.setBotName(botId, name); return window.getGameState(); },
     createBotTeam: (name, color) => game.createBotTeam(name, color),
     assignBotTeam: (botId, teamId) => { game.assignBotToTeam(botId, teamId); return window.getGameState(); },

@@ -187,6 +187,7 @@
 
       <nav class="settings-tabs" aria-label="Settings tabs">
         <button type="button" class="is-active" data-settings-tab="controls" aria-selected="true">Controls</button>
+        <button type="button" data-settings-tab="performance" aria-selected="false">Performance</button>
         <button type="button" data-settings-tab="stats" aria-selected="false">Stats</button>
         <button type="button" data-settings-tab="voice" aria-selected="false">Voice</button>
         <button type="button" data-settings-tab="audio" aria-selected="false">Audio</button>
@@ -223,17 +224,45 @@
         <div class="hintbar">
           <span><b>Camera:</b> WASD / Arrow keys pan</span>
           <span><b>Move:</b> Right-click map</span>
-          <span><b>Action:</b> E picks loose logs, deposits carried logs, or operates benches</span>
+          <span><b>Action:</b> E mines, chops trees, digs holes, or operates nearby production</span>
           <span><b>Drop:</b> Q drops the item in hand</span>
           <span><b>Chat:</b> Enter opens · L toggles</span>
+          <span><b>Menus:</b> Left-click bots/buildings/trees/holes</span>
           <span><b>Build:</b> B drawer</span>
-          <span><b>Game menu:</b> Esc pauses single-player</span>
+          <span><b>Game menu:</b> Esc closes open UI first, then opens settings</span>
+        </div>
+        <p class="small">Performance and hardware tuning lives in the <b>Performance</b> tab.</p>
+      </section>
+
+      <section class="settings-section settings-tab-panel" data-settings-panel="performance">
+        <h3>Performance</h3>
+        <p class="small">The browser GPU probe is best-effort. Browsers usually do not expose exact VRAM directly, so known GPUs use inferred hardware profiles.</p>
+        <label class="stacked">Performance profile
+          <select id="performanceProfile">
+            <option value="auto">Auto-detect</option>
+            <option value="battery_saver">Battery saver</option>
+            <option value="balanced">Balanced</option>
+            <option value="high_density">High density</option>
+            <option value="stress_test">Stress test</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <div class="endpoint-actions" aria-label="Performance profile actions">
+          <button id="applyAutoPerformance" type="button">Apply recommended settings</button>
         </div>
         <section class="control-strip" aria-label="Performance controls">
           <label>Target FPS <input id="targetFps" type="range" min="10" max="60" step="5" value="30" /> <b id="targetFpsValue">30</b></label>
-          <label>Max bots <input id="maxBots" type="range" min="4" max="80" step="1" value="24" /> <b id="maxBotsValue">24</b></label>
+          <label>Max bots <input id="maxBots" type="range" min="4" max="1000" step="1" value="24" /> <b id="maxBotsValue">24</b></label>
           <span class="renderer-pill" id="rendererStatus">Renderer: probing…</span>
         </section>
+        <dl class="stores">
+          <div><dt>Detected GPU</dt><dd id="detectedGpu">Probing…</dd></div>
+          <div><dt>Inferred VRAM</dt><dd id="detectedVram">Unknown</dd></div>
+          <div><dt>Recommended profile</dt><dd id="detectedProfile">Balanced</dd></div>
+          <div><dt>Recommended bots</dt><dd id="recommendedBots">96</dd></div>
+          <div><dt>Recommended FPS</dt><dd id="recommendedFps">45</dd></div>
+        </dl>
+        <p id="performanceNotes" class="small status-text">Hardware heuristics will appear here after the renderer probe finishes.</p>
       </section>
 
       <section class="settings-section settings-tab-panel" data-settings-panel="stats">
@@ -292,11 +321,12 @@
       </section>
 
       <section class="settings-section settings-tab-panel ollama-panel" data-settings-panel="ai">
-        <h3>Local Ollama / Benchmark</h3>
+        <h3>Local AI / Benchmark</h3>
         <label class="stacked">Mode
           <select id="llmMode">
             <option value="mock">Mock parser (offline)</option>
             <option value="ollama">Local Ollama JSON tool calls</option>
+            <option value="tabbyapi">Qwen2.5-Coder 7B Instruct EXL2 6.5bpw (TabbyAPI)</option>
           </select>
         </label>
         <label class="checkline">
@@ -304,14 +334,17 @@
           Enable legacy workflow-template routing in chat
         </label>
         <p class="small">Off by default so Local AI requests can be tested without keyword template auto-selection. Turn on to restore the mock parser and Ollama fallback templates.</p>
+        <p id="llmProviderLabel" class="small status-text">Provider: Ollama</p>
         <label class="stacked">Endpoint
           <input id="ollamaEndpoint" type="url" value="/ollama-proxy" />
         </label>
         <div class="endpoint-actions" aria-label="Ollama endpoint presets">
           <button id="serverOllamaBtn" type="button">Use server proxy</button>
           <button id="localOllamaBtn" type="button">Use my local Ollama</button>
+          <button id="localTabbyBtn" type="button">Use local TabbyAPI</button>
         </div>
         <p class="small local-ollama-help">Local mode calls Ollama from <b>your browser</b>. Use <code>http://127.0.0.1:11434</code> and allow this site in Ollama CORS.</p>
+        <p id="localTabbyHelp" class="small local-ollama-help" hidden>TabbyAPI uses the local OpenAI-compatible endpoint <code>http://127.0.0.1:5000/v1</code>. This setup already allows permissive local CORS.</p>
         <details id="localOllamaWindowsHelp" class="small local-ollama-help local-ollama-windows-help" hidden>
           <summary>Windows Ollama setup</summary>
           <p><b>PowerShell:</b></p>
@@ -344,12 +377,13 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
               <option value="gemma4-26b-a4b-local:latest">gemma4-26b-a4b-local:latest</option>
               <option value="bonsai8b-q1:latest">bonsai8b-q1:latest fallback</option>
               <option value="llama3:latest">llama3:latest fallback</option>
+              <option value="Qwen2.5-Coder-7B-Instruct-exl2-6_5">Qwen2.5-Coder 7B Instruct EXL2 6.5bpw (TabbyAPI)</option>
             </select>
           </label>
           <button id="refreshModels" type="button">Refresh</button>
         </div>
         <button id="benchmarkBtn" type="button">Run JSON tool-call benchmark</button>
-        <p id="ollamaStatus" class="small status-text">Default model: gemma4:12b. Click Refresh to load your exact local Ollama model names.</p>
+        <p id="ollamaStatus" class="small status-text">Default model: gemma4:12b. Click Refresh to load provider-specific model names.</p>
       </section>
 
       <section class="settings-section settings-tab-panel" data-settings-panel="knowledge">

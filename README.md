@@ -31,13 +31,26 @@ No build step, npm install, bundler, or framework is required.
   - Near sawbench: manually process 1 log into 2 planks if logs are stored
   - Near sawbench with planks: manually process 1 plank into 2 poles
   - Near crude tool bench: insert nearby sticks/stones, then craft crude axes
-  - Carrying a tree seed near a dug hole: plant the seed and create a new tree
   - Carrying a crude shovel on clear dirt: dig a new hole
   - Near bot factory: manually build a bot if the Basic Bot recipe is stored and the bot cap allows it
 - Build drawer: `B` or the left-edge **Build** tab
 - Bot drawer: right-edge **Bots** tab
-- Esc: closes chat first; if chat is already closed, toggles settings
-- Item Palette: place from Build → Storage; first inserted item locks the palette to that item type
+- `Enter`: open/focus chat when it is closed
+- `L`: toggle chat visibility
+- `Esc`: close any currently open UI first; only open the settings/escape menu when no other gameplay UI is open
+- Settings menu tabs:
+  - `Controls`: movement/combat/build/chat reference
+  - `Performance`: target FPS, bot cap, renderer status, GPU heuristic, and hardware-based recommendations
+- Left-click interactables:
+  - Bots: open the bot menu
+  - Buildings: open the building menu
+  - Trees: open the tree menu
+  - Holes: open the hole menu
+- Right-click interactables:
+  - Buildings: open the building menu, or queue the relevant structure action if applicable
+  - Trees: open the tree menu with actions such as **Chop tree** and **Search tree**
+  - Holes: if the player is holding a `tree_seed`, queue movement to that exact hole and plant it there; otherwise open the hole menu
+- Item Palette: place from Build -> Storage; first inserted item locks the palette to that item type
 - Assistant chat: type natural requests like:
   - `Bot 2 mine stone`
   - `Bot 1 pick up logs from rect(x:100,y:200,w:140,h:90)`
@@ -69,7 +82,7 @@ No build step, npm install, bundler, or framework is required.
 ## v7 base resources, tools, and bot recipe
 
 - Loose base resources now exist in the world/object registry: `stick`, `stone`, `tree_seed`, plus `log`, `plank`, `pole`, `crude_axe`, `crude_pickaxe`, and `crude_shovel`.
-- Dug holes are terrain objects in the registry; bots can `dig_holes`, and anyone carrying a `tree_seed` can plant it in an open hole.
+- Dug holes are terrain objects in the registry; bots can `dig_holes`, and the player can plant a `tree_seed` by right-clicking a specific open hole while holding it.
 - `mine_stone` bots must equip a loose `crude_pickaxe` and mine stone deposits before loose `stone` exists for crafting.
 - `pickup_item` bots can pick a specific item type from an `item_palette` storage source or from loose ground items inside inserted `rect(x,y,w,h)` coordinates.
 - `chop_wood` bots must equip a loose `crude_axe` from anywhere on the map; stones are not valid bot chopping tools, and each axe lasts 100 chops.
@@ -85,11 +98,11 @@ No build step, npm install, bundler, or framework is required.
 - Build menu is a left-edge drawer with `B` shortcut and category tabs.
 - Build → Storage starts with `Item Palette`; once a log/plank is inserted, that palette only accepts that item type.
 - Successful assignments show a short top-border status overlay when chat is closed.
-- Settings still contains controls, Stats, Local AI, and DSL tabs.
+- Settings now separates `Controls` from `Performance`, so hardware tuning and gameplay reference no longer share the same tab.
 
 ## v4 UI/backend additions
 
-- Settings overlay opens/closes with `Esc`; normal tuning controls are hidden during play.
+- `Esc` now behaves like a layered close key: it dismisses whatever UI is currently open first, and only opens settings when no other gameplay UI is open.
 - Chat/command input now lives in a centered bottom overlay with formatted message bubbles.
 - `Enter` opens/focuses chat when it is closed; `L` toggles chat visibility.
 - Frontend settings default to Paul-compatible local Ollama names: `gemma4:12b` selected, `gemma4-26b-a4b-local:latest`, `bonsai8b-q1:latest`, and `llama3:latest` available as fallbacks.
@@ -102,6 +115,7 @@ No build step, npm install, bundler, or framework is required.
 - Bots are mouse-hoverable and clickable. Clicking a bot opens a small menu with its current status and DSL loop JSON.
 - The build panel lets the player place more `sawbench`, `crude tool bench`, and `bot factory` structures on the map.
 - Structures can be right-clicked to open a cursor-position menu. Choosing **Add to chat** inserts names like `sawbench 2` at the current chat cursor.
+- Trees and holes are hover-highlighted and open their own context menus; right-clicking a hole while holding a `tree_seed` queues planting at that exact hole.
 - The old monolithic `game.js` was reduced to a small boot file; implementation now lives in `src/` modules.
 
 ## DSL bot programs
@@ -241,9 +255,12 @@ Then set the game endpoint to `http://127.0.0.1:11434`.
 ## Performance and renderer controls
 
 - Idle bots park in a depot ring instead of all following the assistant.
-- Max bot cap defaults to 24 and is adjustable in the UI.
-- The factory and manual bot creation honor the cap.
-- Target FPS defaults to 30 and is adjustable from 10-60 FPS.
+- The `Performance` tab now owns renderer and hardware tuning settings.
+- Browser settings auto-save when changed and auto-load on the next visit.
+- The browser does a best-effort WebGPU probe, infers a known GPU profile when possible, and shows the inferred VRAM/profile recommendation in the menu.
+- `Auto-detect` applies hardware-based target FPS and bot-limit recommendations; manual slider changes switch the profile to `Custom`.
+- The max bot slider is no longer hard-capped to 80. It can scale up into the hundreds based on the detected hardware profile, with an absolute UI ceiling of 1000.
+- The factory and manual bot creation still honor the active bot cap.
 - The HUD shows FPS, bot count, cap, and renderer status.
 - Bot list rendering is throttled and capped to 14 visible rows.
 - Nearest-tree and nearest-item searches use linear scans instead of full-array sorting each tick.

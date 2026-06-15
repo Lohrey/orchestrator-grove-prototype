@@ -19,10 +19,14 @@ with sync_playwright() as p:
     page.wait_for_function("() => document.getElementById('mainMenuOverlay').hidden && !window.getGameState().paused")
 
     page.evaluate("window.teachDebug.openBotMenu(1)")
+    page.wait_for_selector("#botMenu [data-edit-bot-name]")
+    assert page.locator("#botMenu [data-stop-workflow]").count() == 0
+    page.locator("#botMenu [data-edit-bot-name]").click()
     page.wait_for_selector("#botMenu [data-menu-bot-name]")
     page.locator("#botMenu [data-menu-bot-name]").fill("Harvester Alpha")
-    page.locator("#botMenu [data-save-bot-name]").click()
+    page.locator("#botMenu [data-menu-bot-name]").press("Enter")
     page.wait_for_function("() => window.getGameState().bots.find(b => b.id === 1)?.name === 'Harvester Alpha'")
+    page.wait_for_function("() => document.querySelector('#botMenu [data-bot-name-status]')?.textContent === 'Name saved.'")
 
     page.locator("#botDrawerToggle").click()
     page.wait_for_selector("#botList [data-bot-name-input='2']")

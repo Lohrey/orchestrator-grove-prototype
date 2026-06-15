@@ -9,10 +9,14 @@ import {
   itemLabel
 } from './visual-assets.js?v=t_ba2f046e';
 
+const staticMapBaseCache = new Map();
+
 export function drawWorld(renderState, ctx) {
   const game = renderState;
   const c = ctx;
   const now = performance.now();
+  const view = getWorldViewBounds(game);
+  prepareAnimationState(game, now, view);
   c.clearRect(0, 0, game.W, game.H);
   drawViewportBackdrop(game, c);
 
@@ -20,23 +24,23 @@ export function drawWorld(renderState, ctx) {
   c.scale(game.camera.zoom || 1, game.camera.zoom || 1);
   c.translate(-game.camera.x, -game.camera.y);
   drawMapBase(game, c);
-  drawMapFeatures(game, c);
-  drawGrid(game, c);
-  drawZones(game, c);
-  for (const hole of game.holes || []) drawHole(c, hole);
-  for (const rock of game.rocks || []) drawRock(c, rock);
-  for (const hemp of game.hempPlants || []) drawHempPlant(game, c, hemp, now);
-  for (const tree of game.trees || []) drawTree(c, tree, now);
-  for (const structure of game.structures || []) drawStructure(game, c, structure, now);
-  for (const projectile of game.projectiles || []) drawProjectile(c, projectile);
-  for (const item of game.items || []) drawItem(game, c, item, now);
-  for (const monster of game.monsters || []) { if ((monster.hp || 0) > 0) drawMonster(game, c, monster, now); }
-  for (const bot of game.bots || []) drawBot(game, c, bot, now);
+  drawMapFeatures(game, c, view);
+  drawGrid(game, c, view);
+  drawZones(game, c, view);
+  for (const hole of game.holes || []) if (circleInView(hole.x, hole.y, 24, view)) drawHole(game, c, hole);
+  for (const rock of game.rocks || []) if (circleInView(rock.x, rock.y, (rock.radius || 18) + 16, view)) drawRock(c, rock);
+  for (const hemp of game.hempPlants || []) if (circleInView(hemp.x, hemp.y, (hemp.radius || 14) + 18, view)) drawHempPlant(game, c, hemp, now);
+  for (const structure of game.structures || []) if (rectInView(structure.x, structure.y, structure.w || 48, structure.h || 48, view)) drawStructure(game, c, structure, now);
+  for (const projectile of game.projectiles || []) if (circleInView(projectile.x, projectile.y, 18, view)) drawProjectile(c, projectile);
+  for (const item of game.items || []) if (circleInView(item.x, item.y, 20, view)) drawItem(game, c, item, now);
+  for (const monster of game.monsters || []) { if ((monster.hp || 0) > 0 && circleInView(monster.x, monster.y, (monster.radius || 18) + 16, view)) drawMonster(game, c, monster, now); }
+  for (const bot of game.bots || []) if (circleInView(bot.x, bot.y, (bot.r || 11) + 18, view)) drawBot(game, c, bot, now);
   drawPlayer(game, c, now);
   drawRemotePlayers(game, c, now);
+  for (const tree of game.trees || []) if (circleInView(tree.x, tree.y, getTreeDrawRadius(tree) + 18, view)) drawTree(game, c, tree, now, getTreeOpacity(game, tree, now));
   drawPlacement(game, c);
   drawZoneDraft(game, c);
-  drawFloaters(game, c);
+  drawFloaters(game, c, view);
   c.restore();
 
   drawHud(game, c);
@@ -59,6 +63,41 @@ function drawViewportBackdrop(game, c) {
 }
 
 function drawMapBase(game, c) {
+  c.drawImage(getStaticMapBase(game, c), 0, 0);
+}
+
+function getStaticMapBase(game, c) {
+  const width = game.map.width;
+  const height = game.map.height;
+  const key = `${width}x${height}`;
+  const cached = staticMapBaseCache.get(key);
+  if (cached && cached.width === width && cached.height === height) return cached.canvas;
+
+  const canvas = createCanvasLayer(width, height, c);
+  const layer = canvas.getContext('2d');
+  renderStaticMapBase(game, layer);
+  staticMapBaseCache.set(key, { canvas, width, height });
+  return canvas;
+}
+
+function createCanvasLayer(width, height, c) {
+  if (typeof document !== 'undefined' && document.createElement) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  }
+  if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(width, height);
+  if (c?.canvas?.ownerDocument?.createElement) {
+    const canvas = c.canvas.ownerDocument.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  }
+  throw new Error('Unable to create offscreen canvas layer');
+}
+
+function renderStaticMapBase(game, c) {
   const width = game.map.width;
   const height = game.map.height;
   const base = c.createLinearGradient(0, 0, width, height);
@@ -92,10 +131,18 @@ function drawMapBase(game, c) {
 }
 
 
-function drawMapFeatures(game, c) {
+function drawMapFeatures(game, c, view) {
   for (const feature of game.mapFeatures || []) {
-    if (feature.type === 'lake') drawLakeFeature(c, feature);
-    if (feature.type === 'camper_van') drawCamperVanFeature(c, feature);
+    if (feature.type === 'lake') {
+      const rx = feature.rx || 210;
+      const ry = feature.ry || 120;
+      if (circleInView(feature.x, feature.y, Math.max(rx, ry) + 32, view)) drawLakeFeature(c, feature);
+    }
+    if (feature.type === 'camper_van') {
+      const w = feature.w || 118;
+      const h = feature.h || 58;
+      if (rectInView(feature.x - w / 2 - 24, feature.y - h / 2 - 32, w + 48, h + 64, view)) drawCamperVanFeature(c, feature);
+    }
   }
 }
 
@@ -103,32 +150,84 @@ function drawLakeFeature(c, feature) {
   c.save();
   const rx = feature.rx || 210;
   const ry = feature.ry || 120;
-  drawShadow(c, feature.x, feature.y + ry * .2, rx * .86, ry * .22, .22);
-  const water = c.createRadialGradient(feature.x - rx * .22, feature.y - ry * .25, 12, feature.x, feature.y, rx);
-  water.addColorStop(0, 'rgba(105, 177, 180, .82)');
-  water.addColorStop(.5, 'rgba(37, 111, 125, .76)');
-  water.addColorStop(1, 'rgba(18, 58, 68, .9)');
+  drawShadow(c, feature.x, feature.y + ry * .22, rx * .84, ry * .24, .2);
+  c.beginPath();
+  c.ellipse(feature.x, feature.y, rx, ry, feature.ownerId === 'p2' ? -0.18 : 0.18, 0, Math.PI * 2);
+  c.clip();
+  const water = c.createRadialGradient(feature.x - rx * .2, feature.y - ry * .28, 16, feature.x, feature.y, rx * 1.02);
+  water.addColorStop(0, '#8bcfc8');
+  water.addColorStop(.32, '#4fa0a3');
+  water.addColorStop(.7, '#2f7888');
+  water.addColorStop(1, '#174756');
   c.fillStyle = water;
-  c.strokeStyle = 'rgba(176, 220, 205, .5)';
+  c.fillRect(feature.x - rx, feature.y - ry, rx * 2, ry * 2);
+  c.strokeStyle = 'rgba(210, 244, 235, .46)';
   c.lineWidth = 4;
   c.beginPath();
   c.ellipse(feature.x, feature.y, rx, ry, feature.ownerId === 'p2' ? -0.18 : 0.18, 0, Math.PI * 2);
-  c.fill(); c.stroke();
-  c.strokeStyle = 'rgba(235, 246, 225, .26)';
+  c.stroke();
+  c.strokeStyle = 'rgba(227, 248, 240, .24)';
   c.lineWidth = 2;
+  c.beginPath();
+  c.ellipse(feature.x, feature.y, rx * .92, ry * .86, feature.ownerId === 'p2' ? -0.18 : 0.18, 0, Math.PI * 2);
+  c.stroke();
+  c.strokeStyle = 'rgba(235, 252, 248, .18)';
   for (let i = -1; i <= 1; i++) {
     c.beginPath();
-    c.ellipse(feature.x + i * rx * .18, feature.y + i * 7, rx * (.52 - Math.abs(i) * .08), ry * .22, feature.ownerId === 'p2' ? -0.18 : 0.18, 0.12, Math.PI - 0.12);
+    c.ellipse(feature.x + i * rx * .17, feature.y + i * 7, rx * (.5 - Math.abs(i) * .08), ry * .2, feature.ownerId === 'p2' ? -0.18 : 0.18, 0.15, Math.PI - 0.15);
     c.stroke();
   }
-  drawNameTag(c, feature.label || 'lake', feature.x, feature.y - ry - 18);
+  c.fillStyle = 'rgba(255,255,255,.06)';
+  c.beginPath();
+  c.ellipse(feature.x - rx * .18, feature.y - ry * .2, rx * .38, ry * .13, feature.ownerId === 'p2' ? -0.18 : 0.18, 0, Math.PI * 2);
+  c.fill();
   c.restore();
+}
+
+function prepareAnimationState(game, now, view) {
+  for (const item of game.items || []) {
+    if (view && !circleInView(item.x, item.y, 20, view)) continue;
+    item._bob = Math.sin(now / 400 + item.bob) * 2;
+  }
+  for (const hemp of game.hempPlants || []) {
+    if (view && !circleInView(hemp.x, hemp.y, (hemp.radius || 14) + 18, view)) continue;
+    hemp._sway = Math.sin(now / 550 + hemp.x * .05) * 2;
+  }
+  for (const monster of game.monsters || []) {
+    if (view && !circleInView(monster.x, monster.y, (monster.radius || 18) + 16, view)) continue;
+    monster._wobble = Math.sin(now / 520 + (monster.phase || 0)) * 2;
+  }
+  for (const tree of game.trees || []) {
+    if (view && !circleInView(tree.x, tree.y, getTreeDrawRadius(tree) + 18, view)) continue;
+    const stage = tree.growthStage || 'grown_tree';
+    tree._sway = Math.sin(now / 1100 + tree.x * .017) * (stage === 'sapling' ? 1.5 : 2.5);
+  }
+}
+
+function getWorldViewBounds(game, padding = 120) {
+  const zoom = game.camera.zoom || 1;
+  const pad = padding / zoom;
+  return {
+    left: game.camera.x - pad,
+    top: game.camera.y - pad,
+    right: game.camera.x + (game.W / zoom) + pad,
+    bottom: game.camera.y + (game.H / zoom) + pad
+  };
+}
+
+function circleInView(x, y, radius, view) {
+  return x + radius >= view.left && x - radius <= view.right && y + radius >= view.top && y - radius <= view.bottom;
+}
+
+function rectInView(x, y, w, h, view) {
+  return x + w >= view.left && x <= view.right && y + h >= view.top && y <= view.bottom;
 }
 
 function drawCamperVanFeature(c, feature) {
   c.save();
   c.translate(feature.x, feature.y);
   c.rotate(feature.rotation || 0);
+  if (feature.flipX) c.scale(-1, 1);
   drawShadow(c, 0, 26, (feature.w || 118) * .55, 14, .28);
   const w = feature.w || 118;
   const h = feature.h || 58;
@@ -257,7 +356,8 @@ function terrainNoise(x, y) {
   return value - Math.floor(value);
 }
 
-function drawGrid(game, c) {
+function drawGrid(game, c, view) {
+  if (view) return;
   c.save();
   c.strokeStyle = 'rgba(232, 239, 232, .022)';
   c.lineWidth = 1;
@@ -273,12 +373,13 @@ function drawGrid(game, c) {
   c.restore();
 }
 
-function drawZones(game, c) {
+function drawZones(game, c, view) {
   c.save();
   c.font = '700 12px system-ui';
   c.textAlign = 'left';
   for (const z of game.zones || []) {
     if (z.hidden) continue;
+    if (view && !zoneInView(z, view)) continue;
     const hover = game.mouse.hoverZone === z;
     const fill = z.builtIn ? 'rgba(134, 184, 117, .075)' : 'rgba(211, 169, 95, .105)';
     const stroke = hover ? 'rgba(255, 244, 208, .9)' : (z.builtIn ? 'rgba(134, 184, 117, .42)' : 'rgba(211, 169, 95, .55)');
@@ -317,41 +418,67 @@ function drawRock(c, r) {
   c.restore();
 }
 
-function drawHole(c, h) {
+function drawHole(game, c, h) {
   c.save();
+  const hover = game.mouse.hoverHole === h;
   const r = h.radius || 13;
   drawShadow(c, h.x, h.y + 2, r + 8, r * .62, .26);
   const grad = c.createRadialGradient(h.x, h.y, 2, h.x, h.y, r + 7);
   grad.addColorStop(0, h.planted ? '#27442b' : '#050806');
   grad.addColorStop(1, h.planted ? '#5b7445' : '#5d422b');
   c.fillStyle = grad;
-  c.strokeStyle = h.planted ? '#8bbd76' : '#8a6842';
-  c.lineWidth = 2;
+  c.strokeStyle = hover ? '#fff4d0' : (h.planted ? '#8bbd76' : '#8a6842');
+  c.lineWidth = hover ? 3 : 2;
   c.beginPath();
   c.ellipse(h.x, h.y, r + 6, r + 1, 0, 0, Math.PI * 2);
   c.fill(); c.stroke();
+  if (hover) {
+    c.strokeStyle = 'rgba(255, 244, 208, .72)';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.ellipse(h.x, h.y, r + 11, r + 6, 0, 0, Math.PI * 2);
+    c.stroke();
+    drawNameTag(c, h.planted ? 'planted hole' : 'dug hole', h.x, h.y - 24);
+  }
   c.restore();
 }
 
-function drawTree(c, t, now) {
+function zoneInView(zone, view) {
+  if (zone.kind === 'radius') return circleInView(zone.x, zone.y, (zone.radius || 150) + 28, view);
+  return rectInView(zone.x, zone.y, zone.w || 0, zone.h || 0, view);
+}
+
+function drawTree(game, c, t, now, opacity = 1) {
   c.save();
+  c.globalAlpha = opacity;
+  const hover = game.mouse.hoverTree === t;
   drawShadow(c, t.x, t.y + (t.radius || 20) * .8, (t.radius || 20) * 1.15, (t.radius || 20) * .34, .24);
   if (t.stump) {
-    c.globalAlpha = .7;
+    c.globalAlpha = opacity * .7;
     drawTrunk(c, t.x, t.y + 3, 14, 22, '#7b512c');
-    c.strokeStyle = '#a67948';
+    c.strokeStyle = hover ? '#fff4d0' : '#a67948';
+    c.lineWidth = hover ? 3 : 1;
     c.beginPath(); c.ellipse(t.x, t.y, t.radius, t.radius * .55, 0, 0, Math.PI * 2); c.stroke();
+    if (hover) drawNameTag(c, 'tree stump', t.x, t.y - 26);
     c.restore();
     return;
   }
   const stage = t.growthStage || 'grown_tree';
-  const sway = Math.sin(now / 1100 + t.x * .017) * (stage === 'sapling' ? 1.5 : 2.5);
+  const sway = t._sway ?? Math.sin(now / 1100 + t.x * .017) * (stage === 'sapling' ? 1.5 : 2.5);
   if (stage === 'sapling') {
     c.strokeStyle = '#9abf8f';
     c.lineWidth = 3;
     c.beginPath(); c.moveTo(t.x, t.y + 10); c.quadraticCurveTo(t.x + sway, t.y, t.x + sway, t.y - 10); c.stroke();
     leafBlob(c, t.x - 6 + sway, t.y - 6, 6, '#78aa68');
     leafBlob(c, t.x + 6 + sway, t.y - 8, 6, '#9ac887');
+    if (hover) {
+      c.strokeStyle = '#fff4d0';
+      c.lineWidth = 2.5;
+      c.beginPath();
+      c.ellipse(t.x, t.y - 1, 15, 19, 0, 0, Math.PI * 2);
+      c.stroke();
+      drawNameTag(c, 'small sapling', t.x, t.y - 24);
+    }
     c.restore();
     return;
   }
@@ -364,14 +491,81 @@ function drawTree(c, t, now) {
   c.strokeStyle = 'rgba(227, 238, 225, .35)';
   c.lineWidth = 1;
   c.beginPath(); c.arc(t.x + sway, t.y - 7, radius * .95, -2.2, -.4); c.stroke();
+  if (hover) {
+    c.strokeStyle = '#fff4d0';
+    c.lineWidth = 3;
+    c.beginPath();
+    c.ellipse(t.x, t.y - 2, radius + 8, radius + 10, 0, 0, Math.PI * 2);
+    c.stroke();
+    c.fillStyle = 'rgba(255, 244, 208, .08)';
+    c.fill();
+  }
   drawBar(c, t.x - 18, t.y - radius - 16, 36, 5, t.hp / t.maxHp, '#9abf8f');
+  if (hover) drawNameTag(c, stage === 'small_tree' ? 'small tree' : 'grown tree', t.x, t.y - radius - 28);
   c.restore();
+}
+
+function getTreeOpacity(game, tree, now) {
+  return treeWouldOccludeDrawnObject(game, tree, now) ? .82 : 1;
+}
+
+function treeWouldOccludeDrawnObject(game, tree, now) {
+  const treeRadius = getTreeDrawRadius(tree);
+  const treeHeightFactor = tree.stump ? .58 : (tree.growthStage === 'sapling' ? .8 : .95);
+  const treeCenterY = tree.y - treeRadius * .12;
+  const checkCircle = (x, y, radius) => circlesOverlap(tree.x, treeCenterY, treeRadius, x, y, radius);
+  const checkRect = (x, y, w, h) => circleIntersectsRect(tree.x, treeCenterY, treeRadius, x - w / 2, y - h / 2, w, h);
+
+  for (const item of game.items || []) {
+    const bob = item._bob ?? Math.sin(now / 400 + item.bob) * 2;
+    if (checkCircle(item.x, item.y + bob, 11)) return true;
+  }
+  for (const bot of game.bots || []) {
+    if (checkCircle(bot.x, bot.y, (bot.r || 13) + 6)) return true;
+  }
+  for (const monster of game.monsters || []) {
+    if ((monster.hp || 0) > 0 && checkCircle(monster.x, monster.y, (monster.r || 14) + 6)) return true;
+  }
+  if (game.player && checkCircle(game.player.x, game.player.y, (game.player.r || 16) + 6)) return true;
+  for (const player of Object.values(game.multiplayer?.players || {})) {
+    if (!player || player.id === game.multiplayer?.playerId || player.disconnected) continue;
+    if (checkCircle(player.x, player.y, 21)) return true;
+  }
+  for (const structure of game.structures || []) {
+    if (checkRect(structure.x, structure.y, structure.w || 48, (structure.h || 48) * treeHeightFactor)) return true;
+  }
+  for (const projectile of game.projectiles || []) {
+    if (checkCircle(projectile.x, projectile.y, 8)) return true;
+  }
+  return false;
+}
+
+function getTreeDrawRadius(tree) {
+  if (tree.stump) return Math.max(12, tree.radius || 20);
+  if (tree.growthStage === 'sapling') return Math.max(10, tree.radius || 12);
+  if (tree.growthStage === 'small_tree') return Math.max(18, tree.radius || 18);
+  return Math.max(22, tree.radius || 22);
+}
+
+function circlesOverlap(ax, ay, ar, bx, by, br) {
+  const dx = ax - bx;
+  const dy = ay - by;
+  const limit = ar + br;
+  return dx * dx + dy * dy <= limit * limit;
+}
+
+function circleIntersectsRect(cx, cy, cr, rx, ry, rw, rh) {
+  const nearestX = clamp(cx, rx, rx + rw);
+  const nearestY = clamp(cy, ry, ry + rh);
+  const dx = cx - nearestX;
+  const dy = cy - nearestY;
+  return dx * dx + dy * dy <= cr * cr;
 }
 
 function drawHempPlant(game, c, h, now) {
   if (h.harvested) return;
   const hover = game.mouse.hoverHemp === h;
-  const sway = Math.sin(now / 550 + h.x * .05) * 2;
+  const sway = h._sway ?? Math.sin(now / 550 + h.x * .05) * 2;
   c.save();
   drawShadow(c, h.x, h.y + 9, 16, 5, .2);
   c.strokeStyle = hover ? '#fff4d0' : '#89b879';
@@ -452,7 +646,7 @@ function drawProjectile(c, p) {
 
 function drawItem(game, c, i, now) {
   const hover = game.mouse.hoverItem === i;
-  const bob = Math.sin(now / 400 + i.bob) * 2;
+  const bob = i._bob ?? Math.sin(now / 400 + i.bob) * 2;
   c.save();
   c.translate(i.x, i.y + bob);
   drawShadow(c, 0, 9, 11, 4, .24);
@@ -470,7 +664,7 @@ function drawItem(game, c, i, now) {
 function drawMonster(game, c, m, now) {
   const hover = game.mouse.hoverMonster === m;
   const r = m.radius || 18;
-  const wobble = Math.sin(now / 520 + (m.phase || 0)) * 2;
+  const wobble = m._wobble ?? Math.sin(now / 520 + (m.phase || 0)) * 2;
   c.save();
   drawShadow(c, m.x, m.y + r * .7, r * 1.1, r * .34, .27);
   c.translate(m.x, m.y + wobble);
@@ -546,19 +740,20 @@ function drawPlayer(game, c, now) {
   c.save();
   drawShadow(c, game.player.x, game.player.y + game.player.r + 5, game.player.r + 8, 5, .28);
   const breathe = Math.sin(now / 520) * .8;
+  const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
   c.fillStyle = '#eef5ef';
   c.strokeStyle = '#26322d';
   c.lineWidth = 2;
   c.beginPath(); c.arc(game.player.x, game.player.y + breathe, game.player.r + 1, 0, Math.PI * 2); c.fill(); c.stroke();
   c.fillStyle = '#76b77f';
-  c.beginPath(); c.arc(game.player.x + 4, game.player.y - 3 + breathe, 3, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(game.player.x + look.x, game.player.y - 3 + breathe + look.y, 3, 0, Math.PI * 2); c.fill();
   if (game.player.inventory) {
     drawMiniItem(c, game.player.x, game.player.y - 25, game.player.inventory.type);
     drawNameTag(c, game.player.inventory.type, game.player.x, game.player.y - 34);
   }
   if (game.player.equipment?.weapon) drawHeldToolAsset(c, game.player.x + 19, game.player.y - 5, game.player.equipment.weapon);
   if (game.player.equipment?.shield) drawHeldToolAsset(c, game.player.x - 18, game.player.y - 5, game.player.equipment.shield);
-  drawAssistant(c, game.assistant.x, game.assistant.y, now);
+  drawAssistant(c, game.assistant.x, game.assistant.y, now, game.assistant.facingX, game.assistant.facingY);
   c.restore();
 }
 
@@ -581,15 +776,16 @@ function drawPlayerTarget(game, c) {
   c.restore();
 }
 
-function drawAssistant(c, x, y, now) {
+function drawAssistant(c, x, y, now, facingX = 1, facingY = 0) {
   c.save();
   const r = 9 + Math.sin(now / 500) * 1;
+  const look = getLookOffset(facingX, facingY, 2.8);
   c.fillStyle = 'rgba(118,183,127,.16)';
   c.beginPath(); c.arc(x, y, r + 7, 0, Math.PI * 2); c.fill();
   c.fillStyle = '#76b77f';
   c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
   c.fillStyle = '#e6f4e5';
-  c.beginPath(); c.arc(x - 3, y - 3, 2, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(x + look.x, y - 3 + look.y, 2, 0, Math.PI * 2); c.fill();
   c.restore();
 }
 
@@ -618,11 +814,12 @@ function drawZoneDraft(game, c) {
   c.restore();
 }
 
-function drawFloaters(game, c) {
+function drawFloaters(game, c, view) {
   c.save();
   c.font = '800 12px system-ui';
   c.textAlign = 'center';
   for (const f of game.floaters || []) {
+    if (view && !circleInView(f.x, f.y, 80, view)) continue;
     c.globalAlpha = clamp(f.life / f.max, 0, 1);
     c.strokeStyle = 'rgba(3, 6, 5, .8)';
     c.lineWidth = 4;
@@ -683,6 +880,11 @@ function drawNameTag(c, text, x, y) {
   roundedRect(c, x - w / 2, y - 15, w, 20, 999); c.fill(); c.stroke();
   c.fillStyle = '#fff4d0'; c.fillText(text, x, y - 1);
   c.restore();
+}
+function getLookOffset(facingX = 1, facingY = 0, amount = 4) {
+  const len = Math.hypot(facingX, facingY);
+  if (len < 0.001) return { x: amount, y: 0 };
+  return { x: (facingX / len) * amount, y: (facingY / len) * amount * 0.6 };
 }
 function drawPill(c, text, x, y, color) {
   c.save();

@@ -58,6 +58,8 @@
 </main>
 <script>
 const STORAGE_KEY = 'orchestrator-grove-release-plan-v1';
+const PLAN_APP_ID = 'orchestrator-grove-release-plan';
+const PLAN_VERSION = 1;
 const plan = [
   { title:'Core-Gameplay für Teil 1', badge:'Release Must', items:[
     ['must','Onboarding/Tutorial abschließen','Der Spieler versteht in unter 5 Minuten Kamera, Sammeln, Bauen, Chat/Voice und Bot-Zuweisung.'],
@@ -89,44 +91,89 @@ const plan = [
   ]}
 ];
 const byId = id => document.getElementById(id);
-const getState = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-const setState = state => { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); updateStatus('Automatisch im Browser gespeichert.'); };
 const itemId = (sectionIndex, itemIndex) => `s${sectionIndex}-i${itemIndex}`;
+const VALID_ITEM_IDS = new Set(plan.flatMap((section, sIndex) => section.items.map((_, iIndex) => itemId(sIndex, iIndex))));
+const sanitizeState = candidate => {
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return {};
+  return Object.fromEntries(Object.entries(candidate).filter(([key, value]) => VALID_ITEM_IDS.has(key) && typeof value === 'boolean'));
+};
+const getState = () => sanitizeState(JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'));
+const syncStoredState = () => {
+  const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  const sanitized = sanitizeState(raw);
+  if (JSON.stringify(raw) !== JSON.stringify(sanitized)) localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
+  return sanitized;
+};
+const setState = state => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitizeState(state)));
+  updateStatus('Automatisch im Browser gespeichert.');
+};
+const parseImportedPayload = payload => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Ungültiges Savefile-Format.');
+  if (payload.app !== PLAN_APP_ID || payload.version !== PLAN_VERSION) throw new Error('Dieses Savefile gehört nicht zum Release-Plan.');
+  return sanitizeState(payload.state);
+};
 const render = () => {
   const state = getState();
   byId('todoRoot').innerHTML = plan.map((section, sIndex) => `
     <article class="todo-section">
       <div class="section-head"><div><h2>${section.title}</h2><p class="small">${section.items.length} prüfbare Aufgaben für diesen Bereich.</p></div><span class="badge">${section.badge}</span></div>
       <div class="todo-list">${section.items.map((item, iIndex) => {
-        const id = itemId(sIndex, iIndex); const done = Boolean(state[id]);
+        const id = itemId(sIndex, iIndex);
+        const done = Boolean(state[id]);
         return `<label class="todo ${done ? 'done' : ''}"><input type="checkbox" data-id="${id}" ${done ? 'checked' : ''}/><span><b>${item[1]}</b><p>${item[2]}</p></span><span class="prio ${item[0]}">${item[0]}</span></label>`;
       }).join('')}</div>
     </article>`).join('');
   updateProgress();
 };
 const updateProgress = () => {
-  const state = getState(); const total = plan.reduce((sum, section) => sum + section.items.length, 0);
+  const state = getState();
+  const total = plan.reduce((sum, section) => sum + section.items.length, 0);
   const done = Object.values(state).filter(Boolean).length;
-  byId('doneCount').textContent = `${done}/${total}`; byId('progress').style.width = `${total ? (done / total) * 100 : 0}%`;
+  byId('doneCount').textContent = `${done}/${total}`;
+  byId('progress').style.width = `${total ? (done / total) * 100 : 0}%`;
 };
-const updateStatus = message => { byId('saveStatus').textContent = `${message} ${new Date().toLocaleTimeString('de-DE')}`; };
+const updateStatus = message => {
+  byId('saveStatus').textContent = `${message} ${new Date().toLocaleTimeString('de-DE')}`;
+};
 byId('todoRoot').addEventListener('change', event => {
-  const box = event.target.closest('input[type="checkbox"][data-id]'); if (!box) return;
-  const state = getState(); state[box.dataset.id] = box.checked; setState(state); box.closest('.todo')?.classList.toggle('done', box.checked); updateProgress();
+  const box = event.target.closest('input[type="checkbox"][data-id]');
+  if (!box) return;
+  const state = getState();
+  state[box.dataset.id] = box.checked;
+  setState(state);
+  box.closest('.todo')?.classList.toggle('done', box.checked);
+  updateProgress();
 });
-byId('resetBtn').addEventListener('click', () => { localStorage.removeItem(STORAGE_KEY); render(); updateStatus('Plan zurückgesetzt.'); });
+byId('resetBtn').addEventListener('click', () => {
+  localStorage.removeItem(STORAGE_KEY);
+  render();
+  updateStatus('Plan zurückgesetzt.');
+});
 byId('downloadBtn').addEventListener('click', () => {
-  const payload = { app:'orchestrator-grove-release-plan', version:1, exportedAt:new Date().toISOString(), state:getState() };
+  const payload = { app: PLAN_APP_ID, version: PLAN_VERSION, exportedAt: new Date().toISOString(), state: getState() };
   const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' }));
-  const link = Object.assign(document.createElement('a'), { href:url, download:'orchestrator-grove-release-plan-save.json' }); link.click(); URL.revokeObjectURL(url); updateStatus('Savefile heruntergeladen.');
+  const link = Object.assign(document.createElement('a'), { href:url, download:'orchestrator-grove-release-plan-save.json' });
+  link.click();
+  URL.revokeObjectURL(url);
+  updateStatus('Savefile heruntergeladen.');
 });
 byId('uploadInput').addEventListener('change', async event => {
-  const [file] = event.target.files || []; if (!file) return;
-  try { const payload = JSON.parse(await file.text()); setState(payload.state || payload); render(); updateStatus('Savefile geladen.'); }
-  catch (error) { updateStatus(`Upload fehlgeschlagen: ${error.message}`); }
+  const [file] = event.target.files || [];
+  if (!file) return;
+  try {
+    const payload = JSON.parse(await file.text());
+    setState(parseImportedPayload(payload));
+    render();
+    updateStatus('Savefile geladen.');
+  } catch (error) {
+    updateStatus(`Upload fehlgeschlagen: ${error.message}`);
+  }
   event.target.value = '';
 });
-render(); updateStatus('Plan geladen.');
+syncStoredState();
+render();
+updateStatus('Plan geladen.');
 </script>
 </body>
 </html>

@@ -34,10 +34,10 @@ const MULTIPLAYER_STARTS = {
   p2: { id: 'p2', label: 'Player 2', corner: 'top-right', x: WORLD_MAP_SIZE.width - 260, y: 260, throneX: WORLD_MAP_SIZE.width - 170, throneY: 150 }
 };
 const ONLINE_MULTIPLAYER_FEATURES = [
-  { id: 'p1_lake', type: 'lake', ownerId: 'p1', label: 'Player 1 lake', x: 330, y: WORLD_MAP_SIZE.height - 330, rx: 230, ry: 125 },
+  { id: 'p1_lake', type: 'lake', ownerId: 'p1', x: 330, y: WORLD_MAP_SIZE.height - 330, rx: 230, ry: 125 },
   { id: 'p1_camper', type: 'camper_van', ownerId: 'p1', label: 'Player 1 camper van', x: 565, y: WORLD_MAP_SIZE.height - 360, w: 118, h: 58, rotation: -0.08 },
-  { id: 'p2_lake', type: 'lake', ownerId: 'p2', label: 'Player 2 lake', x: WORLD_MAP_SIZE.width - 330, y: 330, rx: 230, ry: 125 },
-  { id: 'p2_camper', type: 'camper_van', ownerId: 'p2', label: 'Player 2 camper van', x: WORLD_MAP_SIZE.width - 565, y: 360, w: 118, h: 58, rotation: Math.PI - 0.08 }
+  { id: 'p2_lake', type: 'lake', ownerId: 'p2', x: WORLD_MAP_SIZE.width - 330, y: 330, rx: 230, ry: 125 },
+  { id: 'p2_camper', type: 'camper_van', ownerId: 'p2', label: 'Player 2 camper van', x: WORLD_MAP_SIZE.width - 565, y: 360, w: 118, h: 58, rotation: 0.08, flipX: true }
 ];
 const THRONE_HP = 120;
 const THRONE_ATTACK_DAMAGE = 10;
@@ -147,6 +147,24 @@ function smitheryRecipe(s) {
 function smitheryInputFor(recipe) {
   return recipe === 'wooden_shield' ? 'plank' : 'stick';
 }
+function productionInputNeeds(s) {
+  if (!s) return null;
+  if (s.type === 'sawbench') return { log: 1, plank: 1 };
+  if (s.type === 'workbench') return { stick: 1, stone: 1 };
+  if (s.type === 'smithery') return { [smitheryInputFor(smitheryRecipe(s))]: 1 };
+  if (s.type === 'bowmaker') return { ...BOW_RECIPE };
+  if (s.type === 'factory') return { ...FACTORY_BOT_RECIPE };
+  return null;
+}
+function productionInputCount(s, type) {
+  if (!s || !type) return 0;
+  if (s.type === 'sawbench') return type === 'log' ? (s.logs || 0) : type === 'plank' ? (s.planks || 0) : 0;
+  if (s.type === 'workbench') return type === 'stick' ? (s.sticks || 0) : type === 'stone' ? (s.stones || 0) : 0;
+  if (s.type === 'smithery') return type === smitheryInputFor(smitheryRecipe(s)) ? ((s[`${type}s`] ?? s[type] ?? 0)) : 0;
+  if (s.type === 'bowmaker') return (s[`${type}s`] ?? s[type] ?? 0);
+  if (s.type === 'factory') return (s[`${type}s`] ?? s[type] ?? 0);
+  return 0;
+}
 
 export class Game {
   constructor({ canvas, chat, dom, isChatActive = () => false }) {
@@ -154,12 +172,12 @@ export class Game {
     this.W = canvas.width; this.H = canvas.height; this.keys = new Set();
     this.map = { ...WORLD_MAP_SIZE };
     this.camera = { x: 0, y: 0, speed: 520, fastMultiplier: 2.35, zoom: 1, minZoom: CAMERA_MIN_ZOOM, maxZoom: CAMERA_MAX_ZOOM };
-    this.player = { x: 480, y: 410, r: 13, speed: 170, target: null, inventory: null, equipment: createEquipment(), attackCooldown: 0, hp: 10, maxHp: 10 };
-    this.assistant = { x: 452, y: 392 };
+    this.player = { x: 480, y: 410, r: 13, speed: 170, target: null, inventory: null, equipment: createEquipment(), attackCooldown: 0, hp: 10, maxHp: 10, facingX: 1, facingY: 0 };
+    this.assistant = { x: 452, y: 392, facingX: 1, facingY: 0 };
     this.trees = []; this.hempPlants = []; this.rocks = []; this.holes = []; this.items = []; this.bots = []; this.structures = []; this.monsters = []; this.projectiles = []; this.floaters = []; this.mapFeatures = []; this.mapFeatures = [];
     this.paused = false;
     this.multiplayer = { enabled: false, sessionId: null, role: 'solo', playerId: 'p1', status: 'Solo prototype', players: {}, winner: null, syncTimer: 0 };
-    this.recorder = { recording: false, steps: [], lastAssignedBotId: null, targetBotId: null, status: 'Teach: open a bot menu and press Record Loop.' };
+    this.recorder = { recording: false, steps: [], lastAssignedBotId: null, targetBotId: null, status: '' };
     this.teachPanelOpened = false;
     this.teachLocationEdit = null;
     this.draggedTeachStepIndex = null;
@@ -174,7 +192,7 @@ export class Game {
     this.idleDepot = { x: 115, y: 245, label: 'idle depot' };
     this.nextItemId = 1; this.nextRockId = 1; this.nextHoleId = 1; this.nextTreeId = 1; this.nextHempId = 1; this.nextMonsterId = 1; this.nextProjectileId = 1; this.nextBotId = 1; this.nextStructureId = 1;
     this.maxBots = 24; this.targetFps = 30; this.fps = 0; this.frameCount = 0; this.fpsAcc = 0; this.lastFrame = 0; this.worldTime = 0;
-    this.mouse = { x: 0, y: 0, screenX: 0, screenY: 0, clientX: 0, clientY: 0, hoverBot: null, hoverStructure: null, hoverMonster: null, hoverItem: null, hoverHemp: null, hoverZone: null };
+    this.mouse = { x: 0, y: 0, screenX: 0, screenY: 0, clientX: 0, clientY: 0, hoverBot: null, hoverStructure: null, hoverMonster: null, hoverTree: null, hoverHole: null, hoverItem: null, hoverHemp: null, hoverZone: null };
     this.placementType = null; this.zoneDraft = null; this.zoneDrag = null; this.justDrewZone = false; this.justDraggedZone = false;
     this.renderer = { text: 'Canvas 2D fallback', webgpu: false, reason: 'not probed' };
     this.audio = null;
@@ -262,6 +280,10 @@ export class Game {
   setPlayerDestination(x, y, options = {}) {
     this.releasePlayerTargetReservation();
     this.player.target = { x: clamp(x, 20, this.map.width - 20), y: clamp(y, 20, this.map.height - 20), ...options };
+    const dx = this.player.target.x - this.player.x;
+    const dy = this.player.target.y - this.player.y;
+    const len = Math.hypot(dx, dy);
+    if (len > 0.001) { this.player.facingX = dx / len; this.player.facingY = dy / len; }
     if (this.player.target.action === 'pickup_item' && this.player.target.itemId) {
       const item = this.items.find(i => i.id === this.player.target.itemId);
       if (item) item.reservedBy = 'player';
@@ -304,6 +326,11 @@ export class Game {
       if (!picked && item?.reservedBy === 'player') item.reservedBy = null;
       return;
     }
+    if (target?.action === 'plant_seed' && target.holeId) {
+      const hole = this.holes.find(h => h.id === target.holeId && !h.planted);
+      if (hole) this.manualPlantSeedAtHole(hole);
+      return;
+    }
     if (target?.action === 'chop_tree' && target.resourceId) { const tree = this.trees.find(t => t.id === target.resourceId); if (tree) this.startPlayerResourceWork(target, tree, 'chopping tree'); return; }
     if (target?.action === 'mine_stone' && target.resourceId) { const rock = this.rocks.find(r => r.id === target.resourceId && !r.depleted); if (rock) this.startPlayerResourceWork(target, rock, 'mining stone'); return; }
     if (target?.action === 'attack_target') { this.playerAttackTargetByRef(target.targetRef); return; }
@@ -328,6 +355,12 @@ export class Game {
     const held = this.player.inventory?.type;
     if (!s || !held || !this.canStructureAcceptItem(s, held)) return false;
     this.setPlayerDestination(s.x, s.y, { action: 'deposit_to_structure', structureId: s.id, itemType: held, floatText: `Deposit ${itemLabel(held)} into ${s.name}` });
+    return true;
+  }
+  queuePlayerPlantSeedAtHole(hole) {
+    if (!hole || hole.planted) return false;
+    if (this.player.inventory?.type !== 'tree_seed') return false;
+    this.setPlayerDestination(hole.x, hole.y, { action: 'plant_seed', holeId: hole.id, floatText: `Plant tree seed in ${hole.ref}` });
     return true;
   }
   queuePlayerPaletteInteraction(s) {
@@ -406,7 +439,7 @@ export class Game {
       }
       this.updateHover();
     });
-    this.canvas.addEventListener('mouseleave', () => { this.finishZoneDrag(); this.mouse.hoverBot = null; this.mouse.hoverStructure = null; this.mouse.hoverMonster = null; this.mouse.hoverItem = null; this.mouse.hoverHemp = null; this.mouse.hoverZone = null; this.canvas.style.cursor = 'default'; });
+    this.canvas.addEventListener('mouseleave', () => { this.finishZoneDrag(); this.mouse.hoverBot = null; this.mouse.hoverStructure = null; this.mouse.hoverMonster = null; this.mouse.hoverTree = null; this.mouse.hoverHole = null; this.mouse.hoverItem = null; this.mouse.hoverHemp = null; this.mouse.hoverZone = null; this.canvas.style.cursor = 'default'; });
     this.canvas.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       const chatRectMode = !this.zoneDraft?.active && !this.placementType && this.isChatActive?.();
@@ -447,8 +480,10 @@ export class Game {
       if (this.zoneDraft?.active) return;
       if (this.placementType) { this.placeStructure(this.placementType, p.x, p.y); return; }
       if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return; }
-      const bot = this.botAt(p.x, p.y); if (bot) return this.showBotMenu(bot, p.clientX, p.clientY);
+      const bot = this.botAt(p.x, p.y); if (bot) return this.showBotMenu(bot, p.clientX, p.clientY, { refreshEdit: true });
       const s = this.structureAt(p.x, p.y); if (s) return this.showStructureMenu(s, p.clientX, p.clientY);
+      const tree = this.treeAt(p.x, p.y); if (tree) return this.showTreeMenu(tree, p.clientX, p.clientY);
+      const hole = this.holeAt(p.x, p.y); if (hole) return this.showHoleMenu(hole, p.clientX, p.clientY);
       const z = this.zoneAt(p.x, p.y); if (z) return this.showZoneMenu(z, p.clientX, p.clientY);
     });
     this.canvas.addEventListener('contextmenu', e => {
@@ -456,12 +491,13 @@ export class Game {
       if (this.zoneDraft?.active) return;
       if (this.placementType) { this.cancelPlacement(); return; }
       if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return; }
-      const friendlyBot = this.botAt(p.x, p.y); if (friendlyBot && !this.isHostileTarget(friendlyBot)) return this.showBotMenu(friendlyBot, p.clientX, p.clientY);
+      const friendlyBot = this.botAt(p.x, p.y); if (friendlyBot && !this.isHostileTarget(friendlyBot)) return this.showBotMenu(friendlyBot, p.clientX, p.clientY, { refreshEdit: true });
       const attackTarget = this.attackTargetAt(p.x, p.y); if (attackTarget && this.queuePlayerAttackTarget(attackTarget)) return;
       const item = this.itemAt(p.x, p.y); if (item) return this.queuePlayerItemPickup(item);
       const s = this.structureAt(p.x, p.y); if (s) { if (s.type === 'item_palette') return this.queuePlayerPaletteInteraction(s); if (this.queuePlayerThroneAttack(s)) return; return this.queuePlayerStructureDeposit(s) || this.showStructureMenu(s, p.clientX, p.clientY); }
+      const hole = this.holeAt(p.x, p.y); if (hole) { if (this.player.inventory?.type === 'tree_seed' && this.queuePlayerPlantSeedAtHole(hole)) return; return this.showHoleMenu(hole, p.clientX, p.clientY); }
       const hemp = this.hempAt(p.x, p.y); if (hemp && this.queuePlayerHempAction(hemp)) return;
-      const tree = this.treeAt(p.x, p.y); if (tree && (this.queuePlayerResourceAction(tree, 'chop_tree') || this.queuePlayerTreeSearch(tree))) return;
+      const tree = this.treeAt(p.x, p.y); if (tree) return this.showTreeMenu(tree, p.clientX, p.clientY);
       const rock = this.rockAt(p.x, p.y); if (rock && this.queuePlayerResourceAction(rock, 'mine_stone')) return;
       this.setPlayerDestination(p.x, p.y);
     });
@@ -484,10 +520,12 @@ export class Game {
     this.mouse.hoverBot = this.botAt(this.mouse.x, this.mouse.y);
     this.mouse.hoverStructure = !this.mouse.hoverBot ? this.structureAt(this.mouse.x, this.mouse.y) : null;
     this.mouse.hoverMonster = !this.mouse.hoverBot && !this.mouse.hoverStructure ? this.monsterAt(this.mouse.x, this.mouse.y) : null;
-    this.mouse.hoverHemp = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster ? this.hempAt(this.mouse.x, this.mouse.y) : null;
-    this.mouse.hoverItem = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverHemp ? this.itemAt(this.mouse.x, this.mouse.y) : null;
-    this.mouse.hoverZone = !this.mouse.hoverStructure && !this.mouse.hoverBot && !this.mouse.hoverMonster && !this.mouse.hoverItem && !this.mouse.hoverHemp ? this.zoneAt(this.mouse.x, this.mouse.y) : null;
-    this.canvas.style.cursor = this.zoneDraft?.active || this.placementType ? 'crosshair' : (this.zoneDrag?.active ? 'grabbing' : (this.mouse.hoverBot || this.mouse.hoverStructure || this.mouse.hoverMonster || this.mouse.hoverItem || this.mouse.hoverHemp || this.mouse.hoverZone ? 'pointer' : 'default'));
+    this.mouse.hoverTree = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster ? this.treeAt(this.mouse.x, this.mouse.y) : null;
+    this.mouse.hoverHole = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverTree ? this.holeAt(this.mouse.x, this.mouse.y) : null;
+    this.mouse.hoverHemp = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverHole ? this.hempAt(this.mouse.x, this.mouse.y) : null;
+    this.mouse.hoverItem = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverHole && !this.mouse.hoverHemp ? this.itemAt(this.mouse.x, this.mouse.y) : null;
+    this.mouse.hoverZone = !this.mouse.hoverStructure && !this.mouse.hoverBot && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverHole && !this.mouse.hoverItem && !this.mouse.hoverHemp ? this.zoneAt(this.mouse.x, this.mouse.y) : null;
+    this.canvas.style.cursor = this.zoneDraft?.active || this.placementType ? 'crosshair' : (this.zoneDrag?.active ? 'grabbing' : (this.mouse.hoverBot || this.mouse.hoverStructure || this.mouse.hoverMonster || this.mouse.hoverTree || this.mouse.hoverHole || this.mouse.hoverItem || this.mouse.hoverHemp || this.mouse.hoverZone ? 'pointer' : 'default'));
   }
 
   addStructure(type, x, y) {
@@ -1478,7 +1516,7 @@ export class Game {
     this.assistant = { x: 452, y: 392 };
     this.camera = { x: 0, y: 0, speed: 520, fastMultiplier: 2.35, zoom: this.camera?.zoom || 1, minZoom: CAMERA_MIN_ZOOM, maxZoom: CAMERA_MAX_ZOOM };
     this.multiplayer = { enabled: false, sessionId: null, role: 'solo', playerId: 'p1', status: 'Solo prototype', players: {}, winner: null, syncTimer: 0 };
-    this.recorder = { recording: false, steps: [], lastAssignedBotId: null, targetBotId: null, status: 'Teach: open a bot menu and press Record Loop.' };
+    this.recorder = { recording: false, steps: [], lastAssignedBotId: null, targetBotId: null, status: '' };
     this.teachPanelOpened = false;
     this.teachLocationEdit = null;
     this.draggedTeachStepIndex = null;
@@ -1529,7 +1567,7 @@ export class Game {
     this.assistant = { x: 452, y: 392, ...(payload.assistant || {}) };
     this.multiplayer = { enabled: false, sessionId: null, role: 'solo', playerId: 'p1', status: 'Solo prototype', players: {}, winner: null, syncTimer: 0, ...(payload.multiplayer || {}) };
     this.mapFeatures = clone(payload.mapFeatures || []);
-    this.recorder = { recording: false, steps: [], lastAssignedBotId: null, targetBotId: null, status: 'Teach: open a bot menu and press Record Loop.', ...(payload.recorder || {}) };
+    this.recorder = { recording: false, steps: [], lastAssignedBotId: null, targetBotId: null, status: '', ...(payload.recorder || {}) };
     this.recordedLoop = clone(payload.recordedLoop || []);
     this.botTeams = clone(payload.botTeams || []);
     this.nextBotTeamId = Math.max(1, ...this.botTeams.map(team => Number(team.numericId || String(team.id || '').replace(/^team:/, '')) || 0)) + 1;
@@ -1551,8 +1589,8 @@ export class Game {
     const role = 'local_ai';
     const localStart = MULTIPLAYER_STARTS.p1;
     this.resetWorldCollections();
-    this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.hp = this.player.maxHp || 10;
-    this.assistant.x = localStart.x - 30; this.assistant.y = localStart.y + 24;
+      this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.hp = this.player.maxHp || 10; this.player.facingX = 1; this.player.facingY = 0;
+      this.assistant.x = localStart.x - 30; this.assistant.y = localStart.y + 24; this.assistant.facingX = 1; this.assistant.facingY = 0;
     this.camera.x = clamp(localStart.x - this.W / 2, 0, Math.max(0, this.map.width - this.W / (this.camera.zoom || 1)));
     this.camera.y = clamp(localStart.y - this.H / 2, 0, Math.max(0, this.map.height - this.H / (this.camera.zoom || 1)));
     this.clampCamera();
@@ -1587,8 +1625,8 @@ export class Game {
     const localStart = MULTIPLAYER_STARTS[playerId] || MULTIPLAYER_STARTS.p1;
     this.resetWorldCollections();
     this.mapFeatures = clone(ONLINE_MULTIPLAYER_FEATURES);
-    this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.hp = this.player.maxHp || 10;
-    this.assistant.x = localStart.x - 30; this.assistant.y = localStart.y + 24;
+      this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.hp = this.player.maxHp || 10; this.player.facingX = 1; this.player.facingY = 0;
+      this.assistant.x = localStart.x - 30; this.assistant.y = localStart.y + 24; this.assistant.facingX = 1; this.assistant.facingY = 0;
     this.camera.x = clamp(localStart.x - this.W / 2, 0, Math.max(0, this.map.width - this.W / (this.camera.zoom || 1)));
     this.camera.y = clamp(localStart.y - this.H / 2, 0, Math.max(0, this.map.height - this.H / (this.camera.zoom || 1)));
     this.clampCamera();
@@ -1776,12 +1814,16 @@ export class Game {
         if (target.action === 'mine_stone') this.finishPlayerMineStone(target);
       }
       return;
-    }
-    const d = distXY(this.player.x, this.player.y, target.x, target.y);
-    const step = this.player.speed * dt;
-    if (d <= Math.max(4, step)) {
-      this.player.x = target.x;
-      this.player.y = target.y;
+      }
+      const d = distXY(this.player.x, this.player.y, target.x, target.y);
+      const step = this.player.speed * dt;
+      if (d > 0.001) {
+        this.player.facingX = (target.x - this.player.x) / d;
+        this.player.facingY = (target.y - this.player.y) / d;
+      }
+      if (d <= Math.max(4, step)) {
+        this.player.x = target.x;
+        this.player.y = target.y;
       if (['search_tree', 'search_hemp', 'chop_hemp', 'chop_tree', 'mine_stone'].includes(target.action)) {
         if (target.action === 'chop_tree') { this.completePlayerTarget(target); return; }
         if (target.action === 'mine_stone') { this.completePlayerTarget(target); return; }
@@ -1815,7 +1857,16 @@ export class Game {
     this.player.x = clamp(this.player.x + ((target.x - this.player.x) / d) * step, 20, this.map.width - 20);
     this.player.y = clamp(this.player.y + ((target.y - this.player.y) / d) * step, 20, this.map.height - 20);
   }
-  updateAssistant(dt) { const tx = this.player.x - 30, ty = this.player.y + 24; this.moveToward(this.assistant, tx, ty, dt, 135, 28); }
+  updateAssistant(dt) {
+    const tx = this.player.x - 30, ty = this.player.y + 24;
+    const beforeX = this.assistant.x;
+    const beforeY = this.assistant.y;
+    this.moveToward(this.assistant, tx, ty, dt, 135, 28);
+    const dx = this.assistant.x - beforeX;
+    const dy = this.assistant.y - beforeY;
+    const len = Math.hypot(dx, dy);
+    if (len > 0.001) { this.assistant.facingX = dx / len; this.assistant.facingY = dy / len; }
+  }
 
   updateBot(bot, dt) {
     if (bot.paused) { bot.state = 'paused'; bot.message = `Paused ${bot.program} workflow.`; return; }
@@ -2037,17 +2088,15 @@ export class Game {
     const next = smitheryRecipe(s) === 'wooden_sword' ? 'wooden_shield' : 'wooden_sword';
     return this.setSmitheryRecipe(s, next);
   }
-  canStructureAcceptItem(s, type) {
-    if (!s || !type || this.isStructureProcessing(s)) return false;
-    if (s.type === 'player_storage') return this.canPlayerAcceptItem(type);
-    if (s.type === 'item_palette') return (s.stored || 0) < (s.capacity || 0) && (!s.storageType || s.storageType === type);
-    if (s.type === 'sawbench') return ['log', 'plank'].includes(type);
-    if (s.type === 'workbench') return ['stick', 'stone'].includes(type);
-    if (s.type === 'smithery') return type === smitheryInputFor(smitheryRecipe(s));
-    if (s.type === 'bowmaker') return Object.prototype.hasOwnProperty.call(BOW_RECIPE, type) && ((s[`${type}s`] ?? s[type] ?? 0) < BOW_RECIPE[type]);
-    if (s.type === 'factory') return Object.prototype.hasOwnProperty.call(FACTORY_BOT_RECIPE, type);
-    return false;
-  }
+    canStructureAcceptItem(s, type) {
+      if (!s || !type || this.isStructureProcessing(s)) return false;
+      if (s.type === 'player_storage') return this.canPlayerAcceptItem(type);
+      if (s.type === 'item_palette') return (s.stored || 0) < (s.capacity || 0) && (!s.storageType || s.storageType === type);
+      const needs = productionInputNeeds(s);
+      if (!needs || !Object.prototype.hasOwnProperty.call(needs, type)) return false;
+      return productionInputCount(s, type) < needs[type];
+      return false;
+    }
   botStorageRetryReady(bot, key, label, x = bot?.x || this.player.x, y = bot?.y || this.player.y) {
     if (!bot) return true;
     if (!bot.runtime) bot.runtime = { pc: 0, memory: {}, wait: 0 };
@@ -2087,53 +2136,53 @@ export class Game {
     this.emitSound('storage', { cooldownKey: `bot:player-take:${bot.id}`, minGapMs: 120 });
     return true;
   }
-  depositHeldItemToStructure(s, type, { worker = null } = {}) {
-    if (!s || !type) return false;
-    if (s.type === 'player_storage') return this.depositBotItemToPlayer(this.workerBot(worker), type);
-    if (this.isStructureProcessing(s)) return false;
-    if (!this.canStructureAcceptItem(s, type)) { const bot = this.workerBot(worker); if (bot && !this.botStorageRetryReady(bot, `deposit:${s.id}:${type}`, `${s.name} cannot take ${itemLabel(type)}.`, s.x, s.y)) return false; this.addFloat(`${s.name} cannot take ${itemLabel(type)}`, s.x, s.y - 35, '#c86b5f'); this.emitSound('ui_error', { cooldownKey: bot ? `deposit-error:${bot.id}:${s.id}:${type}` : 'deposit-error', minGapMs: bot ? BOT_STORAGE_RETRY_SECONDS * 1000 : 120 }); return false; }
-    this.emitSound(s.type === 'item_palette' ? 'storage' : 'deposit', { cooldownKey: `deposit:${s.id}`, minGapMs: 100 });
+    depositHeldItemToStructure(s, type, { worker = null } = {}) {
+      if (!s || !type) return false;
+      if (s.type === 'player_storage') return this.depositBotItemToPlayer(this.workerBot(worker), type);
+      if (this.isStructureProcessing(s)) return false;
+      if (!this.canStructureAcceptItem(s, type)) { const bot = this.workerBot(worker); if (bot && !this.botStorageRetryReady(bot, `deposit:${s.id}:${type}`, `${s.name} cannot take ${itemLabel(type)}.`, s.x, s.y)) return false; this.addFloat(`${s.name} cannot take ${itemLabel(type)}`, s.x, s.y - 35, '#c86b5f'); this.emitSound('ui_error', { cooldownKey: bot ? `deposit-error:${bot.id}:${s.id}:${type}` : 'deposit-error', minGapMs: bot ? BOT_STORAGE_RETRY_SECONDS * 1000 : 120 }); return false; }
+      this.emitSound(s.type === 'item_palette' ? 'storage' : 'deposit', { cooldownKey: `deposit:${s.id}`, minGapMs: 100 });
     if (s.type === 'item_palette') {
       if (!s.storageType) s.storageType = type;
       s.stored = (s.stored || 0) + 1;
       this.addFloat(`${s.name}: ${s.stored}/${s.capacity} ${itemLabel(type)}`, s.x, s.y - 35, '#d3a95f');
       return true;
     }
-    if (s.type === 'sawbench') {
-      if (type === 'log') s.logs++;
-      if (type === 'plank') s.planks++;
-      this.addFloat(`+ ${itemLabel(type)}`, s.x, s.y - 35, '#d3a95f');
-      if (worker) this.maybeStartStructureProcessing(s, worker);
-      return true;
-    }
-    if (s.type === 'workbench') {
-      if (type === 'stick') s.sticks++;
-      if (type === 'stone') s.stones++;
-      this.addFloat(`${s.name}: ${s.sticks} sticks, ${s.stones} stones`, s.x, s.y - 35, '#d3a95f');
-      if (worker) this.maybeStartStructureProcessing(s, worker);
-      return true;
-    }
-    if (s.type === 'smithery') {
-      if (type === 'stick') s.sticks++;
-      if (type === 'plank') s.planks++;
-      this.addFloat(`+ ${itemLabel(type)}`, s.x, s.y - 35, '#d3a95f');
-      if (worker) this.maybeStartStructureProcessing(s, worker);
-      return true;
-    }
-    if (s.type === 'bowmaker') {
-      const key = `${type}s` in s ? `${type}s` : type;
-      s[key]++;
-      this.addFloat(`${s.name}: ${s.sticks || 0}/2 sticks, ${s.hemps || 0}/3 hemp`, s.x, s.y - 35, '#d3a95f');
-      if (worker) this.maybeStartStructureProcessing(s, worker);
-      return true;
-    }
-    if (s.type === 'factory') {
-      const key = `${type}s` in s ? `${type}s` : type;
-      s[key]++;
-      this.addFloat(`+ ${itemLabel(type)}`, s.x, s.y - 35, '#d3a95f');
-      if (worker) this.maybeStartStructureProcessing(s, worker);
-      return true;
-    }
+      if (s.type === 'sawbench') {
+        if (type === 'log') s.logs++;
+        if (type === 'plank') s.planks++;
+        this.addFloat(`+ ${itemLabel(type)}`, s.x, s.y - 35, '#d3a95f');
+        this.maybeStartStructureProcessing(s, worker);
+        return true;
+      }
+      if (s.type === 'workbench') {
+        if (type === 'stick') s.sticks++;
+        if (type === 'stone') s.stones++;
+        this.addFloat(`${s.name}: ${s.sticks} sticks, ${s.stones} stones`, s.x, s.y - 35, '#d3a95f');
+        this.maybeStartStructureProcessing(s, worker);
+        return true;
+      }
+      if (s.type === 'smithery') {
+        if (type === 'stick') s.sticks++;
+        if (type === 'plank') s.planks++;
+        this.addFloat(`+ ${itemLabel(type)}`, s.x, s.y - 35, '#d3a95f');
+        this.maybeStartStructureProcessing(s, worker);
+        return true;
+      }
+      if (s.type === 'bowmaker') {
+        const key = `${type}s` in s ? `${type}s` : type;
+        s[key]++;
+        this.addFloat(`${s.name}: ${s.sticks || 0}/2 sticks, ${s.hemps || 0}/3 hemp`, s.x, s.y - 35, '#d3a95f');
+        this.maybeStartStructureProcessing(s, worker);
+        return true;
+      }
+      if (s.type === 'factory') {
+        const key = `${type}s` in s ? `${type}s` : type;
+        s[key]++;
+        this.addFloat(`+ ${itemLabel(type)}`, s.x, s.y - 35, '#d3a95f');
+        this.maybeStartStructureProcessing(s, worker);
+        return true;
+      }
     return false;
   }
   depositToSawbench(s, type, options = {}) { return this.depositHeldItemToStructure(s, type, options); }
@@ -2211,15 +2260,17 @@ export class Game {
     if (s.type === 'bowmaker' && job.recipe === 'bow') { s.bows++; this.dropProducedItem(s, 'bow', 1); this.addFloat('+ bow dropped', s.x, s.y - 35, '#d3a95f'); return; }
     if (s.type === 'factory' && job.recipe === 'basic_bot') { const nb = this.createBot(s.x + rand(-30, 30), s.y + 72, 'idle'); if (nb) this.addChat?.('assistant', `Factory created Basic Bot ${nb.id}.`); }
   }
-  updateProductionStructures(dt) {
-    for (const s of this.structures) {
-      if (!['sawbench', 'workbench', 'factory', 'smithery', 'bowmaker'].includes(s.type)) continue;
-      if (this.isStructureProcessing(s)) {
-        s.processing.remaining -= dt;
-        if (s.processing.remaining <= 0) { const job = s.processing; s.processing = null; this.finishStructureProcessing(s, job); }
+    updateProductionStructures(dt) {
+      for (const s of this.structures) {
+        if (!['sawbench', 'workbench', 'factory', 'smithery', 'bowmaker'].includes(s.type)) continue;
+        if (this.isStructureProcessing(s)) {
+          s.processing.remaining -= dt;
+          if (s.processing.remaining <= 0) { const job = s.processing; s.processing = null; this.finishStructureProcessing(s, job); }
+        } else {
+          this.maybeStartStructureProcessing(s);
+        }
       }
     }
-  }
   programHaulLogs(bot, dt) {
     const zone = this.getBotZone(bot);
     if (bot.inventory?.type === 'log') { const s = this.nearestStructure('sawbench', bot.x, bot.y, bot.targetStructureId); if (!s) return bot.message='No sawbench.'; if (!this.moveBotTo(bot, s, dt, 32)) return bot.message=`Delivering log to ${s.name}.`; this.depositToSawbench(s, 'log', { worker: { bot } }); bot.inventory=null; bot.message=this.isStructureProcessing(s) ? `Delivered log and started ${s.processing.label} at ${s.name}.` : `Delivered log to ${s.name}.`; return; }
@@ -2612,6 +2663,10 @@ export class Game {
     if (this.player.inventory?.type !== 'tree_seed') return false;
     const hole = this.nearestOpenHole(this.player.x, this.player.y, null, 46, null);
     if (!hole) return false;
+    return this.manualPlantSeedAtHole(hole);
+  }
+  manualPlantSeedAtHole(hole) {
+    if (!hole || hole.planted || this.player.inventory?.type !== 'tree_seed') return false;
     this.plantSeedInHole(hole);
     this.player.inventory = null;
     this.addFloat('Planted tree seed', this.player.x, this.player.y - 30, '#9abf8f');
@@ -2708,7 +2763,6 @@ export class Game {
   }
   interact() {
     const s = this.structures.find(st => rectDistance(this.player.x,this.player.y,st)<45);
-    if (this.manualPlantSeed()) return;
     if (this.player.inventory?.type === 'crude_shovel') { this.manualDigHole(); return; }
     if (this.player.inventory?.type === 'crude_pickaxe' && this.manualMineStone()) return;
     if (this.player.inventory?.type === 'crude_axe' && this.manualChopTree()) return;
@@ -2723,7 +2777,7 @@ export class Game {
     if (this.manualMineStone()) return;
     if (this.manualChopTree()) return;
     if (s?.type==='item_palette') { this.acceptNearestItemForPalette(s); return; }
-    if (s?.type==='workbench') { if (this.isStructureProcessing(s) || (s.sticks>=1 && s.stones>=1)) { this.maybeStartStructureProcessing(s, { kind: 'player' }); this.addFloat(`${s.name} processing`, s.x, s.y-35, '#d3a95f'); return; } const item = nearest(this.items, s.x, s.y, i => ['stick','stone'].includes(i.type) && distXY(i.x,i.y,s.x,s.y)<70); if (item) { this.depositHeldItemToStructure(s, item.type); this.items = this.items.filter(i => i.id !== item.id); } return; }
+    if (s?.type==='workbench') { if (this.isStructureProcessing(s) || (s.sticks>=1 && s.stones>=1)) { this.maybeStartStructureProcessing(s, { kind: 'player' }); this.addFloat(`${s.name} processing`, s.x, s.y-35, '#d3a95f'); return; } const item = nearest(this.items, s.x, s.y, i => ['stick','stone'].includes(i.type) && distXY(i.x,i.y,s.x,s.y)<70); if (item && this.depositHeldItemToStructure(s, item.type, { worker: { kind: 'player' } })) { this.items = this.items.filter(i => i.id !== item.id); } return; }
     if (s?.type==='sawbench' && (s.logs>0 || s.planks>0 || this.isStructureProcessing(s))) { this.maybeStartStructureProcessing(s, { kind: 'player' }); this.addFloat(`${s.name} processing`, s.x, s.y-35, '#d3a95f'); return; }
     if (s?.type==='smithery') { const input = smitheryInputFor(smitheryRecipe(s)); const key = input === 'stick' ? 'sticks' : 'planks'; if (this.isStructureProcessing(s) || (s[key] || 0) > 0) { this.maybeStartStructureProcessing(s, { kind: 'player' }); this.addFloat(`${s.name} processing`, s.x, s.y-35, '#d3a95f'); return; } }
     if (s?.type==='bowmaker' && (this.isStructureProcessing(s) || Object.entries(BOW_RECIPE).every(([type,cost]) => (s[`${type}s`] ?? s[type] ?? 0) >= cost))) { this.maybeStartStructureProcessing(s, { kind: 'player' }); this.addFloat(`${s.name} processing`, s.x, s.y-35, '#d3a95f'); return; }
@@ -2755,6 +2809,30 @@ export class Game {
     this.addFloat(`Renamed ${fallback} to ${next}`, bot.x, bot.y - 30, '#d3a95f');
     this.syncBotDrawerUi();
     return { ok: true, bot };
+  }
+
+  beginBotMenuNameEdit(bot, x, y) {
+    const edit = this.ensureBotMenuEdit(bot);
+    edit.nameEditing = true;
+    edit.nameDraft = this.botDisplayName(bot);
+    edit.nameStatus = '';
+    this.showBotMenu(bot, x, y, { refreshEdit: true });
+    requestAnimationFrame(() => {
+      const input = this.dom.botMenu?.querySelector('[data-menu-bot-name]');
+      if (!input) return;
+      input.focus();
+      input.select();
+    });
+  }
+
+  saveBotMenuName(bot, x, y, name) {
+    const edit = this.ensureBotMenuEdit(bot);
+    const res = this.setBotName(bot, name);
+    edit.nameEditing = false;
+    edit.nameDraft = '';
+    edit.nameStatus = res.ok ? 'Name saved.' : `Name save failed: ${res.error}`;
+    this.showBotMenu(bot, x, y, { refreshEdit: true });
+    return res;
   }
 
   createBotTeam(name, color = '#5d8063') {
@@ -2881,9 +2959,19 @@ export class Game {
     };
   }
 
-  ensureBotMenuEdit(bot) {
-    if (!this.botMenuEdit || this.botMenuEdit.botId !== bot.id) {
-      this.botMenuEdit = { botId: bot.id, program: this.editableBotProgramFrom(bot), status: '' };
+  ensureBotMenuEdit(bot, { refresh = false } = {}) {
+    const nextProgram = this.editableBotProgramFrom(bot);
+    const sameBot = this.botMenuEdit?.botId === bot.id;
+    const shouldRefresh = refresh || !sameBot || JSON.stringify(this.botMenuEdit?.program || null) !== JSON.stringify(nextProgram);
+    if (shouldRefresh) {
+      this.botMenuEdit = {
+        botId: bot.id,
+        program: nextProgram,
+        status: sameBot ? this.botMenuEdit.status : '',
+        nameStatus: sameBot ? this.botMenuEdit.nameStatus : '',
+        nameEditing: sameBot ? this.botMenuEdit.nameEditing : false,
+        nameDraft: sameBot ? this.botMenuEdit.nameDraft : ''
+      };
     }
     return this.botMenuEdit;
   }
@@ -3001,7 +3089,11 @@ export class Game {
       if (!Number.isFinite(index)) return;
       if ('botStepUp' in button.dataset) this.moveBotMenuEditStep(index, -1);
       else if ('botStepDown' in button.dataset) this.moveBotMenuEditStep(index, 1);
-      else this.deleteBotMenuEditStep(index);
+      else {
+        this.deleteBotMenuEditStep(index);
+        this.hideMenus();
+        return;
+      }
       this.syncBotMenuEditSurface(el);
     });
     el.addEventListener('change', event => {
@@ -3039,28 +3131,38 @@ export class Game {
     });
   }
 
-  showBotMenu(bot, x, y) {
+  showBotMenu(bot, x, y, { refreshEdit = false } = {}) {
     const el = this.dom.botMenu;
-    const edit = this.ensureBotMenuEdit(bot);
+    const edit = this.ensureBotMenuEdit(bot, { refresh: refreshEdit });
     const tpl = JSON.stringify(edit.program, null, 2);
     const steps = this.activeTeachSteps();
     const teachSteps = this.renderTeachSteps(steps);
     const editSteps = this.renderBotProgramEditSteps(edit.program.steps || []);
     const recordLabel = this.recorder.recording ? 'Stop recording' : 'Start recording';
     const assignDisabled = (this.recordedLoop.length || this.recorder.steps.length) ? '' : ' disabled';
+    const hasWorkflow = !!bot.program && bot.program !== 'idle';
     const stopLabel = bot.paused ? 'Resume workflow' : 'Stop workflow';
     const displayName = this.botDisplayName(bot);
-    el.innerHTML = `<b>${escapeHtml(displayName)}</b><button data-close>×</button><label class="bot-menu-name-edit">Bot name <input data-menu-bot-name value="${escapeHtml(displayName)}" maxlength="32"></label><button type="button" data-save-bot-name>Save name</button><p>${escapeHtml(bot.message)}</p><p><b>Program:</b> ${escapeHtml(bot.program)}</p><p><b>Ref:</b> <code>${escapeHtml(bot.ref)}</code></p><button data-stop-workflow>${stopLabel}</button><section class="teach-menu"><b>Teach by doing</b><p>${escapeHtml(this.recorder.recording ? `Recording ${this.recorder.steps.length} steps for Bot ${this.recorder.targetBotId || bot.id}…` : this.recorder.status)}</p><ol class="teach-steps menu-teach-steps">${teachSteps}</ol><button data-teach-record>${recordLabel}</button><button data-assign-taught${assignDisabled}>Assign to ${escapeHtml(displayName)}</button></section><section class="bot-program-editor"><b>Assigned JSON</b><p data-bot-edit-status>${escapeHtml(edit.status || 'Edit JSON, or adjust the DSL cards and accept them.')}</p><textarea data-bot-json-editor spellcheck="false">${escapeHtml(tpl)}</textarea><button type="button" data-save-json>Save JSON + refresh Bot ${bot.id}</button><div class="bot-card-flow-head"><b>DSL card flow</b><button type="button" data-add-loop-step>Add loop</button></div><ol class="teach-steps bot-program-steps" data-bot-program-steps>${editSteps}</ol><button type="button" data-accept-dsl-cards>Accept card flow + refresh Bot ${bot.id}</button></section><button data-add>Add bot to chat</button>`;
+    const nameStatus = edit.nameStatus ? `<p class="bot-menu-name-status" data-bot-name-status>${escapeHtml(edit.nameStatus)}</p>` : '';
+    const nameEditor = edit.nameEditing ? `<label class="bot-menu-name-edit">Bot name <input data-menu-bot-name value="${escapeHtml(edit.nameDraft || displayName)}" maxlength="32"></label>` : '';
+    const workflowButton = hasWorkflow ? `<button data-stop-workflow>${stopLabel}</button>` : '';
+    el.innerHTML = `<div class="bot-menu-title"><div class="bot-menu-title-row"><b>${escapeHtml(displayName)}</b><button type="button" data-edit-bot-name aria-label="Edit bot name">✎</button></div>${nameStatus}${nameEditor}</div><button data-close>×</button><p>${escapeHtml(bot.message)}</p><p><b>Program:</b> ${escapeHtml(bot.program)}</p><p><b>Ref:</b> <code>${escapeHtml(bot.ref)}</code></p>${workflowButton}<section class="teach-menu"><b>Teach by doing</b><p>${escapeHtml(this.recorder.recording ? `Recording ${this.recorder.steps.length} steps for Bot ${this.recorder.targetBotId || bot.id}…` : this.recorder.status)}</p><ol class="teach-steps menu-teach-steps">${teachSteps}</ol><button data-teach-record>${recordLabel}</button><button data-assign-taught${assignDisabled}>Assign to ${escapeHtml(displayName)}</button></section><section class="bot-program-editor"><b>Assigned JSON</b><p data-bot-edit-status>${escapeHtml(edit.status || 'Edit JSON, or adjust the DSL cards and accept them.')}</p><textarea data-bot-json-editor spellcheck="false">${escapeHtml(tpl)}</textarea><button type="button" data-save-json>Save JSON + refresh Bot ${bot.id}</button><div class="bot-card-flow-head"><b>DSL card flow</b><button type="button" data-add-loop-step>Add loop</button></div><ol class="teach-steps bot-program-steps" data-bot-program-steps>${editSteps}</ol><button type="button" data-accept-dsl-cards>Accept card flow + refresh Bot ${bot.id}</button></section><button data-add>Add bot to chat</button>`;
     this.placeMenu(el,x,y);
     this.bindTeachStepControls(el.querySelector('.menu-teach-steps'));
     this.bindBotProgramEditControls(el, bot, x, y);
     el.querySelector('[data-close]').onclick=()=>this.hideMenus();
-    el.querySelector('[data-save-bot-name]').onclick=()=>{ const res = this.setBotName(bot, el.querySelector('[data-menu-bot-name]')?.value); if (res.ok) this.showBotMenu(bot, x, y); };
-    el.querySelector('[data-menu-bot-name]')?.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); el.querySelector('[data-save-bot-name]')?.click(); } });
+    el.querySelector('[data-edit-bot-name]')?.addEventListener('click', () => this.beginBotMenuNameEdit(bot, x, y));
+    el.querySelector('[data-menu-bot-name]')?.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); this.saveBotMenuName(bot, x, y, el.querySelector('[data-menu-bot-name]')?.value || ''); } });
     el.querySelector('[data-add]').onclick=()=>{this.chat.insertAtCursor(`Bot ${bot.id} `); this.hideMenus();};
-    el.querySelector('[data-stop-workflow]').onclick=()=>{ bot.paused = !bot.paused; bot.message = bot.paused ? `Paused ${bot.program} workflow.` : `Resumed ${bot.program} workflow.`; this.showBotMenu(bot, x, y); };
+    el.querySelector('[data-stop-workflow]')?.addEventListener('click',()=>{ bot.paused = !bot.paused; bot.message = bot.paused ? `Paused ${bot.program} workflow.` : `Resumed ${bot.program} workflow.`; this.showBotMenu(bot, x, y); });
     el.querySelector('[data-teach-record]').onclick=()=>{ this.recorder.recording ? this.stopTeachRecording() : this.startTeachRecording(bot.id); this.showBotMenu(bot, x, y); };
     el.querySelector('[data-assign-taught]')?.addEventListener('click',()=>{ this.assignRecordedLoopToBot(bot.id); this.hideMenus(); });
+    if (edit.nameEditing) requestAnimationFrame(() => {
+      const input = el.querySelector('[data-menu-bot-name]');
+      if (!input) return;
+      input.focus();
+      input.select();
+    });
   }
   showStructureMenu(s, x, y) {
     const el = this.dom.structureMenu;
@@ -3084,6 +3186,58 @@ export class Game {
     el.querySelector('[data-add-ref]').onclick=()=>{this.chat.insertAtCursor(s.ref); this.hideMenus();};
     el.querySelector('[data-add-radius]')?.addEventListener('click',()=>{this.chat.insertAtCursor(`small area around ${s.name}`); this.hideMenus();});
     el.querySelector('[data-insert-nearby]')?.addEventListener('click',()=>{this.acceptNearestItemForPalette(s); this.hideMenus();});
+  }
+  showTreeMenu(tree, x, y) {
+    const el = this.dom.structureMenu;
+    const displayName = this.treeDisplayName(tree);
+    const searchState = tree.searchReservedBy ? `reserved by ${tree.searchReservedBy}` : 'unreserved';
+    const hpLine = tree.stump ? 'stump' : `HP ${Math.max(0, tree.hp || 0)}/${tree.maxHp || 1}`;
+    el.innerHTML = `<b>${escapeHtml(displayName)}</b><button data-close>×</button><p>Resource type <code>tree</code> · ref <code>${escapeHtml(tree.ref || `tree:${tree.id}`)}</code><br>${escapeHtml(hpLine)} · stage ${escapeHtml(tree.growthStage || 'grown_tree')}<br>search ${escapeHtml(searchState)}</p><button data-tree-chop>Chop tree</button><button data-tree-search>Search tree</button><button data-add-tree-name>Add name</button><button data-add-tree-ref>Add ref</button><button data-add-tree-radius>Add small radius</button>`;
+    this.placeMenu(el, x, y);
+    el.querySelector('[data-close]').onclick = () => this.hideMenus();
+    el.querySelector('[data-tree-chop]')?.addEventListener('click', () => {
+      this.queuePlayerResourceAction(tree, 'chop_tree');
+      this.hideMenus();
+    });
+    el.querySelector('[data-tree-search]')?.addEventListener('click', () => {
+      this.queuePlayerTreeSearch(tree);
+      this.hideMenus();
+    });
+    el.querySelector('[data-add-tree-name]')?.addEventListener('click', () => {
+      this.chat.insertAtCursor(displayName);
+      this.hideMenus();
+    });
+    el.querySelector('[data-add-tree-ref]')?.addEventListener('click', () => {
+      this.chat.insertAtCursor(tree.ref || `tree:${tree.id}`);
+      this.hideMenus();
+    });
+    el.querySelector('[data-add-tree-radius]')?.addEventListener('click', () => {
+      this.chat.insertAtCursor(`small area around ${displayName}`);
+      this.hideMenus();
+    });
+  }
+  showHoleMenu(hole, x, y) {
+    const el = this.dom.structureMenu;
+    const canPlant = this.player.inventory?.type === 'tree_seed' && !hole.planted;
+    el.innerHTML = `<b>${escapeHtml(hole.planted ? 'planted hole' : 'dug hole')}</b><button data-close>×</button><p>Resource type <code>dug_hole</code> · ref <code>${escapeHtml(hole.ref || `hole:${hole.id}`)}</code><br>${hole.planted ? 'already planted' : 'open for tree seed'}${hole.reservedBy ? ` · reserved by ${escapeHtml(String(hole.reservedBy))}` : ''}</p>${canPlant ? '<button data-plant-seed>Plant tree seed</button>' : ''}<button data-add-hole-name>Add name</button><button data-add-hole-ref>Add ref</button><button data-add-hole-radius>Add small radius</button>`;
+    this.placeMenu(el, x, y);
+    el.querySelector('[data-close]').onclick = () => this.hideMenus();
+    el.querySelector('[data-plant-seed]')?.addEventListener('click', () => {
+      this.queuePlayerPlantSeedAtHole(hole);
+      this.hideMenus();
+    });
+    el.querySelector('[data-add-hole-name]')?.addEventListener('click', () => {
+      this.chat.insertAtCursor(hole.planted ? 'planted hole' : 'dug hole');
+      this.hideMenus();
+    });
+    el.querySelector('[data-add-hole-ref]')?.addEventListener('click', () => {
+      this.chat.insertAtCursor(hole.ref || `hole:${hole.id}`);
+      this.hideMenus();
+    });
+    el.querySelector('[data-add-hole-radius]')?.addEventListener('click', () => {
+      this.chat.insertAtCursor(`small area around ${hole.ref || `hole:${hole.id}`}`);
+      this.hideMenus();
+    });
   }
   syncZonesUi() {
     const list = this.dom.zoneList;
@@ -3132,7 +3286,7 @@ export class Game {
   getRenderState() { return createRenderState(this); }
   draw() { drawWorld(this.getRenderState(), this.ctx); }
 
-  getHoverState(){ const item = this.mouse.hoverItem; return { item: item ? { id: item.id, ref: item.ref, type: item.type, name: itemLabel(item.type), x: Math.round(item.x), y: Math.round(item.y) } : null, cursor: this.canvas.style.cursor }; }
+  getHoverState(){ const item = this.mouse.hoverItem; const tree = this.mouse.hoverTree; const hole = this.mouse.hoverHole; return { item: item ? { id: item.id, ref: item.ref, type: item.type, name: itemLabel(item.type), x: Math.round(item.x), y: Math.round(item.y) } : null, tree: tree ? { id: tree.id, ref: tree.ref, name: this.treeDisplayName(tree), x: Math.round(tree.x), y: Math.round(tree.y), hp: tree.hp, maxHp: tree.maxHp, growthStage: tree.growthStage || 'grown_tree', stump: !!tree.stump } : null, hole: hole ? { id: hole.id, ref: hole.ref, name: hole.planted ? 'planted hole' : 'dug hole', x: Math.round(hole.x), y: Math.round(hole.y), planted: !!hole.planted, reservedBy: hole.reservedBy || null } : null, cursor: this.canvas.style.cursor }; }
 
   getObjectRegistry(){ return [
     ...this.zones.map(z=>({ id:z.id, name:z.name, kind:'zone', zoneKind:z.kind, rect:z.kind==='rect'?{x:Math.round(z.x),y:Math.round(z.y),w:Math.round(z.w),h:Math.round(z.h)}:undefined, builtIn:!!z.builtIn, hidden:!!z.hidden })),
@@ -3146,5 +3300,5 @@ export class Game {
     ...this.rocks.map(r=>({ id:r.ref, numericId:r.id, kind:'resource', type:'stone_deposit', name:'stone deposit', x:Math.round(r.x), y:Math.round(r.y), hp:r.hp, maxHp:r.maxHp, depleted:!!r.depleted })),
     ...this.bots.map(b=>({ id:b.ref, numericId:b.id, kind:'bot', name:this.botDisplayName(b), x:Math.round(b.x), y:Math.round(b.y), hp:b.hp, maxHp:b.maxHp, hostile:!!b.hostile, equipment:this.equipmentSummary(b), program:b.program, teamId:b.teamId||null, teamName:this.botTeam(b)?.name||null }))
   ]; }
-  getState(){ return { paused:!!this.paused, multiplayer:this.getMultiplayerSnapshot(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null}, recorder:this.getRecorderState(), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:Math.round(z.w),h:Math.round(z.h)})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, webgpuAvailable:this.renderer.webgpu, fps:this.fps, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
+  getState(){ return { paused:!!this.paused, multiplayer:this.getMultiplayerSnapshot(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:Math.round(z.w),h:Math.round(z.h)})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, webgpuAvailable:this.renderer.webgpu, fps:this.fps, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
 }
