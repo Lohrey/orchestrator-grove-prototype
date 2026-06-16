@@ -16,6 +16,8 @@ with sync_playwright() as p:
     page.goto(URL, wait_until="networkidle")
     page.wait_for_function("() => window.getGameState && window.teachDebug")
     page.locator("#mainMenuNewBtn").click()
+    page.wait_for_function("() => !document.getElementById('mainMenuModeLayer').hidden")
+    page.locator("#mainMenuStartSelectedBtn").click()
     page.wait_for_function("() => document.getElementById('mainMenuOverlay').hidden && !window.getGameState().paused")
 
     page.evaluate("window.teachDebug.openBotMenu(1)")

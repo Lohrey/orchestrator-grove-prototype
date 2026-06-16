@@ -43,6 +43,8 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             page.goto(f"http://127.0.0.1:{port}/index.html?v=t_c4955ba2_player_storage", wait_until="networkidle")
             page.wait_for_function("() => window.getGameState && window.teachDebug && window.generateAssistantDsl")
             page.locator("#mainMenuNewBtn").click()
+            page.wait_for_function("() => !document.getElementById('mainMenuModeLayer').hidden")
+            page.locator("#mainMenuStartSelectedBtn").click()
             page.wait_for_function("() => document.getElementById('mainMenuOverlay').hidden && !window.getGameState().paused")
 
             page.evaluate("window.setAssistantLoadout(['starter_automation'])")

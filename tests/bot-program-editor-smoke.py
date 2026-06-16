@@ -47,6 +47,8 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
         page.goto(f"http://127.0.0.1:{port}/index.html?v=t_b5a16881_bot_editor", wait_until="networkidle")
         page.wait_for_function("() => window.getGameState && window.teachDebug")
         page.locator("#mainMenuNewBtn").click()
+        page.wait_for_function("() => !document.getElementById('mainMenuModeLayer').hidden")
+        page.locator("#mainMenuStartSelectedBtn").click()
         page.wait_for_function("() => document.getElementById('mainMenuOverlay').hidden && !window.getGameState().paused")
 
         page.evaluate("window.teachDebug.openBotMenu(1)")

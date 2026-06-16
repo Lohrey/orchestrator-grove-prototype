@@ -24,19 +24,29 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
         assert page.locator("#mainMenuOverlay").is_visible()
         assert page.evaluate("window.getGameState().paused") is True
 
-        # Main menu start resumes single-player.
+        # Main menu mode selection exposes mode-specific new/load layer.
+        assert page.locator("#mainMenuLoadBtn").is_hidden()
         page.locator("#mainMenuNewBtn").click()
+        page.wait_for_function("() => !document.getElementById('mainMenuModeLayer').hidden")
+        assert page.locator("#mainMenuStartSelectedBtn").is_visible()
+        page.locator("#mainMenuStartSelectedBtn").click()
         page.wait_for_function("() => document.getElementById('mainMenuOverlay').hidden && !window.getGameState().paused")
 
-        # Browser-cache save/load restores progress.
+        # Browser-cache save/load restores progress inside a named Test-mode slot.
         page.evaluate("() => window.teachDebug.movePlayerTo(777, 888)")
-        saved = page.evaluate("() => window.gameMenuDebug.save()")
+        saved = page.evaluate("() => window.gameMenuDebug.save({slotName: 'Test Slot A', saveName: 'Checkpoint A'})")
         assert saved["schema"] == "orchestrator-grove-save-v1"
+        assert saved["mode"] == "test"
+        library = page.evaluate("() => window.gameMenuDebug.saveLibrary()")
+        assert len(library["slots"]["test"]) == 1
+        assert library["slots"]["campaign"] == []
+        assert library["slots"]["test"][0]["saves"][0]["name"] == "Checkpoint A"
         page.evaluate("() => window.teachDebug.movePlayerTo(111, 222)")
-        loaded = page.evaluate("() => window.gameMenuDebug.load()")
+        loaded = page.evaluate("() => window.gameMenuDebug.load({mode: 'test'})")
         assert loaded["player"]["x"] == 777 and loaded["player"]["y"] == 888, loaded["player"]
 
         # Esc opens game menu and pauses; paused update ticks do not pan camera.
+        page.evaluate("() => window.uiDebug.setChatOpen(false)")
         page.keyboard.press("Escape")
         page.wait_for_function("() => !document.getElementById('settingsOverlay').hidden")
         assert page.evaluate("window.getGameState().paused") is True
@@ -64,7 +74,10 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
         assert page.evaluate("window.getGameState().paused") is True
 
         page.locator("#mainMenuNewBtn").click()
+        page.wait_for_function("() => !document.getElementById('mainMenuModeLayer').hidden")
+        page.locator("#mainMenuStartSelectedBtn").click()
         page.wait_for_function("() => document.getElementById('mainMenuOverlay').hidden && !window.getGameState().paused")
+        page.evaluate("() => window.uiDebug.setChatOpen(false)")
         page.keyboard.press("Escape")
         page.wait_for_function("() => !document.getElementById('settingsOverlay').hidden")
 

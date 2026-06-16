@@ -3,7 +3,7 @@ const freezeList = values => Object.freeze([...values]);
 export const KNOWLEDGE_PACK_IDS = freezeList(['starter_automation', 'woodworking', 'logistics', 'farming', 'mining_tools']);
 
 export const KNOWLEDGE_PACK_OP_ORDER = Object.freeze({
-  starter_automation: freezeList(['pick_up', 'drop_item', 'move_to_structure', 'use_held_item', 'deposit_to_player', 'take_from_player', 'loop', 'wait']),
+  starter_automation: freezeList(['pick_up', 'drop_item', 'move_to_structure', 'use_held_item', 'assign_template', 'deposit_to_player', 'take_from_player', 'loop', 'wait']),
   woodworking: freezeList(['pick_up', 'deposit_to_structure', 'use_held_item', 'chop_tree', 'search_tree', 'loop']),
   logistics: freezeList(['pick_up_from_storage', 'deposit_to_structure', 'drop_item', 'use_held_item', 'loop']),
   farming: freezeList(['pick_up', 'plant_seed', 'use_held_item', 'search_tree', 'loop']),
@@ -16,7 +16,7 @@ export const ACTION_STEP_ORDER = freezeList([
   'pick_up', 'pick_up_from_storage', 'pick_up_specific',
   'deliver_to_sawbench', 'process_sawbench', 'process_poles', 'fetch_plank_from_sawbench', 'fetch_pole_from_sawbench',
   'deliver_to_workbench', 'craft_workbench', 'deliver_to_factory', 'assemble_bot',
-  'idle_parking', 'wait', 'loop', 'if_inventory',
+  'idle_parking', 'wait', 'loop', 'if_inventory', 'assign_template',
   'move_to_structure', 'deposit_to_structure', 'drop_item', 'find_dug_hole', 'plant_seed', 'use_held_item',
   'deposit_to_player', 'take_from_player'
 ]);
@@ -153,7 +153,7 @@ export const ACTION_STEP_REGISTRY = Object.freeze({
     label: 'Pick up',
     args: ['type', 'zone'],
     description: 'Pick up the nearest loose item of type when hands are empty; recordings store the type, not a specific item id.',
-    signature: 'pick_up(type, zone?) - loose ground items only, e.g. crude_axe/log/stick; not trees or buildings',
+    signature: 'pick_up(type, zone?) - loose ground items only, e.g. crude_axe/crude_hammer/log/stick; not trees or buildings',
     packs: ['starter_automation', 'woodworking', 'farming'],
     templates: true,
     customLoop: true,
@@ -230,7 +230,7 @@ export const ACTION_STEP_REGISTRY = Object.freeze({
   craft_workbench: step({
     label: 'Craft at workbench',
     args: ['recipe', 'target'],
-    description: 'Craft at a tool bench, e.g. recipe crude_axe.',
+    description: 'Craft at a tool bench, e.g. recipe crude_axe or crude_hammer.',
     signature: 'craft_workbench(recipe, target?) - craft the selected workbench recipe',
     templates: true,
     uiCard: 'recipe + structure selector'
@@ -285,6 +285,15 @@ export const ACTION_STEP_REGISTRY = Object.freeze({
     signature: 'if_inventory(type, goto) - jump to step index if the bot already holds type',
     templates: true,
     uiCard: 'type + goto field'
+  }),
+  assign_template: step({
+    label: 'Assign template',
+    args: ['bot', 'templateName'],
+    description: 'Assign a named player-saved template loop to a specific bot.',
+    signature: 'assign_template(bot, templateName) - assign a player-saved template by name to a specific bot',
+    packs: ['starter_automation'],
+    customLoop: true,
+    uiCard: 'bot + template name fields'
   }),
   move_to_structure: step({
     label: 'Move to structure',

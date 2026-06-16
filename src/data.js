@@ -14,14 +14,15 @@ export const ASSISTANT_KNOWLEDGE_PACKS = {
   starter_automation: {
     id: 'starter_automation',
     name: 'Starter Automation',
-    concepts: ['Bots repeat short JSON step loops.', 'Trust user-provided bot names/ids in requests; the game resolves them after JSON validation.', 'End repeating work with {"op":"loop"}.', 'The player can act like a one-slot storage building for automation: use deposit_to_player to bring an item to the player, and take_from_player to take one carried item from the player.'],
+    concepts: ['Bots repeat short JSON step loops.', 'Trust user-provided bot names/ids in requests; the game resolves them after JSON validation.', 'Players can save teach-by-doing recordings as named templates and assign them later with assign_template.', 'End repeating work with {"op":"loop"}.', 'The player can act like a one-slot storage building for automation: use deposit_to_player to bring an item to the player, and take_from_player to take one carried item from the player.'],
     vocabulary: ['bot', 'loop', 'repeat', 'keep doing', 'idle', 'stop', 'player', 'me', 'bring', 'give', 'take from player'],
-    optionalContext: ['availableBotNames', 'availableItemTypes', 'currentPlayerInventory'],
+    optionalContext: ['availableBotNames', 'availableTemplateNames', 'availableItemTypes', 'currentPlayerInventory'],
     unlockedOps: actionStepOpsForPack('starter_automation'),
     examples: [
       { intent: 'bot 1 pick up logs forever', dsl: { steps: [{ op: 'pick_up', type: 'log' }, { op: 'loop' }] } },
       { intent: 'bot 1 bring log to me', dsl: { steps: [{ op: 'pick_up', type: 'log' }, { op: 'deposit_to_player', type: 'log' }, { op: 'loop' }] } },
-      { intent: 'bot 1 take stone from me', dsl: { steps: [{ op: 'take_from_player', type: 'stone' }, { op: 'loop' }] } }
+      { intent: 'bot 1 take stone from me', dsl: { steps: [{ op: 'take_from_player', type: 'stone' }, { op: 'loop' }] } },
+      { intent: 'bot 1 assign Bot 2 the Feed sawbench template', dsl: { steps: [{ op: 'assign_template', bot: 2, templateName: 'Feed sawbench' }, { op: 'loop' }] } }
     ]
   },
   woodworking: {
@@ -116,7 +117,7 @@ export const PROGRAM_TEMPLATES = {
     id: 'pickup_item', name: 'Pick Up Item',
     description: 'Pick a chosen item type from a selected item palette or from loose ground items inside an optional rectangle/radius zone.',
     slots: {
-      itemType: { kind: 'item', optional: false, description: 'Item to pick up, e.g. log, plank, stone, crude_axe.' },
+      itemType: { kind: 'item', optional: false, description: 'Item to pick up, e.g. log, plank, stone, crude_axe, crude_hammer.' },
       sourcePalette: { kind: 'structure', type: 'item_palette', optional: true, description: 'Storage source if picking from a palette.' },
       zone: { kind: 'zone', optional: true, description: 'Ground search area, including inserted rect(x,y,w,h) coordinates.' }
     },
@@ -256,12 +257,14 @@ export const DSL_ACTION_WIKI = {
     dslAssignment: { botId: 1, program: { id: 'custom_loop', name: 'Feed sawbench logs', steps: [{ op: 'pick_up', type: 'log' }, { op: 'deposit_to_structure', type: 'log', structureId: 1 }, { op: 'loop' }] } }
   },
   args: {
-    zone: 'Optional search area. Use {kind:"rect",x,y,w,h}, {kind:"radius",centerStructureId,radius}, a zone id/ref, or "$zone" inside templates.',
+    zone: 'Optional search area. Use {kind:"rect",x,y,w,h}, rect(x,y,w,h), radius(x,y,r), {kind:"radius",centerStructureId,radius}, a zone id/ref, or "$zone" inside templates.',
     target: 'Structure target. Use numeric structure IDs from Game.objects for sawbench/workbench/factory/palette targets.',
-    type: 'Item/resource type: log, plank, pole, stick, stone, tree_seed, crude_axe, crude_pickaxe, crude_shovel.',
+    type: 'Item/resource type: log, plank, pole, stick, stone, tree_seed, crude_axe, crude_pickaxe, crude_shovel, crude_hammer.',
     targetKind: 'Generic target for use_held_item: tree, hemp, stone_deposit, dig_spot, dug_hole, structure, or ground. Validation resolves this to the concrete op and keeps knowledge-pack locks.',
     source: 'Optional source structure, usually a sawbench for loose planks/poles near production or an item_palette for storage pickup.',
-    goto: 'Zero-based step index used by if_inventory when the bot already holds the required item.'
+    goto: 'Zero-based step index used by if_inventory when the bot already holds the required item.',
+    bot: 'Bot id/ref/name to receive a named player-saved template, e.g. 2, bot:2, or Bot 2.',
+    templateName: 'Exact name of a template saved in the Templates drawer from a teach-by-doing recording.'
   },
   actions: actionStepWikiActions(),
   examples: [
@@ -270,6 +273,7 @@ export const DSL_ACTION_WIKI = {
     { name: 'Pick up planks from a rectangle', steps: [{ op: 'if_inventory', type: 'plank', goto: 4 }, { op: 'find_item', type: 'plank', zone: { kind: 'rect', x: 100, y: 200, w: 80, h: 60 } }, { op: 'move_to_target' }, { op: 'pick_up_specific', type: 'plank' }, { op: 'loop' }] },
     { name: 'Bring item to player', steps: [{ op: 'pick_up', type: 'log' }, { op: 'deposit_to_player', type: 'log' }, { op: 'loop' }] },
     { name: 'Take item from player', steps: [{ op: 'take_from_player', type: 'stone' }, { op: 'loop' }] },
+    { name: 'Assign saved template to another bot', steps: [{ op: 'assign_template', bot: 2, templateName: 'Feed sawbench' }, { op: 'loop' }] },
     { name: 'Plant trees in holes', steps: PROGRAM_TEMPLATES.plant_trees.steps },
     { name: 'Search hemp for seeds', steps: [{ op: 'find_hemp', zone: '$zone' }, { op: 'move_to_target' }, { op: 'search_hemp' }, { op: 'loop' }] }
   ]
@@ -309,9 +313,17 @@ export const BUILDING_TYPES = {
   sawbench: { label: 'Sawbench', category: 'production', w: 92, h: 54, color: '#8a6a3d', cost: 'free prototype' },
   workbench: { label: 'Crude Tool Bench', category: 'production', w: 98, h: 54, color: '#735f43', cost: 'free prototype' },
   factory: { label: 'Bot Factory', category: 'production', w: 108, h: 66, color: '#637772', cost: 'free prototype' },
+  portable_3d_printer: { label: 'Portable 3D Printer', category: 'production', w: 96, h: 76, color: '#d8ded9', cost: 'story kit' },
+  assembler: { label: 'Portable Assembler', category: 'production', w: 112, h: 70, color: '#6d7c62', cost: 'story kit' },
   smithery: { label: 'Smithery', category: 'military', w: 100, h: 58, color: '#6f6760', cost: 'free prototype', processingDurations: { wooden_sword: 1.0, wooden_shield: 1.0 } },
   bowmaker: { label: 'Bowmaker', category: 'military', w: 104, h: 58, color: '#5f7054', cost: 'free prototype', processingDurations: { bow: 5.5 } },
   defensetower: { label: 'Defense Tower', category: 'military', w: 82, h: 96, color: '#5b625d', cost: 'free prototype', attackRange: 260, attackDamage: 1, attackCooldown: 1 },
   throne: { label: 'Throne', category: 'military', w: 118, h: 86, color: '#8a6a42', cost: 'multiplayer objective', maxHp: 120 },
-  item_palette: { label: 'Item Palette', category: 'storage', w: 86, h: 48, color: '#6f7661', cost: 'free prototype', capacity: 40 }
+  item_palette: { label: 'Item Palette', category: 'storage', w: 86, h: 48, color: '#6f7661', cost: 'free prototype', capacity: 40 },
+  power_station: { label: 'Power Station', category: 'storage', w: 76, h: 72, color: '#5f625d', cost: 'story kit', capacity: 12 },
+  robotics_parts_bin: { label: 'DIY Robotics Parts Bin', category: 'storage', w: 96, h: 60, color: '#766c54', cost: 'story kit', capacity: 24 },
+  camper_van: { label: 'Simple White Camper Van', category: 'camp', w: 132, h: 64, color: '#edf3ef', cost: 'story kit' },
+  hammock_camp: { label: 'Hammock Camp', category: 'camp', w: 118, h: 72, color: '#4b6b52', cost: 'story kit' },
+  ultrabook_desk: { label: 'Ultrabook Field Desk', category: 'camp', w: 88, h: 62, color: '#766a58', cost: 'story kit' },
+  solar_array: { label: 'Fold-Out Solar Panels', category: 'camp', w: 118, h: 70, color: '#4b6f78', cost: 'story kit' }
 };

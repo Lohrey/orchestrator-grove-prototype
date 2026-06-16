@@ -20,6 +20,7 @@ TOOL_CASES = [
     ("crude_axe", "crude axe"),
     ("crude_pickaxe", "crude pickaxe"),
     ("crude_shovel", "crude shovel"),
+    ("crude_hammer", "crude hammer"),
 ]
 
 
@@ -76,6 +77,10 @@ def run_smoke(url: str) -> None:
         page.on("console", lambda msg: failures.append(f"console error: {msg.text}") if msg.type == "error" else None)
 
         page.goto(url, wait_until="networkidle")
+        if page.locator("#mainMenuOverlay:not([hidden])").count():
+            page.click("#mainMenuNewBtn")
+            page.wait_for_function("() => !document.getElementById('mainMenuModeLayer').hidden")
+            page.click("#mainMenuStartSelectedBtn")
         page.wait_for_function("() => window.getGameState && window.getWorldObjects && window.getCameraState && window.teachDebug")
         page.evaluate("() => { window.uiDebug.setChatOpen(false); document.activeElement?.blur(); }")
 

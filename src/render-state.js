@@ -24,6 +24,9 @@ export function createRenderState(game) {
     zoneDraft: game.zoneDraft,
     mouse: { ...game.mouse },
     multiplayer: game.multiplayer,
+    dayNight: typeof game.getDayNightState === 'function' ? game.getDayNightState() : game.dayNight,
+    fogOfWar: game.fogOfWar,
+    nightSpawns: game.nightSpawns,
     floaters: game.floaters
   };
 }

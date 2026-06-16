@@ -6,7 +6,7 @@
   <title>Orchestrator Grove Prototype v9</title>
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="styles.css?v=t_8ab80257" />
-  <link rel="stylesheet" href="styles-interactions.css?v=t_step_registry" />
+  <link rel="stylesheet" href="styles-interactions.css?v=t_3ef6c5ab_menu_polish" />
 </head>
 <body>
   <main class="shell" aria-label="Orchestrator Grove fullscreen game">
@@ -21,26 +21,102 @@
       <div class="game-stage" id="gameStage">
         <canvas id="game" width="960" height="640" aria-label="2D automation game canvas"></canvas>
         <section id="mainMenuOverlay" class="main-menu-overlay" aria-label="Main menu" hidden>
+          <div class="main-menu-cinema" aria-hidden="true">
+            <span class="menu-mote mote-a"></span>
+            <span class="menu-mote mote-b"></span>
+            <span class="menu-mote mote-c"></span>
+            <span class="menu-scanline"></span>
+          </div>
           <div class="main-menu-card" role="dialog" aria-modal="true" aria-labelledby="mainMenuTitle">
-            <p class="eyebrow">Orchestrator Grove</p>
-            <h2 id="mainMenuTitle">Choose how to start</h2>
-            <p class="main-menu-copy">Start fresh, continue the browser save, play local vs AI, or host online multiplayer.</p>
-            <div class="main-menu-actions">
-              <button id="mainMenuNewBtn" type="button">Start new game</button>
-              <button id="mainMenuLoadBtn" type="button">Load saved game</button>
-              <button id="mainMenuLocalAiBtn" type="button">Local vs AI</button>
-              <button id="mainMenuHostBtn" type="button">Host online multiplayer</button>
-              <a class="main-menu-plan-link" href="./plan.html">Release- & GTM-Plan</a>
-              <label class="main-menu-join">
-                <span>Join code</span>
-                <input id="mainMenuJoinCode" type="text" autocomplete="off" placeholder="session code" />
-              </label>
-              <button id="mainMenuJoinBtn" type="button">Join multiplayer</button>
+            <div class="main-menu-hero" aria-hidden="true">
+              <div class="main-menu-sigil">
+                <span class="sigil-sun"></span>
+                <span class="sigil-tree tree-left"></span>
+                <span class="sigil-tree tree-mid"></span>
+                <span class="sigil-tree tree-right"></span>
+                <span class="sigil-bot"></span>
+              </div>
+              <div class="main-menu-release-badge">Publishing build · cozy automation</div>
             </div>
-            <p id="mainMenuStatus" class="small status-text">A browser-cache save will appear here after you use Esc → Save.</p>
+            <div class="main-menu-copy-column">
+              <p class="eyebrow">Orchestrator Grove</p>
+              <h2 id="mainMenuTitle">Choose a game mode</h2>
+              <p class="main-menu-copy">Pick a mode first. New game and load save options appear in the next layer for that specific mode.</p>
+              <div class="main-menu-feature-row" aria-label="Menu polish features">
+                <span>Animated arrival</span>
+                <span>Generated UI chimes</span>
+                <span>Save-aware modes</span>
+              </div>
+              <div id="mainMenuModeChoices" class="main-menu-actions" data-main-menu-layer="modes">
+                <button id="mainMenuCampaignBtn" type="button" data-menu-mode="campaign">Campaign mode</button>
+                <button id="mainMenuNewBtn" type="button" data-menu-mode="test">Test mode</button>
+                <button id="mainMenuLocalAiBtn" type="button" data-menu-mode="local_ai">Local vs AI</button>
+                <button id="mainMenuHostBtn" type="button" data-menu-mode="online_lakes">Online multiplayer</button>
+                <a class="main-menu-plan-link" href="./plan.html">Release- & GTM-Plan</a>
+              </div>
+              <div id="mainMenuModeLayer" class="main-menu-actions main-menu-sub-layer" data-main-menu-layer="mode-actions" hidden>
+                <button id="mainMenuStartSelectedBtn" type="button">Start new game</button>
+                <button id="mainMenuLoadBtn" type="button">Load saved game</button>
+                <button id="mainMenuBackBtn" type="button">Back to modes</button>
+              </div>
+              <div id="mainMenuOnlineLayer" class="main-menu-actions main-menu-sub-layer" data-main-menu-layer="online-actions" hidden>
+                <button id="mainMenuOnlineHostBtn" type="button">Host game</button>
+                <label class="main-menu-join">
+                  <span>Join code</span>
+                  <input id="mainMenuJoinCode" type="text" autocomplete="off" placeholder="session code" />
+                </label>
+                <button id="mainMenuJoinBtn" type="button">Join game</button>
+                <button id="mainMenuOnlineBackBtn" type="button">Back to modes</button>
+              </div>
+              <div id="mainMenuHostLayer" class="main-menu-actions main-menu-sub-layer" data-main-menu-layer="host-actions" hidden>
+                <button id="mainMenuHostNewBtn" type="button">Host new game</button>
+                <button id="mainMenuHostLoadBtn" type="button">Host saved game</button>
+                <button id="mainMenuHostBackBtn" type="button">Back to online multiplayer</button>
+              </div>
+              <p id="mainMenuStatus" class="small status-text">Choose a game mode to create or load mode-specific savegames.</p>
+            </div>
+          </div>
+        </section>
+        <section id="campaignIntroOverlay" class="campaign-intro-overlay is-hidden" aria-label="Campaign intro" hidden>
+          <div class="campaign-intro-card" role="dialog" aria-modal="true" aria-labelledby="campaignIntroTitle">
+            <p id="campaignIntroKicker" class="campaign-intro-kicker">Campaign intro</p>
+            <h2 id="campaignIntroTitle">A quieter life begins</h2>
+            <p id="campaignIntroText" class="campaign-intro-text"></p>
+            <p id="campaignIntroSceneNo" class="campaign-intro-scene-no">Scene 1 / 5</p>
+            <div class="campaign-intro-actions">
+              <button id="campaignIntroNextBtn" type="button">Next</button>
+              <button id="campaignIntroSkipBtn" type="button">Skip intro</button>
+            </div>
+            <p class="campaign-intro-hint">Enter/Space advances. Esc skips.</p>
           </div>
         </section>
         <div id="assignmentToast" class="assignment-toast" role="status" aria-live="polite" hidden></div>
+        <aside id="widgetRoster" class="widget-roster" aria-label="Canvas widget roster">
+          <div class="widget-roster-rail" aria-hidden="true"></div>
+          <div class="widget-roster-buttons" role="toolbar" aria-label="Canvas widgets">
+            <button id="radioWidgetToggle" class="widget-roster-button music-widget-button" type="button" aria-controls="radioWidgetPanel" aria-expanded="false" title="Cozy radio">
+              <span aria-hidden="true">♫</span>
+              <small>Radio</small>
+            </button>
+          </div>
+          <section id="radioWidgetPanel" class="radio-widget-panel" aria-label="Cozy radio controls" hidden>
+            <header class="radio-widget-head">
+              <div>
+                <b>Cozy Radio</b>
+                <span>Low-bandwidth game/camp streams</span>
+              </div>
+            </header>
+            <div id="radioStationButtons" class="radio-station-buttons" role="group" aria-label="Radio stations"></div>
+            <div class="radio-control-row" aria-label="Radio playback controls">
+              <button id="radioMusicStart" class="radio-action" type="button">▶ Play</button>
+              <button id="radioMusicStop" class="radio-action" type="button">■ Stop</button>
+            </div>
+            <label class="radio-volume">Volume
+              <input id="radioMusicVolume" type="range" min="0" max="1" step="0.01" value="0.28" />
+            </label>
+            <p id="radioMusicStatus" class="small radio-status" role="status" aria-live="polite">Radio ready.</p>
+          </section>
+        </aside>
         <aside id="multiplayerDrawer" class="multiplayer-drawer is-collapsed" aria-label="Multiplayer drawer">
           <button id="multiplayerDrawerToggle" class="multiplayer-drawer-toggle" type="button" aria-controls="multiplayerPanel" aria-expanded="false">Multiplayer</button>
           <section id="multiplayerPanel" class="multiplayer-panel" aria-label="Multiplayer controls">
@@ -83,6 +159,19 @@
             <div id="botList" class="bot-list" aria-label="Bot teams and cards"></div>
           </section>
         </aside>
+        <aside id="templateDrawer" class="template-drawer is-collapsed" aria-label="Template drawer">
+          <button id="templateDrawerToggle" class="template-drawer-toggle" type="button" aria-controls="templatePanel" aria-expanded="false">Templates</button>
+          <section id="templatePanel" class="template-drawer-panel" aria-label="Player templates">
+            <h2>Templates</h2>
+            <p class="small">Record actions with Teach by doing, name the loop here, then assign it to any bot by template name.</p>
+            <form id="templateSaveForm" class="template-save-form">
+              <label>Template name <input id="templateName" type="text" maxlength="36" placeholder="Feed sawbench" /></label>
+              <button id="templateSaveBtn" type="submit">Save recording as template</button>
+            </form>
+            <p id="templateStatus" class="template-status">No player template selected.</p>
+            <div id="templateList" class="template-list" aria-label="Saved player templates"></div>
+          </section>
+        </aside>
         <aside id="buildDrawer" class="build-drawer is-collapsed" aria-label="Build drawer">
           <button id="buildDrawerToggle" class="build-drawer-toggle" type="button" aria-controls="buildPanel" aria-expanded="false">Build</button>
           <section id="buildPanel" class="build-drawer-panel" aria-label="Building controls">
@@ -90,40 +179,75 @@
             <nav class="build-tabs" aria-label="Build categories">
               <button type="button" class="is-active" data-build-tab="production" aria-selected="true">Production</button>
               <button type="button" data-build-tab="storage" aria-selected="false">Storage</button>
+              <button type="button" data-build-tab="camp" aria-selected="false">Camp</button>
               <button type="button" data-build-tab="military" aria-selected="false">Military</button>
             </nav>
             <div class="build-category is-active" data-build-category="production">
               <button type="button" data-build="sawbench" aria-label="Place Sawbench">
                 <span class="build-icon" aria-hidden="true">🪚</span>
-                <span class="build-copy"><b>Sawbench</b><small>Logs → planks</small></span>
+                <span class="build-copy"><b>Sawbench</b><small>Open timber saw table</small></span>
               </button>
               <button type="button" data-build="workbench" aria-label="Place Tool Bench">
                 <span class="build-icon" aria-hidden="true">🪓</span>
-                <span class="build-copy"><b>Tool Bench</b><small>Craft axes/tools</small></span>
+                <span class="build-copy"><b>Tool Bench</b><small>Angled tool canopy</small></span>
               </button>
               <button type="button" data-build="factory" aria-label="Place Bot Factory">
                 <span class="build-icon" aria-hidden="true">🤖</span>
-                <span class="build-copy"><b>Bot Factory</b><small>Assemble bots</small></span>
+                <span class="build-copy"><b>Bot Factory</b><small>Two-stack robot works</small></span>
+              </button>
+              <button type="button" data-build="portable_3d_printer" aria-label="Place Portable 3D Printer">
+                <span class="build-icon" aria-hidden="true">🖨️</span>
+                <span class="build-copy"><b>3D Printer</b><small>Field fabrication frame</small></span>
+              </button>
+              <button type="button" data-build="assembler" aria-label="Place Portable Assembler">
+                <span class="build-icon" aria-hidden="true">🦾</span>
+                <span class="build-copy"><b>Assembler</b><small>Robotic arm workcell</small></span>
               </button>
             </div>
             <div class="build-category" data-build-category="storage">
               <button type="button" data-build="item_palette" aria-label="Place Item Palette">
                 <span class="build-icon" aria-hidden="true">📦</span>
-                <span class="build-copy"><b>Item Palette</b><small>Store resources</small></span>
+                <span class="build-copy"><b>Item Palette</b><small>Open resource crate</small></span>
+              </button>
+              <button type="button" data-build="power_station" aria-label="Place Power Station">
+                <span class="build-icon" aria-hidden="true">🔋</span>
+                <span class="build-copy"><b>Power Station</b><small>Portable battery bank</small></span>
+              </button>
+              <button type="button" data-build="robotics_parts_bin" aria-label="Place DIY Robotics Parts Bin">
+                <span class="build-icon" aria-hidden="true">⚙️</span>
+                <span class="build-copy"><b>Parts Bin</b><small>DIY robotics parts</small></span>
+              </button>
+            </div>
+            <div class="build-category" data-build-category="camp">
+              <button type="button" data-build="camper_van" aria-label="Place Simple White Camper Van">
+                <span class="build-icon" aria-hidden="true">🚐</span>
+                <span class="build-copy"><b>White Camper</b><small>Home on wheels</small></span>
+              </button>
+              <button type="button" data-build="hammock_camp" aria-label="Place Hammock Camp">
+                <span class="build-icon" aria-hidden="true">🏕️</span>
+                <span class="build-copy"><b>Hammock Camp</b><small>Rest between two poles</small></span>
+              </button>
+              <button type="button" data-build="ultrabook_desk" aria-label="Place Ultrabook Field Desk">
+                <span class="build-icon" aria-hidden="true">💻</span>
+                <span class="build-copy"><b>Ultrabook Desk</b><small>Remote work setup</small></span>
+              </button>
+              <button type="button" data-build="solar_array" aria-label="Place Fold-Out Solar Panels">
+                <span class="build-icon" aria-hidden="true">☀️</span>
+                <span class="build-copy"><b>Solar Panels</b><small>Fold-out charging array</small></span>
               </button>
             </div>
             <div class="build-category" data-build-category="military">
               <button type="button" data-build="smithery" aria-label="Place Smithery">
                 <span class="build-icon" aria-hidden="true">⚔️</span>
-                <span class="build-copy"><b>Smithery</b><small>Swords & shields</small></span>
+                <span class="build-copy"><b>Smithery</b><small>Stone forge & anvil</small></span>
               </button>
               <button type="button" data-build="bowmaker" aria-label="Place Bowmaker">
                 <span class="build-icon" aria-hidden="true">🏹</span>
-                <span class="build-copy"><b>Bowmaker</b><small>Craft ranged bows</small></span>
+                <span class="build-copy"><b>Bowmaker</b><small>Arched bow hut</small></span>
               </button>
               <button type="button" data-build="defensetower" aria-label="Place Defense Tower">
                 <span class="build-icon" aria-hidden="true">🛡️</span>
-                <span class="build-copy"><b>Defense Tower</b><small>Guards the base</small></span>
+                <span class="build-copy"><b>Defense Tower</b><small>Tall guard tower</small></span>
               </button>
             </div>
             <div class="build-actions">
@@ -201,11 +325,39 @@
 
       <section class="settings-section game-menu-actions-panel" aria-label="Pause and save controls">
         <h3>Pause / Save</h3>
+        <div class="save-game-manager" id="saveGameManager">
+          <div class="save-manager-grid">
+            <label>Slot
+              <select id="saveSlotSelect"></select>
+            </label>
+            <label>New / edited slot name
+              <input id="saveSlotName" type="text" maxlength="64" placeholder="Camp experiment" />
+            </label>
+            <label>Save name
+              <input id="saveName" type="text" maxlength="64" placeholder="Before building bots" />
+            </label>
+            <label>Saved snapshots
+              <select id="saveEntrySelect"></select>
+            </label>
+          </div>
+          <div class="pause-save-actions save-manager-actions">
+            <button id="saveGameBtn" type="button">Create savegame</button>
+            <button id="loadGameBtn" type="button">Load selected savegame</button>
+            <button id="renameSlotBtn" type="button">Edit slot name</button>
+            <button id="deleteSlotBtn" type="button" class="danger-action">Delete slot</button>
+            <button id="renameSaveBtn" type="button">Edit savegame name</button>
+            <button id="deleteSaveBtn" type="button" class="danger-action">Delete savegame</button>
+          </div>
+          <div class="delete-old-savegames">
+            <label>Delete old savegames except newest
+              <input id="deleteKeepCount" type="number" min="0" step="1" value="3" />
+            </label>
+            <button id="deleteOldSavesBtn" type="button" class="danger-action">Delete old in slot</button>
+          </div>
+        </div>
         <div class="pause-save-actions">
           <button id="resumeGameBtn" type="button">Resume game</button>
           <button id="pauseGameBtn" type="button">Pause game</button>
-          <button id="saveGameBtn" type="button">Save game</button>
-          <button id="loadGameBtn" type="button">Load saved game</button>
           <button id="quitToMainMenuBtn" type="button" class="danger-action">Quit to main menu</button>
         </div>
         <div id="quitSavePrompt" class="quit-save-prompt" role="alertdialog" aria-live="polite" hidden>
@@ -256,6 +408,10 @@
           <label>Max bots <input id="maxBots" type="range" min="4" max="1000" step="1" value="24" /> <b id="maxBotsValue">24</b></label>
           <span class="renderer-pill" id="rendererStatus">Renderer: probing…</span>
         </section>
+        <label class="checkline">
+          <input id="dynamicShadows" type="checkbox" />
+          Enable dynamic light shadows <span class="small">(extra CPU/GPU cost)</span>
+        </label>
         <dl class="stores">
           <div><dt>Detected GPU</dt><dd id="detectedGpu">Probing…</dd></div>
           <div><dt>Inferred VRAM</dt><dd id="detectedVram">Unknown</dd></div>
@@ -306,19 +462,7 @@
           <input id="audioSfxVolume" type="range" min="0" max="1" step="0.01" value="0.42" />
         </label>
         <button id="audioSfxTest" type="button">Test SFX</button>
-        <h3>Cozy background radio</h3>
-        <p class="small">Uses free listener-supported SomaFM direct MP3 streams. Start requires a click because browsers block autoplay.</p>
-        <label class="stacked">Station
-          <select id="audioStation"></select>
-        </label>
-        <label class="stacked">Music volume
-          <input id="audioMusicVolume" type="range" min="0" max="1" step="0.01" value="0.28" />
-        </label>
-        <div class="endpoint-actions" aria-label="Background radio controls">
-          <button id="audioMusicStart" type="button">Start cozy radio</button>
-          <button id="audioMusicStop" type="button">Stop radio</button>
-        </div>
-        <p id="audioMusicStatus" class="small status-text">Audio loading…</p>
+        <p class="small status-text">Radio moved to the slim left canvas widget roster. Touch the left border and click ♫.</p>
       </section>
 
       <section class="settings-section settings-tab-panel ollama-panel" data-settings-panel="ai">
@@ -437,6 +581,6 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
   <div id="botMenu" class="entity-menu" hidden></div>
   <div id="structureMenu" class="entity-menu" hidden></div>
 
-  <script src="game.js?v=t_step_registry"></script>
+  <script src="game.js?v=t_91fd08d9"></script>
 </body>
 </html>

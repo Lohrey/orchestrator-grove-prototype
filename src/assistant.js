@@ -244,6 +244,16 @@ export function parseAssistantRequest(text, game, { enableTemplates = false, loa
     return { calls, source: 'mock' };
   }
   const botMatches = [...lower.matchAll(/bot\s*(\d+)/g)].map(m => Number(m[1])).filter(Boolean);
+  if (botMatches.length && /template|vorlage/.test(lower) && game.customTemplates?.length) {
+    const template = game.customTemplates.find(t => lower.includes(String(t.name || '').toLowerCase()));
+    if (template && unlockedOps.has('assign_template')) {
+      const assignments = botMatches.map(botId => ({
+        name: 'assignBotTemplate',
+        arguments: { botId, templateName: template.name, reason: 'Parsed named player template assignment' }
+      }));
+      return { templateAssignments: assignments, source: 'mock', meta: `Assigned template ${template.name} to ${assignments.length} bot(s).` };
+    }
+  }
   const dslAssignments = botMatches.map(botId => compileDslIntent({ botId, lower, game, unlockedOps })).filter(Boolean);
   if (dslAssignments.length) return { dslAssignments, source: 'mock', meta: `Generated DSL for ${dslAssignments.length} bot(s) from equipped knowledge packs.` };
   const program = normalizeProgram(lower);
@@ -262,7 +272,7 @@ function compactTemplateInfo() {
   return Object.fromEntries(Object.entries(PROGRAM_TEMPLATES).map(([id, tpl]) => [id, Object.keys(tpl.slots || {})]));
 }
 
-const CANONICAL_ITEM_TYPES = ['log', 'plank', 'pole', 'stick', 'stone', 'tree_seed', 'crude_axe', 'crude_pickaxe', 'crude_shovel', 'hemp', 'hemp_seed'];
+const CANONICAL_ITEM_TYPES = ['log', 'plank', 'pole', 'stick', 'stone', 'tree_seed', 'crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer', 'hemp', 'hemp_seed'];
 
 const RESOURCE_STRUCTURE_RULES = {
   resourcesAreNotStructures: ['tree', 'trees', 'hemp', 'stone deposit', 'stone_deposit', 'rock', 'rocks', 'dug hole', 'hole'],
@@ -306,6 +316,9 @@ function optionalRuntimeKnowledge(game, equippedPacks) {
   const knowledge = {};
   if (wanted.has('availableBotNames')) {
     knowledge.availableBotNames = (game.bots || []).map(bot => bot.ref || `bot ${bot.id}`);
+  }
+  if (wanted.has('availableTemplateNames')) {
+    knowledge.availableTemplateNames = (game.customTemplates || []).map(template => template.name);
   }
   if (wanted.has('availableBuildingNames')) {
     knowledge.availableBuildingNames = (game.structures || []).map(structure => structure.name || structure.ref || `${structure.type} ${structure.id}`);

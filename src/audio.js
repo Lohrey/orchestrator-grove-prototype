@@ -5,13 +5,33 @@ const MUSIC_STATION_KEY = 'orchestratorGrove.audio.musicStation';
 
 export const COZY_RADIO_STATIONS = {
   groovesalad: {
-    label: 'SomaFM Groove Salad · chill/downtempo',
-    url: 'https://ice2.somafm.com/groovesalad-128-mp3',
+    label: 'Groove Salad · cozy chill',
+    url: 'https://ice1.somafm.com/groovesalad-64-aac',
+    vibe: 'Cozy base-building downtempo',
     source: 'SomaFM free listener-supported online radio'
   },
   dronezone: {
-    label: 'SomaFM Drone Zone · warm ambient',
-    url: 'https://ice1.somafm.com/dronezone-128-mp3',
+    label: 'Drone Zone · ambient focus',
+    url: 'https://ice1.somafm.com/dronezone-64-aac',
+    vibe: 'Warm ambient automation flow',
+    source: 'SomaFM free listener-supported online radio'
+  },
+  missioncontrol: {
+    label: 'Mission Control · space cozy',
+    url: 'https://ice1.somafm.com/missioncontrol-64-aac',
+    vibe: 'NASA/space ambience for quiet crafting',
+    source: 'SomaFM free listener-supported online radio'
+  },
+  vaporwaves: {
+    label: 'Vaporwaves · retro game room',
+    url: 'https://ice1.somafm.com/vaporwaves-64-aac',
+    vibe: 'Retro synth/game-room mood',
+    source: 'SomaFM free listener-supported online radio'
+  },
+  defcon: {
+    label: 'DEF CON · hacker arcade',
+    url: 'https://ice1.somafm.com/defcon-64-aac',
+    vibe: 'Cyber/gaming energy',
     source: 'SomaFM free listener-supported online radio'
   }
 };
@@ -33,9 +53,11 @@ export function createAudioController() {
     lastPlayed: new Map(),
     music: new Audio()
   };
-  state.music.preload = 'none';
+  if (!COZY_RADIO_STATIONS[state.station]) state.station = 'groovesalad';
+  state.music.preload = 'auto';
   state.music.loop = false;
   state.music.volume = state.musicVolume;
+  state.music.crossOrigin = 'anonymous';
 
   function ensureContext() {
     if (!AudioContextClass) return null;
@@ -87,7 +109,12 @@ export function createAudioController() {
 
   const recipes = {
     ui_click: ctx => { tone(ctx, { freq: 640, endFreq: 840, duration: 0.055, type: 'triangle', gain: 0.06 }); },
+    ui_hover: ctx => { tone(ctx, { freq: 520, endFreq: 620, duration: 0.045, type: 'triangle', gain: 0.035 }); },
     ui_error: ctx => { tone(ctx, { freq: 190, endFreq: 130, duration: 0.15, type: 'sawtooth', gain: 0.08 }); },
+    menu_arrive: ctx => { [196, 294, 392, 523].forEach((freq, i) => tone(ctx, { at: i * 0.075, freq, duration: 0.18, type: 'triangle', gain: 0.045 })); noise(ctx, { at: 0.02, duration: 0.38, gain: 0.035, filter: 840, type: 'lowpass' }); },
+    menu_confirm: ctx => { tone(ctx, { freq: 392, endFreq: 784, duration: 0.12, type: 'triangle', gain: 0.075 }); tone(ctx, { at: 0.09, freq: 1046, duration: 0.08, type: 'sine', gain: 0.035 }); },
+    menu_back: ctx => { tone(ctx, { freq: 420, endFreq: 260, duration: 0.11, type: 'triangle', gain: 0.055 }); },
+    menu_whoosh: ctx => { noise(ctx, { duration: 0.18, gain: 0.045, filter: 1200, type: 'highpass' }); tone(ctx, { at: 0.04, freq: 220, endFreq: 440, duration: 0.16, type: 'sine', gain: 0.025 }); },
     move: ctx => { noise(ctx, { duration: 0.06, gain: 0.035, filter: 420, type: 'lowpass' }); },
     build: ctx => { noise(ctx, { duration: 0.12, gain: 0.11, filter: 520 }); tone(ctx, { at: 0.06, freq: 330, duration: 0.1, type: 'triangle', gain: 0.07 }); },
     bot_online: ctx => { tone(ctx, { freq: 360, duration: 0.07, type: 'triangle', gain: 0.05 }); tone(ctx, { at: 0.07, freq: 520, duration: 0.09, type: 'triangle', gain: 0.06 }); },
@@ -139,19 +166,30 @@ export function createAudioController() {
     return state.sfxVolume;
   }
 
-  async function startMusic(stationKey = state.station) {
+  function setMusicStation(stationKey = state.station) {
     const key = COZY_RADIO_STATIONS[stationKey] ? stationKey : 'groovesalad';
     state.station = key;
     storageSet(MUSIC_STATION_KEY, key);
-    state.music.src = COZY_RADIO_STATIONS[key].url;
+    return COZY_RADIO_STATIONS[key];
+  }
+
+  async function startMusic(stationKey = state.station) {
+    const station = setMusicStation(stationKey);
+    if (state.music.dataset.stationKey !== state.station || !state.music.src) {
+      state.music.pause();
+      state.music.dataset.stationKey = state.station;
+      state.music.src = station.url;
+      state.music.load();
+    }
     state.music.volume = state.musicVolume;
     await state.music.play();
-    return COZY_RADIO_STATIONS[key];
+    return station;
   }
 
   function stopMusic() {
     state.music.pause();
     state.music.removeAttribute('src');
+    delete state.music.dataset.stationKey;
     state.music.load();
   }
 
@@ -170,6 +208,7 @@ export function createAudioController() {
     setSfxVolume,
     startMusic,
     stopMusic,
+    setMusicStation,
     setMusicVolume,
     isMusicPlaying: () => !state.music.paused && !!state.music.src
   };

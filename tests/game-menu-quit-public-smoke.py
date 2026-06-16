@@ -13,6 +13,8 @@ with sync_playwright() as p:
     assert page.locator("#mainMenuOverlay").is_visible()
 
     page.locator("#mainMenuNewBtn").click()
+    page.wait_for_function("() => !document.getElementById('mainMenuModeLayer').hidden")
+    page.locator("#mainMenuStartSelectedBtn").click()
     page.wait_for_function("() => document.getElementById('mainMenuOverlay').hidden && !window.getGameState().paused")
     page.keyboard.press("Escape")
     page.wait_for_function("() => !document.getElementById('settingsOverlay').hidden && window.getGameState().paused")

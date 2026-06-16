@@ -1,5 +1,7 @@
-import { BUILDING_TYPES } from './data.js?v=t_step_registry';
+import { BUILDING_TYPES } from './data.js?v=t_bdae19d0';
 import { clamp } from './utils.js?v=20260613-player-tools';
+import { drawFogOfWarOverlay, fogRevealSources as buildFogRevealSources, isLightEmittingStructure, isPointCurrentlyVisible, isPointExplored as isFogPointExplored, structureLightRadius as getFogStructureLightRadius } from './fog-of-war.js?v=t_91fd08d9';
+import { createDepthDrawable, sortDepthDrawables } from './depth-sort.js?v=t_da28d8dd';
 import {
   drawBuildingAsset,
   drawBuildingPreviewAsset,
@@ -7,9 +9,14 @@ import {
   drawItemAsset,
   drawMiniItemAsset,
   itemLabel
-} from './visual-assets.js?v=t_ba2f046e';
+} from './visual-assets.js?v=t_bdae19d0';
 
 const staticMapBaseCache = new Map();
+const BOT_HAND_TOOL_TYPES = new Set(['crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer']);
+
+function isBotHandTool(type) {
+  return BOT_HAND_TOOL_TYPES.has(type);
+}
 
 export function drawWorld(renderState, ctx) {
   const game = renderState;
@@ -23,24 +30,78 @@ export function drawWorld(renderState, ctx) {
   c.save();
   c.scale(game.camera.zoom || 1, game.camera.zoom || 1);
   c.translate(-game.camera.x, -game.camera.y);
-  drawMapBase(game, c);
+  drawMapBase(game, c, view);
   drawMapFeatures(game, c, view);
   drawGrid(game, c, view);
   drawZones(game, c, view);
-  for (const hole of game.holes || []) if (circleInView(hole.x, hole.y, 24, view)) drawHole(game, c, hole);
-  for (const rock of game.rocks || []) if (circleInView(rock.x, rock.y, (rock.radius || 18) + 16, view)) drawRock(c, rock);
-  for (const hemp of game.hempPlants || []) if (circleInView(hemp.x, hemp.y, (hemp.radius || 14) + 18, view)) drawHempPlant(game, c, hemp, now);
-  for (const structure of game.structures || []) if (rectInView(structure.x, structure.y, structure.w || 48, structure.h || 48, view)) drawStructure(game, c, structure, now);
-  for (const projectile of game.projectiles || []) if (circleInView(projectile.x, projectile.y, 18, view)) drawProjectile(c, projectile);
-  for (const item of game.items || []) if (circleInView(item.x, item.y, 20, view)) drawItem(game, c, item, now);
-  for (const monster of game.monsters || []) { if ((monster.hp || 0) > 0 && circleInView(monster.x, monster.y, (monster.radius || 18) + 16, view)) drawMonster(game, c, monster, now); }
-  for (const bot of game.bots || []) if (circleInView(bot.x, bot.y, (bot.r || 11) + 18, view)) drawBot(game, c, bot, now);
-  drawPlayer(game, c, now);
-  drawRemotePlayers(game, c, now);
-  for (const tree of game.trees || []) if (circleInView(tree.x, tree.y, getTreeDrawRadius(tree) + 18, view)) drawTree(game, c, tree, now, getTreeOpacity(game, tree, now));
+  drawNightTint(game, c, view);
+  drawStructureLightGlows(game, c, view);
+  const visibleStructures = [];
+  const visibleProjectiles = [];
+  const visibleItems = [];
+  const visibleMonsters = [];
+  const visibleBots = [];
+  const depthDrawables = [];
+  const pushDepth = (kind, entity, draw, options = {}) => {
+    depthDrawables.push(createDepthDrawable(kind, entity, draw, { ...options, order: depthDrawables.length }));
+  };
+  for (const hole of game.holes || []) if (circleInView(hole.x, hole.y, 24, view) && fogStaticVisible(game, hole.x, hole.y)) drawHole(game, c, hole);
+  for (const rock of game.rocks || []) {
+    if (!circleInView(rock.x, rock.y, (rock.radius || 18) + 16, view) || !fogStaticVisible(game, rock.x, rock.y)) continue;
+    pushDepth('rock', rock, () => drawRock(c, rock));
+  }
+  for (const hemp of game.hempPlants || []) {
+    if (!circleInView(hemp.x, hemp.y, (hemp.radius || 14) + 18, view) || !fogStaticVisible(game, hemp.x, hemp.y)) continue;
+    pushDepth('hemp', hemp, () => drawHempPlant(game, c, hemp, now));
+  }
+  for (const structure of game.structures || []) {
+    const fogPoint = structureFogPoint(structure);
+    if (!rectInView(structure.x, structure.y, structure.w || 48, structure.h || 48, view) || !fogStaticVisible(game, fogPoint.x, fogPoint.y)) continue;
+    visibleStructures.push(structure);
+    pushDepth('structure', structure, () => drawStructure(game, c, structure, now));
+  }
+  for (const projectile of game.projectiles || []) {
+    if (!circleInView(projectile.x, projectile.y, 18, view)) continue;
+    if (!fogDynamicVisible(game, projectile.x, projectile.y)) continue;
+    visibleProjectiles.push(projectile);
+    pushDepth('projectile', projectile, () => drawProjectile(c, projectile));
+  }
+  for (const item of game.items || []) {
+    if (!circleInView(item.x, item.y, 20, view) || !fogDynamicVisible(game, item.x, item.y)) continue;
+    visibleItems.push(item);
+    const bob = item._bob ?? Math.sin(now / 400 + item.bob) * 2;
+    pushDepth('item', item, () => drawItem(game, c, item, now), { bob });
+  }
+  for (const monster of game.monsters || []) {
+    if ((monster.hp || 0) <= 0 || !circleInView(monster.x, monster.y, (monster.radius || 18) + 16, view)) continue;
+    if (!fogDynamicVisible(game, monster.x, monster.y)) continue;
+    visibleMonsters.push(monster);
+    pushDepth('monster', monster, () => drawMonster(game, c, monster, now));
+  }
+  for (const bot of game.bots || []) {
+    if (!circleInView(bot.x, bot.y, (bot.r || 11) + 18, view) || !fogDynamicVisible(game, bot.x, bot.y)) continue;
+    visibleBots.push(bot);
+    pushDepth('bot', bot, () => drawBot(game, c, bot, now));
+  }
+  if (game.player.target && (!view || circleInView(game.player.target.x, game.player.target.y, 64, view))) drawPlayerTarget(game, c);
+  if (!view || circleInView(game.player.x, game.player.y, (game.player.r || 13) + 42, view)) {
+    pushDepth('player', game.player, () => drawPlayerActor(game, c, now));
+  }
+  if (!view || circleInView(game.assistant.x, game.assistant.y, 42, view)) {
+    pushDepth('assistant', game.assistant, () => drawAssistant(c, game.assistant.x, game.assistant.y, now, game.assistant.facingX, game.assistant.facingY));
+  }
+  pushRemotePlayersToDepth(game, c, view, depthDrawables, now);
+  const treeOccluders = { items: visibleItems, bots: visibleBots, monsters: visibleMonsters, structures: visibleStructures, projectiles: visibleProjectiles };
+  for (const tree of game.trees || []) {
+    if (!circleInView(tree.x, tree.y, getTreeDrawRadius(tree) + 18, view) || !fogStaticVisible(game, tree.x, tree.y)) continue;
+    pushDepth('tree', tree, () => drawTree(game, c, tree, now, getTreeOpacity(game, tree, now, treeOccluders)));
+  }
+  for (const drawable of sortDepthDrawables(depthDrawables)) drawable.draw();
   drawPlacement(game, c);
   drawZoneDraft(game, c);
   drawFloaters(game, c, view);
+  drawRevealSourceGlows(game, c, view);
+  drawFogOfWar(game, c, view);
   c.restore();
 
   drawHud(game, c);
@@ -60,10 +121,121 @@ function drawViewportBackdrop(game, c) {
   glow.addColorStop(1, 'rgba(116, 173, 112, 0)');
   c.fillStyle = glow;
   c.fillRect(0, 0, game.W, game.H);
+  const night = getNightAmount(game);
+  if (night > 0.01) {
+    c.fillStyle = `rgba(2, 8, 20, ${0.16 + night * 0.34})`;
+    c.fillRect(0, 0, game.W, game.H);
+    const moon = c.createRadialGradient(game.W * 0.78, game.H * 0.16, 0, game.W * 0.78, game.H * 0.16, Math.max(game.W, game.H) * 0.42);
+    moon.addColorStop(0, `rgba(150, 190, 210, ${0.12 + night * 0.16})`);
+    moon.addColorStop(1, 'rgba(150,190,210,0)');
+    c.fillStyle = moon;
+    c.fillRect(0, 0, game.W, game.H);
+  }
 }
 
-function drawMapBase(game, c) {
-  c.drawImage(getStaticMapBase(game, c), 0, 0);
+function getNightAmount(game) { return clamp(game.dayNight?.nightAmount ?? 0, 0, 1); }
+function isLightStructure(s) { return isLightEmittingStructure(s); }
+function structureLightRadius(s) { return getFogStructureLightRadius(s); }
+function fogRevealSources(game) {
+  return buildFogRevealSources({ player: game.player, assistant: game.assistant, bots: game.bots, structures: game.structures, multiplayer: game.multiplayer });
+}
+function fogEnabled(game) { return !!game.fogOfWar?.enabled; }
+function fogStaticVisible(game, x, y) {
+  return !fogEnabled(game) || isPointCurrentlyVisible(game.fogOfWar, x, y) || isFogPointExplored(game.fogOfWar, x, y);
+}
+function fogDynamicVisible(game, x, y) {
+  return !fogEnabled(game) || isPointCurrentlyVisible(game.fogOfWar, x, y);
+}
+function structureFogPoint(structure) {
+  return { x: (structure.x || 0) + (structure.w || 48) / 2, y: (structure.y || 0) + (structure.h || 48) / 2 };
+}
+function fogLightOccluders(game, view) {
+  const occluders = [];
+  const pad = 420;
+  for (const structure of game.structures || []) {
+    const point = structureFogPoint(structure);
+    if (!fogStaticVisible(game, point.x, point.y)) continue;
+    if (view && !rectInView((structure.x || 0) - pad, (structure.y || 0) - pad, (structure.w || 48) + pad * 2, (structure.h || 48) + pad * 2, view)) continue;
+    occluders.push({ kind: 'structure', x: structure.x || 0, y: structure.y || 0, w: structure.w || 48, h: structure.h || 48, shadowStrength: 0.08 });
+  }
+  for (const tree of game.trees || []) {
+    const radius = getTreeDrawRadius(tree) * 0.34;
+    if (!fogStaticVisible(game, tree.x, tree.y)) continue;
+    if (view && !circleInView(tree.x, tree.y, radius + pad, view)) continue;
+    occluders.push({ kind: 'tree', x: tree.x, y: tree.y, radius: clamp(radius, 14, 34), shadowStrength: 0.04 });
+  }
+  for (const rock of game.rocks || []) {
+    const radius = rock.radius || 18;
+    if (!fogStaticVisible(game, rock.x, rock.y)) continue;
+    if (view && !circleInView(rock.x, rock.y, radius + pad, view)) continue;
+    occluders.push({ kind: 'rock', x: rock.x, y: rock.y, radius: clamp(radius * 0.95, 14, 42), shadowStrength: 0.02 });
+  }
+  return occluders;
+}
+function drawStructureLightGlows(game, c, view) {
+  const night = getNightAmount(game);
+  for (const s of game.structures || []) {
+    if (!isLightStructure(s)) continue;
+    const center = structureFogPoint(s);
+    if (!fogStaticVisible(game, center.x, center.y)) continue;
+    const radius = structureLightRadius(s);
+    if (view && !circleInView(s.x, s.y, radius + 24, view)) continue;
+    const alpha = 0.08 + night * 0.34;
+    c.save();
+    c.globalCompositeOperation = 'screen';
+    const glow = c.createRadialGradient(s.x, s.y, 0, s.x, s.y, radius);
+    glow.addColorStop(0, `rgba(255, 209, 113, ${alpha})`);
+    glow.addColorStop(0.45, `rgba(211, 169, 95, ${alpha * 0.46})`);
+    glow.addColorStop(1, 'rgba(211, 169, 95, 0)');
+    c.fillStyle = glow;
+    c.beginPath(); c.arc(s.x, s.y, radius, 0, Math.PI * 2); c.fill();
+    c.restore();
+  }
+}
+function drawNightTint(game, c, view) {
+  const night = getNightAmount(game);
+  if (night <= 0.01) return;
+  const clipped = getClippedMapView(game, view);
+  if (!clipped) return;
+  c.save();
+  c.fillStyle = `rgba(2, 9, 19, ${0.07 + night * 0.24})`;
+  c.fillRect(clipped.left, clipped.top, clipped.width, clipped.height);
+  c.restore();
+}
+function drawRevealSourceGlows(game, c, view) {
+  const night = getNightAmount(game);
+  const sources = fogRevealSources(game).filter(source => source.kind !== 'structure');
+  if (!sources.length) return;
+  c.save();
+  c.globalCompositeOperation = 'screen';
+  for (const source of sources) {
+    const radius = clamp((source.radius || 160) * 0.42, 70, 150);
+    if (view && !circleInView(source.x, source.y, radius + 16, view)) continue;
+    const tint = source.kind === 'player' ? [255, 226, 150] : source.kind === 'assistant' ? [126, 194, 255] : [156, 220, 166];
+    const alpha = 0.08 + night * (source.kind === 'player' ? 0.24 : 0.16);
+    const glow = c.createRadialGradient(source.x, source.y, 0, source.x, source.y, radius);
+    glow.addColorStop(0, `rgba(${tint[0]}, ${tint[1]}, ${tint[2]}, ${alpha})`);
+    glow.addColorStop(0.55, `rgba(${tint[0]}, ${tint[1]}, ${tint[2]}, ${alpha * 0.35})`);
+    glow.addColorStop(1, `rgba(${tint[0]}, ${tint[1]}, ${tint[2]}, 0)`);
+    c.fillStyle = glow;
+    c.beginPath();
+    c.arc(source.x, source.y, radius, 0, Math.PI * 2);
+    c.fill();
+  }
+  c.restore();
+}
+function drawFogOfWar(game, c, view) {
+  const clipped = getClippedMapView(game, view);
+  if (!clipped) return;
+  const occluders = game.dynamicShadowsEnabled ? fogLightOccluders(game, clipped) : [];
+  drawFogOfWarOverlay(c, { fog: game.fogOfWar, map: game.map, view: clipped, sources: fogRevealSources(game), occluders, nightAmount: getNightAmount(game) });
+}
+
+function drawMapBase(game, c, view) {
+  const clipped = getClippedMapView(game, view);
+  if (!clipped) return;
+  const base = getStaticMapBase(game, c);
+  c.drawImage(base, clipped.left, clipped.top, clipped.width, clipped.height, clipped.left, clipped.top, clipped.width, clipped.height);
 }
 
 function getStaticMapBase(game, c) {
@@ -133,6 +305,14 @@ function renderStaticMapBase(game, c) {
 
 function drawMapFeatures(game, c, view) {
   for (const feature of game.mapFeatures || []) {
+    if (feature.type === 'road') {
+      if (polylineFeatureInView(feature, view)) drawRoadFeature(c, feature);
+    }
+    if (feature.type === 'parking_lot') {
+      const w = feature.w || 340;
+      const h = feature.h || 180;
+      if (rectInView(feature.x - w / 2 - 40, feature.y - h / 2 - 40, w + 80, h + 80, view)) drawParkingLotFeature(c, feature);
+    }
     if (feature.type === 'lake') {
       const rx = feature.rx || 210;
       const ry = feature.ry || 120;
@@ -146,13 +326,76 @@ function drawMapFeatures(game, c, view) {
   }
 }
 
+function polylineFeatureInView(feature, view, padding = 140) {
+  const points = feature.points || [];
+  if (!view || points.length < 2) return true;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const point of points) {
+    const [x, y] = point || [];
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    minX = Math.min(minX, x); minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+  }
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) return false;
+  const pad = Math.max(padding, ((feature.width || 0) / 2) + 40);
+  return rectInView(minX - pad, minY - pad, (maxX - minX) + pad * 2, (maxY - minY) + pad * 2, view);
+}
+
+function drawRoadFeature(c, feature) {
+  const points = feature.points || [];
+  if (points.length < 2) return;
+  c.save();
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  c.strokeStyle = 'rgba(14, 17, 15, .86)';
+  c.lineWidth = (feature.width || 86) + 22;
+  drawPolyline(c, points);
+  c.strokeStyle = 'rgba(47, 51, 46, .96)';
+  c.lineWidth = feature.width || 86;
+  drawPolyline(c, points);
+  c.strokeStyle = 'rgba(112, 119, 108, .28)';
+  c.lineWidth = 3;
+  c.setLineDash([34, 28]);
+  drawPolyline(c, points);
+  c.restore();
+}
+
+function drawPolyline(c, points) {
+  c.beginPath();
+  points.forEach(([x, y], index) => index ? c.lineTo(x, y) : c.moveTo(x, y));
+  c.stroke();
+}
+
+function drawParkingLotFeature(c, feature) {
+  c.save();
+  const w = feature.w || 340;
+  const h = feature.h || 180;
+  c.translate(feature.x, feature.y);
+  c.rotate(feature.rotation || 0);
+  drawShadow(c, 0, h * .1, w * .54, h * .24, .22);
+  c.fillStyle = 'rgba(38, 43, 40, .95)';
+  c.strokeStyle = 'rgba(197, 211, 192, .34)';
+  c.lineWidth = 4;
+  roundedRect(c, -w / 2, -h / 2, w, h, 18);
+  c.fill(); c.stroke();
+  c.strokeStyle = 'rgba(220, 231, 210, .48)';
+  c.lineWidth = 2;
+  for (let x = -w * .34; x <= w * .34; x += w * .17) {
+    c.beginPath(); c.moveTo(x, -h * .36); c.lineTo(x - 22, h * .36); c.stroke();
+  }
+  c.strokeStyle = 'rgba(211, 169, 95, .35)';
+  c.beginPath(); c.moveTo(-w * .44, 0); c.lineTo(w * .44, 0); c.stroke();
+  c.restore();
+}
+
 function drawLakeFeature(c, feature) {
   c.save();
   const rx = feature.rx || 210;
   const ry = feature.ry || 120;
+  const rotation = feature.rotation ?? (feature.ownerId === 'p2' ? -0.18 : 0.18);
   drawShadow(c, feature.x, feature.y + ry * .22, rx * .84, ry * .24, .2);
   c.beginPath();
-  c.ellipse(feature.x, feature.y, rx, ry, feature.ownerId === 'p2' ? -0.18 : 0.18, 0, Math.PI * 2);
+  c.ellipse(feature.x, feature.y, rx, ry, rotation, 0, Math.PI * 2);
   c.clip();
   const water = c.createRadialGradient(feature.x - rx * .2, feature.y - ry * .28, 16, feature.x, feature.y, rx * 1.02);
   water.addColorStop(0, '#8bcfc8');
@@ -161,25 +404,34 @@ function drawLakeFeature(c, feature) {
   water.addColorStop(1, '#174756');
   c.fillStyle = water;
   c.fillRect(feature.x - rx, feature.y - ry, rx * 2, ry * 2);
+  if (feature.glow === 'green') {
+    const glow = c.createRadialGradient(feature.x, feature.y + ry * .08, 0, feature.x, feature.y + ry * .08, feature.glowRadius || rx * .78);
+    glow.addColorStop(0, `rgba(117, 255, 142, ${feature.glowAlpha || .62})`);
+    glow.addColorStop(.34, 'rgba(56, 214, 106, .34)');
+    glow.addColorStop(.72, 'rgba(21, 132, 77, .15)');
+    glow.addColorStop(1, 'rgba(21, 132, 77, 0)');
+    c.fillStyle = glow;
+    c.fillRect(feature.x - rx, feature.y - ry, rx * 2, ry * 2);
+  }
   c.strokeStyle = 'rgba(210, 244, 235, .46)';
   c.lineWidth = 4;
   c.beginPath();
-  c.ellipse(feature.x, feature.y, rx, ry, feature.ownerId === 'p2' ? -0.18 : 0.18, 0, Math.PI * 2);
+  c.ellipse(feature.x, feature.y, rx, ry, rotation, 0, Math.PI * 2);
   c.stroke();
   c.strokeStyle = 'rgba(227, 248, 240, .24)';
   c.lineWidth = 2;
   c.beginPath();
-  c.ellipse(feature.x, feature.y, rx * .92, ry * .86, feature.ownerId === 'p2' ? -0.18 : 0.18, 0, Math.PI * 2);
+  c.ellipse(feature.x, feature.y, rx * .92, ry * .86, rotation, 0, Math.PI * 2);
   c.stroke();
   c.strokeStyle = 'rgba(235, 252, 248, .18)';
   for (let i = -1; i <= 1; i++) {
     c.beginPath();
-    c.ellipse(feature.x + i * rx * .17, feature.y + i * 7, rx * (.5 - Math.abs(i) * .08), ry * .2, feature.ownerId === 'p2' ? -0.18 : 0.18, 0.15, Math.PI - 0.15);
+    c.ellipse(feature.x + i * rx * .17, feature.y + i * 7, rx * (.5 - Math.abs(i) * .08), ry * .2, rotation, 0.15, Math.PI - 0.15);
     c.stroke();
   }
   c.fillStyle = 'rgba(255,255,255,.06)';
   c.beginPath();
-  c.ellipse(feature.x - rx * .18, feature.y - ry * .2, rx * .38, ry * .13, feature.ownerId === 'p2' ? -0.18 : 0.18, 0, Math.PI * 2);
+  c.ellipse(feature.x - rx * .18, feature.y - ry * .2, rx * .38, ry * .13, rotation, 0, Math.PI * 2);
   c.fill();
   c.restore();
 }
@@ -213,6 +465,18 @@ function getWorldViewBounds(game, padding = 120) {
     right: game.camera.x + (game.W / zoom) + pad,
     bottom: game.camera.y + (game.H / zoom) + pad
   };
+}
+
+function getClippedMapView(game, view) {
+  const mapWidth = game.map?.width || 0;
+  const mapHeight = game.map?.height || 0;
+  if (mapWidth <= 0 || mapHeight <= 0) return null;
+  const left = Math.max(0, Math.floor(view?.left ?? 0));
+  const top = Math.max(0, Math.floor(view?.top ?? 0));
+  const right = Math.min(mapWidth, Math.ceil(view?.right ?? mapWidth));
+  const bottom = Math.min(mapHeight, Math.ceil(view?.bottom ?? mapHeight));
+  if (right <= left || bottom <= top) return null;
+  return { left, top, right, bottom, width: right - left, height: bottom - top };
 }
 
 function circleInView(x, y, radius, view) {
@@ -390,6 +654,7 @@ function drawZones(game, c, view) {
     if (z.kind === 'radius') { c.beginPath(); c.arc(z.x, z.y, z.radius || 150, 0, Math.PI * 2); c.fill(); c.stroke(); drawPill(c, z.name, z.x + 8, z.y - (z.radius || 150) - 18, z.color || '#9abf8f'); }
     else { roundedRect(c, z.x, z.y, z.w, z.h, 14); c.fill(); c.stroke(); drawPill(c, z.name, z.x + 8, z.y + 8, z.color || '#9abf8f'); }
     c.setLineDash([]);
+    if (!z.builtIn && hover) drawZoneResizeHandles(c, z);
   }
   c.restore();
 }
@@ -440,6 +705,18 @@ function drawHole(game, c, h) {
     c.stroke();
     drawNameTag(c, h.planted ? 'planted hole' : 'dug hole', h.x, h.y - 24);
   }
+  c.restore();
+}
+
+function drawZoneResizeHandles(c, z) {
+  const handles = z.kind === 'radius'
+    ? [{ x: z.x + (z.radius || 150), y: z.y }]
+    : [{ x: z.x, y: z.y }, { x: z.x + z.w, y: z.y }, { x: z.x, y: z.y + z.h }, { x: z.x + z.w, y: z.y + z.h }];
+  c.save();
+  c.fillStyle = '#fff4d0';
+  c.strokeStyle = '#1a211e';
+  c.lineWidth = 1.5;
+  for (const h of handles) { roundedRect(c, h.x - 5, h.y - 5, 10, 10, 3); c.fill(); c.stroke(); }
   c.restore();
 }
 
@@ -505,25 +782,25 @@ function drawTree(game, c, t, now, opacity = 1) {
   c.restore();
 }
 
-function getTreeOpacity(game, tree, now) {
-  return treeWouldOccludeDrawnObject(game, tree, now) ? .82 : 1;
+function getTreeOpacity(game, tree, now, occluders = null) {
+  return treeWouldOccludeDrawnObject(game, tree, now, occluders) ? .82 : 1;
 }
 
-function treeWouldOccludeDrawnObject(game, tree, now) {
+function treeWouldOccludeDrawnObject(game, tree, now, occluders = null) {
   const treeRadius = getTreeDrawRadius(tree);
   const treeHeightFactor = tree.stump ? .58 : (tree.growthStage === 'sapling' ? .8 : .95);
   const treeCenterY = tree.y - treeRadius * .12;
   const checkCircle = (x, y, radius) => circlesOverlap(tree.x, treeCenterY, treeRadius, x, y, radius);
   const checkRect = (x, y, w, h) => circleIntersectsRect(tree.x, treeCenterY, treeRadius, x - w / 2, y - h / 2, w, h);
 
-  for (const item of game.items || []) {
+  for (const item of occluders?.items || game.items || []) {
     const bob = item._bob ?? Math.sin(now / 400 + item.bob) * 2;
     if (checkCircle(item.x, item.y + bob, 11)) return true;
   }
-  for (const bot of game.bots || []) {
+  for (const bot of occluders?.bots || game.bots || []) {
     if (checkCircle(bot.x, bot.y, (bot.r || 13) + 6)) return true;
   }
-  for (const monster of game.monsters || []) {
+  for (const monster of occluders?.monsters || game.monsters || []) {
     if ((monster.hp || 0) > 0 && checkCircle(monster.x, monster.y, (monster.r || 14) + 6)) return true;
   }
   if (game.player && checkCircle(game.player.x, game.player.y, (game.player.r || 16) + 6)) return true;
@@ -531,10 +808,10 @@ function treeWouldOccludeDrawnObject(game, tree, now) {
     if (!player || player.id === game.multiplayer?.playerId || player.disconnected) continue;
     if (checkCircle(player.x, player.y, 21)) return true;
   }
-  for (const structure of game.structures || []) {
+  for (const structure of occluders?.structures || game.structures || []) {
     if (checkRect(structure.x, structure.y, structure.w || 48, (structure.h || 48) * treeHeightFactor)) return true;
   }
-  for (const projectile of game.projectiles || []) {
+  for (const projectile of occluders?.projectiles || game.projectiles || []) {
     if (checkCircle(projectile.x, projectile.y, 8)) return true;
   }
   return false;
@@ -609,8 +886,10 @@ function drawStructure(game, c, s, now) {
     c.fillStyle = '#ffe3a7';
     const line = s.type === 'throne'
       ? `${s.ownerLabel || 'player'} · ${Math.max(0, Math.ceil(s.hp ?? 0))}/${s.maxHp || 120} HP`
-      : s.type === 'item_palette'
+      : ['item_palette', 'power_station', 'robotics_parts_bin'].includes(s.type)
         ? `${s.storageType || 'empty'} ${s.stored || 0}/${s.capacity || 0}`
+      : ['camper_van', 'hammock_camp', 'ultrabook_desk', 'solar_array', 'portable_3d_printer', 'assembler'].includes(s.type)
+        ? (s.label || 'story object')
       : s.type === 'workbench'
         ? `S${s.sticks || 0} R${s.stones || 0} ${(s.workbenchRecipe || 'crude_axe').replace('crude_', '')}`
         : s.type === 'factory'
@@ -671,15 +950,21 @@ function drawMonster(game, c, m, now) {
   c.fillStyle = hover ? 'rgba(255,244,208,.18)' : 'rgba(0,0,0,0)';
   if (hover) { c.beginPath(); c.arc(0, 0, r + 8, 0, Math.PI * 2); c.fill(); }
   const body = c.createRadialGradient(-r * .25, -r * .35, 2, 0, 0, r * 1.15);
-  body.addColorStop(0, '#8fb9b5');
-  body.addColorStop(1, '#344d47');
+  if (m.type === 'night_monster') {
+    body.addColorStop(0, '#d3a95f');
+    body.addColorStop(0.42, '#6b3f2f');
+    body.addColorStop(1, '#17201d');
+  } else {
+    body.addColorStop(0, '#8fb9b5');
+    body.addColorStop(1, '#344d47');
+  }
   c.fillStyle = body;
-  c.strokeStyle = hover ? '#fff4d0' : '#0d1714';
+  c.strokeStyle = hover ? '#fff4d0' : (m.type === 'night_monster' ? '#070908' : '#0d1714');
   c.lineWidth = hover ? 3 : 2;
   c.beginPath();
   c.ellipse(0, 0, r, r * .82, 0, 0, Math.PI * 2);
   c.fill(); c.stroke();
-  c.fillStyle = '#e5ece8';
+  c.fillStyle = m.type === 'night_monster' ? '#ffd982' : '#e5ece8';
   c.beginPath(); c.arc(-r * .33, -r * .1, 3.2, 0, Math.PI * 2); c.arc(r * .33, -r * .1, 3.2, 0, Math.PI * 2); c.fill();
   c.fillStyle = '#16211d';
   c.beginPath(); c.arc(-r * .33, -r * .1, 1.4, 0, Math.PI * 2); c.arc(r * .33, -r * .1, 1.4, 0, Math.PI * 2); c.fill();
@@ -693,6 +978,9 @@ function drawMonster(game, c, m, now) {
 
 function drawBot(game, c, b, now) {
   const hover = game.mouse.hoverBot === b;
+  const inventoryIsHandTool = isBotHandTool(b.inventory?.type);
+  const facingRight = (b.facingX ?? 1) >= 0;
+  const handToolTypes = [b.tool?.type, inventoryIsHandTool ? b.inventory.type : null].filter(Boolean);
   c.save();
   drawShadow(c, b.x, b.y + b.r + 5, b.r + 8, 5, .26);
   const pulse = hover ? Math.sin(now / 160) * 1.5 : 0;
@@ -707,39 +995,60 @@ function drawBot(game, c, b, now) {
   c.font = '800 10px system-ui';
   c.textAlign = 'center';
   c.fillText(b.id, b.x, b.y + 3);
-  if (b.inventory) drawMiniItem(c, b.x - 1, b.y - 24, b.inventory.type);
-  if (b.tool) drawHeldToolAsset(c, b.x + 15, b.y - 17, b.tool.type);
+  if (b.inventory && !inventoryIsHandTool) drawMiniItem(c, b.x - 1, b.y - 24, b.inventory.type);
+  handToolTypes.slice(0, 2).forEach((type, index) => {
+    const side = (index === 0 ? 1 : -1) * (facingRight ? 1 : -1);
+    drawHeldToolAsset(c, b.x + side * (b.r + 8), b.y + 5 + index * 2, type);
+  });
   if (b.equipment?.weapon) drawHeldToolAsset(c, b.x + 17, b.y - 5, b.equipment.weapon);
   if (b.equipment?.shield) drawHeldToolAsset(c, b.x - 17, b.y - 7, b.equipment.shield);
   if (hover) drawNameTag(c, b.name || `Bot ${b.id}`, b.x, b.y - b.r - 24);
   c.restore();
 }
 
-function drawRemotePlayers(game, c, now) {
+function pushRemotePlayersToDepth(game, c, view, depthDrawables, now) {
   const players = game.multiplayer?.players || {};
   const localId = game.multiplayer?.playerId;
   for (const player of Object.values(players)) {
     if (!player || player.id === localId || player.disconnected) continue;
-    c.save();
-    drawShadow(c, player.x, player.y + 18, 22, 7, .24);
-    c.fillStyle = player.id === 'p1' ? '#80a9c9' : '#c86b5f';
-    c.strokeStyle = '#fff4d0';
-    c.lineWidth = 2.5;
-    c.beginPath(); c.arc(player.x, player.y, 15, 0, Math.PI * 2); c.fill(); c.stroke();
-    c.fillStyle = '#07100d';
-    c.font = '800 10px system-ui';
-    c.textAlign = 'center';
-    c.fillText(player.id === 'p1' ? 'P1' : 'P2', player.x, player.y + 3);
-    drawNameTag(c, player.label || (player.id === 'p1' ? 'Player 1' : 'Player 2'), player.x, player.y - 27);
-    c.restore();
+    if (view && !circleInView(player.x, player.y, 52, view)) continue;
+    depthDrawables.push(createDepthDrawable('remote_player', player, () => drawRemotePlayer(game, c, player), { order: depthDrawables.length }));
   }
 }
 
-function drawPlayer(game, c, now) {
-  if (game.player.target) drawPlayerTarget(game, c);
+function drawRemotePlayers(game, c, now, view) {
+  const depthDrawables = [];
+  pushRemotePlayersToDepth(game, c, view, depthDrawables, now);
+  for (const drawable of sortDepthDrawables(depthDrawables)) drawable.draw();
+}
+
+function drawRemotePlayer(game, c, player) {
   c.save();
-  drawShadow(c, game.player.x, game.player.y + game.player.r + 5, game.player.r + 8, 5, .28);
+  drawShadow(c, player.x, player.y + 18, 22, 7, .24);
+  c.fillStyle = player.id === 'p1' ? '#80a9c9' : '#c86b5f';
+  c.strokeStyle = '#fff4d0';
+  c.lineWidth = 2.5;
+  c.beginPath(); c.arc(player.x, player.y, 15, 0, Math.PI * 2); c.fill(); c.stroke();
+  c.fillStyle = '#07100d';
+  c.font = '800 10px system-ui';
+  c.textAlign = 'center';
+  c.fillText(player.id === 'p1' ? 'P1' : 'P2', player.x, player.y + 3);
+  drawNameTag(c, player.label || (player.id === 'p1' ? 'Player 1' : 'Player 2'), player.x, player.y - 27);
+  c.restore();
+}
+
+function drawPlayer(game, c, now, view) {
+  if (game.player.target && (!view || circleInView(game.player.target.x, game.player.target.y, 64, view))) drawPlayerTarget(game, c);
+  const playerVisible = !view || circleInView(game.player.x, game.player.y, (game.player.r || 13) + 42, view);
+  const assistantVisible = !view || circleInView(game.assistant.x, game.assistant.y, 42, view);
+  if (playerVisible) drawPlayerActor(game, c, now);
+  if (assistantVisible) drawAssistant(c, game.assistant.x, game.assistant.y, now, game.assistant.facingX, game.assistant.facingY);
+}
+
+function drawPlayerActor(game, c, now) {
+  c.save();
   const breathe = Math.sin(now / 520) * .8;
+  drawShadow(c, game.player.x, game.player.y + game.player.r + 5, game.player.r + 8, 5, .28);
   const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
   c.fillStyle = '#eef5ef';
   c.strokeStyle = '#26322d';
@@ -753,7 +1062,6 @@ function drawPlayer(game, c, now) {
   }
   if (game.player.equipment?.weapon) drawHeldToolAsset(c, game.player.x + 19, game.player.y - 5, game.player.equipment.weapon);
   if (game.player.equipment?.shield) drawHeldToolAsset(c, game.player.x - 18, game.player.y - 5, game.player.equipment.shield);
-  drawAssistant(c, game.assistant.x, game.assistant.y, now, game.assistant.facingX, game.assistant.facingY);
   c.restore();
 }
 
@@ -834,7 +1142,8 @@ function drawHud(game, c) {
   c.save();
   const zoom = Math.round((game.camera.zoom || 1) * 100);
   const mp = game.multiplayer?.enabled ? ` · Multiplayer ${game.multiplayer.sessionId || 'session'} · destroy enemy throne` : '';
-  const text = `WASD / arrows pan · Hold Shift = fast pan · Mouse wheel zoom ${zoom}% · Right-click moves/attacks/deposits · E acts · B build${mp}`;
+  const clock = game.dayNight ? ` · ${game.dayNight.label} ${Math.round((game.dayNight.phase || 0) * 100)}%` : '';
+  const text = `WASD / arrows pan · Hold Shift = fast pan · Mouse wheel zoom ${zoom}% · Right-click moves/attacks/deposits · E acts · B build${clock}${mp}`;
   c.font = '700 13px system-ui';
   const w = Math.min(game.W - 32, c.measureText(text).width + 28);
   const h = 32;

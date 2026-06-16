@@ -31,6 +31,8 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
         page.goto(url)
         page.wait_for_function("() => window.getGameState && window.teachDebug && window.getWorldObjects")
         page.locator("#mainMenuNewBtn").click()
+        page.wait_for_function("() => !document.getElementById('mainMenuModeLayer').hidden")
+        page.locator("#mainMenuStartSelectedBtn").click()
         page.wait_for_function("() => document.getElementById('mainMenuOverlay').hidden && !window.getGameState().paused")
 
         tree = resource(page, "tree")

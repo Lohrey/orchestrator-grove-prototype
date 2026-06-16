@@ -54,6 +54,8 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
         page.goto(f"http://127.0.0.1:{port}/index.html", wait_until="networkidle")
         page.wait_for_function("() => window.getGameState && window.teachDebug")
         page.locator("#mainMenuNewBtn").click()
+        page.wait_for_function("() => !document.getElementById('mainMenuModeLayer').hidden")
+        page.locator("#mainMenuStartSelectedBtn").click()
         page.wait_for_function("() => document.getElementById('mainMenuOverlay').hidden && !window.getGameState().paused")
 
         assert page.locator("#teachPanel").is_hidden(), "standalone teach panel must start hidden"

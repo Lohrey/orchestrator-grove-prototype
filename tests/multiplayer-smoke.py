@@ -46,10 +46,11 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
         assert "Download session" in page.locator("#multiplayerSaveBtn").inner_text()
         page.locator("#multiplayerDrawerToggle").click()
         page.wait_for_function("() => document.getElementById('gameStage').classList.contains('has-open-drawer')")
+        page.wait_for_timeout(250)
         drawer_box = page.locator("#multiplayerDrawer").bounding_box()
         assert drawer_box is not None
         toggle_boxes = page.evaluate("""
-        () => ['botDrawerToggle','buildDrawerToggle','zonesDrawerToggle','multiplayerDrawerToggle'].map(id => {
+        () => ['botDrawerToggle','templateDrawerToggle','buildDrawerToggle','zonesDrawerToggle','multiplayerDrawerToggle'].map(id => {
           const r = document.getElementById(id).getBoundingClientRect();
           return { id, left: Math.round(r.left), right: Math.round(r.right) };
         })

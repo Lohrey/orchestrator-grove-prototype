@@ -1,7 +1,8 @@
-import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, ALLOWED_OPS, formatDslActionWiki, getActionStepChainRows } from './data.js?v=t_step_registry';
+import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, ALLOWED_OPS, formatDslActionWiki, getActionStepChainRows } from './data.js?v=t_bdae19d0';
 import { createChatController } from './chat.js?v=20260613-player-tools';
-import { createAudioController } from './audio.js?v=t_cb4d09e8_audio';
-import { Game } from './world.js?v=t_f62dde4d_modes';
+import { createAudioController } from './audio.js?v=t_3ef6c5ab_menu_polish';
+import { Game } from './world.js?v=t_91fd08d9';
+import { createSaveGameManager, GAME_MODE_LABELS, normalizeGameMode } from './savegames.js?v=t_777178b3';
 import { createMultiplayerController } from './multiplayer.js?v=t_f62dde4d_modes';
 import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f';
 import { LOCAL_AI_PROVIDERS, buildOllamaRequestBody, buildOpenAiCompatibleRequestBody, defaultOllamaEndpoint, formatOllamaFinalPrompt, getDefaultProviderConfig, normalizeAssistantLoadout, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, summarizeAssistantLoadout, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_step_registry';
@@ -11,18 +12,20 @@ export function startGame() {
   const $ = id => document.getElementById(id);
   const dom = {
     canvas: $('game'), gameStage: $('gameStage'), chatLog: $('chatLog'), chatForm: $('chatForm'), chatInput: $('chatInput'), micButton: $('micButton'), asrStatus: $('asrStatus'), quickCommands: $('quickCommands'), drawZoneButton: $('drawZoneButton'),
-    botList: $('botList'), statline: $('statline'), rendererStatus: $('rendererStatus'), targetFps: $('targetFps'), targetFpsValue: $('targetFpsValue'), maxBots: $('maxBots'), maxBotsValue: $('maxBotsValue'), performanceProfile: $('performanceProfile'), applyAutoPerformance: $('applyAutoPerformance'), detectedGpu: $('detectedGpu'), detectedVram: $('detectedVram'), detectedProfile: $('detectedProfile'), recommendedBots: $('recommendedBots'), recommendedFps: $('recommendedFps'), performanceNotes: $('performanceNotes'),
+    botList: $('botList'), statline: $('statline'), rendererStatus: $('rendererStatus'), targetFps: $('targetFps'), targetFpsValue: $('targetFpsValue'), maxBots: $('maxBots'), maxBotsValue: $('maxBotsValue'), performanceProfile: $('performanceProfile'), applyAutoPerformance: $('applyAutoPerformance'), dynamicShadows: $('dynamicShadows'), detectedGpu: $('detectedGpu'), detectedVram: $('detectedVram'), detectedProfile: $('detectedProfile'), recommendedBots: $('recommendedBots'), recommendedFps: $('recommendedFps'), performanceNotes: $('performanceNotes'),
     teachPanel: $('teachPanel'), teachCloseBtn: $('teachCloseBtn'), teachRecordBtn: $('teachRecordBtn'), teachAssignBtn: $('teachAssignBtn'), teachBotId: $('teachBotId'), teachStatus: $('teachStatus'), teachSteps: $('teachSteps'),
     sawLogs: $('sawLogs'), sawPlanks: $('sawPlanks'), sawPoles: $('sawPoles'), factoryPlanks: $('factoryPlanks'), factoryRecipe: $('factoryRecipe'), looseLogs: $('looseLogs'), loosePlanks: $('loosePlanks'), looseBase: $('looseBase'), paletteItems: $('paletteItems'), programSelect: $('programSelect'), programView: $('programView'),
     llmMode: $('llmMode'), templateRouting: $('templateRouting'), ollamaEndpoint: $('ollamaEndpoint'), ollamaModel: $('ollamaModel'), refreshModels: $('refreshModels'), benchmarkBtn: $('benchmarkBtn'), ollamaStatus: $('ollamaStatus'), llmProviderLabel: $('llmProviderLabel'), serverOllamaBtn: $('serverOllamaBtn'), localOllamaBtn: $('localOllamaBtn'), localTabbyBtn: $('localTabbyBtn'), localOllamaWindowsHelp: $('localOllamaWindowsHelp'), localTabbyHelp: $('localTabbyHelp'), asrMode: $('asrMode'), asrModeHelp: $('asrModeHelp'),
-    buildPanel: $('buildPanel'), buildStatus: $('buildStatus'), buildDrawer: $('buildDrawer'), buildDrawerToggle: $('buildDrawerToggle'), zonesPanel: $('zonesPanel'), zonesDrawer: $('zonesDrawer'), zonesDrawerToggle: $('zonesDrawerToggle'), zoneList: $('zoneList'), drawZoneDrawerButton: $('drawZoneDrawerButton'), botMenu: $('botMenu'), structureMenu: $('structureMenu'),
+    buildPanel: $('buildPanel'), buildStatus: $('buildStatus'), buildDrawer: $('buildDrawer'), buildDrawerToggle: $('buildDrawerToggle'), zonesPanel: $('zonesPanel'), zonesDrawer: $('zonesDrawer'), zonesDrawerToggle: $('zonesDrawerToggle'), zoneList: $('zoneList'), drawZoneDrawerButton: $('drawZoneDrawerButton'), botMenu: $('botMenu'), structureMenu: $('structureMenu'), templateDrawer: $('templateDrawer'), templateDrawerToggle: $('templateDrawerToggle'), templateSaveForm: $('templateSaveForm'), templateName: $('templateName'), templateStatus: $('templateStatus'), templateList: $('templateList'),
     settingsOverlay: $('settingsOverlay'), settingsClose: $('settingsClose'), chatOverlay: $('chatOverlay'), chatToggle: $('chatToggle'), chatCollapse: $('chatCollapse'), assignmentToast: $('assignmentToast'),
     aiLog: $('aiLog'), dslWikiView: $('dslWikiView'), botDrawer: $('botDrawer'), botDrawerToggle: $('botDrawerToggle'), botSearch: $('botSearch'), botTeamForm: $('botTeamForm'), botTeamName: $('botTeamName'), botTeamColor: $('botTeamColor'), botTeamCreate: $('botTeamCreate'),
     multiplayerDrawer: $('multiplayerDrawer'), multiplayerDrawerToggle: $('multiplayerDrawerToggle'), multiplayerHostBtn: $('multiplayerHostBtn'), multiplayerJoinCode: $('multiplayerJoinCode'), multiplayerJoinBtn: $('multiplayerJoinBtn'), multiplayerSaveBtn: $('multiplayerSaveBtn'), multiplayerStatus: $('multiplayerStatus'), multiplayerSessionLink: $('multiplayerSessionLink'),
-    mainMenuOverlay: $('mainMenuOverlay'), mainMenuNewBtn: $('mainMenuNewBtn'), mainMenuLoadBtn: $('mainMenuLoadBtn'), mainMenuLocalAiBtn: $('mainMenuLocalAiBtn'), mainMenuHostBtn: $('mainMenuHostBtn'), mainMenuJoinCode: $('mainMenuJoinCode'), mainMenuJoinBtn: $('mainMenuJoinBtn'), mainMenuStatus: $('mainMenuStatus'),
-    resumeGameBtn: $('resumeGameBtn'), pauseGameBtn: $('pauseGameBtn'), saveGameBtn: $('saveGameBtn'), loadGameBtn: $('loadGameBtn'), quitToMainMenuBtn: $('quitToMainMenuBtn'), quitSavePrompt: $('quitSavePrompt'), saveAndQuitBtn: $('saveAndQuitBtn'), quitWithoutSaveBtn: $('quitWithoutSaveBtn'), cancelQuitBtn: $('cancelQuitBtn'), saveGameStatus: $('saveGameStatus'),
+    mainMenuOverlay: $('mainMenuOverlay'), mainMenuCampaignBtn: $('mainMenuCampaignBtn'), mainMenuNewBtn: $('mainMenuNewBtn'), mainMenuModeChoices: $('mainMenuModeChoices'), mainMenuModeLayer: $('mainMenuModeLayer'), mainMenuOnlineLayer: $('mainMenuOnlineLayer'), mainMenuHostLayer: $('mainMenuHostLayer'), mainMenuStartSelectedBtn: $('mainMenuStartSelectedBtn'), mainMenuLoadBtn: $('mainMenuLoadBtn'), mainMenuBackBtn: $('mainMenuBackBtn'), mainMenuLocalAiBtn: $('mainMenuLocalAiBtn'), mainMenuHostBtn: $('mainMenuHostBtn'), mainMenuOnlineHostBtn: $('mainMenuOnlineHostBtn'), mainMenuOnlineBackBtn: $('mainMenuOnlineBackBtn'), mainMenuHostNewBtn: $('mainMenuHostNewBtn'), mainMenuHostLoadBtn: $('mainMenuHostLoadBtn'), mainMenuHostBackBtn: $('mainMenuHostBackBtn'), mainMenuJoinCode: $('mainMenuJoinCode'), mainMenuJoinBtn: $('mainMenuJoinBtn'), mainMenuStatus: $('mainMenuStatus'),
+    campaignIntroOverlay: $('campaignIntroOverlay'), campaignIntroKicker: $('campaignIntroKicker'), campaignIntroTitle: $('campaignIntroTitle'), campaignIntroText: $('campaignIntroText'), campaignIntroSceneNo: $('campaignIntroSceneNo'), campaignIntroNextBtn: $('campaignIntroNextBtn'), campaignIntroSkipBtn: $('campaignIntroSkipBtn'),
+    resumeGameBtn: $('resumeGameBtn'), pauseGameBtn: $('pauseGameBtn'), saveGameBtn: $('saveGameBtn'), loadGameBtn: $('loadGameBtn'), quitToMainMenuBtn: $('quitToMainMenuBtn'), quitSavePrompt: $('quitSavePrompt'), saveAndQuitBtn: $('saveAndQuitBtn'), quitWithoutSaveBtn: $('quitWithoutSaveBtn'), cancelQuitBtn: $('cancelQuitBtn'), saveGameStatus: $('saveGameStatus'), saveSlotSelect: $('saveSlotSelect'), saveSlotName: $('saveSlotName'), saveName: $('saveName'), saveEntrySelect: $('saveEntrySelect'), renameSlotBtn: $('renameSlotBtn'), deleteSlotBtn: $('deleteSlotBtn'), renameSaveBtn: $('renameSaveBtn'), deleteSaveBtn: $('deleteSaveBtn'), deleteKeepCount: $('deleteKeepCount'), deleteOldSavesBtn: $('deleteOldSavesBtn'),
     knowledgePackList: $('knowledgePackList'), knowledgePackStatus: $('knowledgePackStatus'), assistantLoadoutView: $('assistantLoadoutView'), assistantBasePromptView: $('assistantBasePromptView'), assistantPromptPreview: $('assistantPromptPreview'), resetKnowledgePacks: $('resetKnowledgePacks'), actionStepChainTable: $('actionStepChainTable'),
-    audioSfxToggle: $('audioSfxToggle'), audioSfxVolume: $('audioSfxVolume'), audioSfxTest: $('audioSfxTest'), audioStation: $('audioStation'), audioMusicStart: $('audioMusicStart'), audioMusicStop: $('audioMusicStop'), audioMusicVolume: $('audioMusicVolume'), audioMusicStatus: $('audioMusicStatus')
+    audioSfxToggle: $('audioSfxToggle'), audioSfxVolume: $('audioSfxVolume'), audioSfxTest: $('audioSfxTest'),
+    widgetRoster: $('widgetRoster'), radioWidgetToggle: $('radioWidgetToggle'), radioWidgetPanel: $('radioWidgetPanel'), radioStationButtons: $('radioStationButtons'), audioMusicStart: $('radioMusicStart'), audioMusicStop: $('radioMusicStop'), audioMusicVolume: $('radioMusicVolume'), audioMusicStatus: $('radioMusicStatus')
   };
 
   function addChat(kind, html) {
@@ -67,7 +70,37 @@ export function startGame() {
   const ASSISTANT_LOADOUT_KEY = 'orchestratorGrove.assistantLoadout.v1';
   const SETTINGS_KEY = 'orchestratorGrove.settings.v1';
   const SAVE_KEY = 'orchestratorGrove.save.v1';
+  const SAVE_LIBRARY_KEY = 'orchestratorGrove.saveLibrary.v2';
   const RECENT_SAVE_MS = 30000;
+  const CAMPAIGN_INTRO_SCENES = [
+    {
+      kicker: 'City noise',
+      title: 'Paul had stopped seeing the sun.',
+      text: 'He loved AI early, when it still felt like a secret door to the future. But the big city was all sirens, calendars, office lights, and daylight spent behind glass.'
+    },
+    {
+      kicker: 'A late-night spark',
+      title: 'Then the gadget videos found him.',
+      text: 'One evening, after too many tabs and too much noise, a YouTube rabbit hole showed him a smaller kind of freedom: simple tools, portable power, and a life that could move.'
+    },
+    {
+      kicker: 'The escape kit',
+      title: 'He bought only what could help him build.',
+      text: 'A plain white camper van. A hammock. An ultrabook. Solar panels, a power station, a portable 3D printer and assembler, plus boxes of DIY robotics parts.'
+    },
+    {
+      kicker: 'No return commute',
+      title: 'Paul quit the office and closed the apartment door.',
+      text: 'No dramatic speech. Just a final email, a cancelled lease, and the quiet click of a key left behind. The city kept rushing. Paul drove away from it.'
+    },
+    {
+      kicker: 'The old lake',
+      title: 'He went back to where nature had once felt endless.',
+      text: 'Out in the countryside waited the lake his father had taken him to as a child. This time Paul arrived with a van full of tools, ready to grow a gentler world with little robotic helpers.'
+    }
+  ];
+  let campaignIntroActive = false;
+  let campaignIntroSceneIndex = 0;
   const PERFORMANCE_PRESETS = {
     battery_saver: { label: 'Battery saver', targetFps: 30, maxBots: 48 },
     balanced: { label: 'Balanced', targetFps: 45, maxBots: 96 },
@@ -115,6 +148,7 @@ export function startGame() {
       performanceProfile: dom.performanceProfile?.value || 'auto',
       targetFps: Number(dom.targetFps?.value || game?.targetFps || 60),
       maxBots: Number(dom.maxBots?.value || game?.maxBots || 12),
+      dynamicShadows: getDynamicShadowsEnabled(),
       ai: getCurrentLocalAiConfig()
     };
     return storageSet(SETTINGS_KEY, JSON.stringify(settings));
@@ -316,6 +350,7 @@ export function startGame() {
   }
   const getAsrMode = () => (ASR_MODES[dom.asrMode?.value] ? dom.asrMode.value : 'zipformer_whisper');
   const getTemplateRoutingEnabled = () => dom.templateRouting?.checked === true;
+  const getDynamicShadowsEnabled = () => dom.dynamicShadows?.checked === true;
   function syncAsrModeUi() {
     const cfg = ASR_MODES[getAsrMode()];
     if (dom.asrStatus) dom.asrStatus.textContent = cfg.status;
@@ -331,7 +366,12 @@ export function startGame() {
   syncAsrModeUi();
   const chat = createChatController({ chatInput: dom.chatInput, chatForm: dom.chatForm, micButton: dom.micButton, asrStatus: dom.asrStatus, quickCommands: dom.quickCommands, getAsrMode, onSubmit: text => handleAssistant(text) });
   game = new Game({ canvas: dom.canvas, chat, dom, isChatActive: () => isChatOpen() });
+  game.dynamicShadowsEnabled = storedSettings?.dynamicShadows === true;
+  if (dom.dynamicShadows) dom.dynamicShadows.checked = game.dynamicShadowsEnabled;
   const audio = createAudioController();
+  const saveGames = createSaveGameManager({ storageGet, storageSet, libraryKey: SAVE_LIBRARY_KEY, legacyKey: SAVE_KEY });
+  let selectedMainMenuMode = 'test';
+  let mainMenuAudioUnlocked = false;
   game.audio = audio;
   setPerformanceProfileValue(storedPerformanceProfile);
   probeRenderer().then(renderer => {
@@ -371,7 +411,7 @@ export function startGame() {
     if (open) {
       setMainMenuOpen(false, { keepPaused: true });
       if (!game.multiplayer?.enabled) game.setPaused(true);
-      setBuildDrawerOpen(false); setBotDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.cancelPlacement(); game.cancelZoneDrawing(false); game.hideMenus(); syncSaveUi(); dom.settingsClose.focus();
+      setBuildDrawerOpen(false); setBotDrawerOpen(false); setTemplateDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.cancelPlacement(); game.cancelZoneDrawing(false); game.hideMenus(); syncSaveUi(); dom.settingsClose.focus();
     } else if (!game.multiplayer?.enabled) {
       game.setPaused(false);
       syncSaveUi();
@@ -411,34 +451,41 @@ export function startGame() {
     assignmentToastTimer = setTimeout(hideAssignmentToast, 2600);
   }
   function syncDrawerStack() {
-    const open = [dom.botDrawer, dom.buildDrawer, dom.zonesDrawer, dom.multiplayerDrawer].some(drawer => drawer && !drawer.classList.contains('is-collapsed'));
+    const open = [dom.botDrawer, dom.templateDrawer, dom.buildDrawer, dom.zonesDrawer, dom.multiplayerDrawer].some(drawer => drawer && !drawer.classList.contains('is-collapsed'));
     dom.gameStage?.classList.toggle('has-open-drawer', open);
   }
   function setBotDrawerOpen(open) {
     dom.botDrawer?.classList.toggle('is-collapsed', !open);
     dom.botDrawerToggle?.setAttribute('aria-expanded', String(open));
-    if (open) { setBuildDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.hideMenus(); }
+    if (open) { setTemplateDrawerOpen(false); setBuildDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.hideMenus(); }
     syncDrawerStack();
   }
   function toggleBotDrawer() { setBotDrawerOpen(dom.botDrawer?.classList.contains('is-collapsed')); }
+  function setTemplateDrawerOpen(open) {
+    dom.templateDrawer?.classList.toggle('is-collapsed', !open);
+    dom.templateDrawerToggle?.setAttribute('aria-expanded', String(open));
+    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setBuildDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.hideMenus(); game.syncTemplateDrawerUi?.(); }
+    syncDrawerStack();
+  }
+  function toggleTemplateDrawer() { setTemplateDrawerOpen(dom.templateDrawer?.classList.contains('is-collapsed')); }
   function setBuildDrawerOpen(open) {
     dom.buildDrawer?.classList.toggle('is-collapsed', !open);
     dom.buildDrawerToggle?.setAttribute('aria-expanded', String(open));
-    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.hideMenus(); }
+    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setTemplateDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.hideMenus(); }
     syncDrawerStack();
   }
   function toggleBuildDrawer() { setBuildDrawerOpen(dom.buildDrawer?.classList.contains('is-collapsed')); }
   function setZonesDrawerOpen(open) {
     dom.zonesDrawer?.classList.toggle('is-collapsed', !open);
     dom.zonesDrawerToggle?.setAttribute('aria-expanded', String(open));
-    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setBuildDrawerOpen(false); setMultiplayerDrawerOpen(false); game.hideMenus(); game.syncZonesUi?.(); }
+    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setTemplateDrawerOpen(false); setBuildDrawerOpen(false); setMultiplayerDrawerOpen(false); game.hideMenus(); game.syncZonesUi?.(); }
     syncDrawerStack();
   }
   function toggleZonesDrawer() { setZonesDrawerOpen(dom.zonesDrawer?.classList.contains('is-collapsed')); }
   function setMultiplayerDrawerOpen(open) {
     dom.multiplayerDrawer?.classList.toggle('is-collapsed', !open);
     dom.multiplayerDrawerToggle?.setAttribute('aria-expanded', String(open));
-    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setBuildDrawerOpen(false); setZonesDrawerOpen(false); game.hideMenus(); }
+    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setTemplateDrawerOpen(false); setBuildDrawerOpen(false); setZonesDrawerOpen(false); game.hideMenus(); }
     syncDrawerStack();
   }
   function toggleMultiplayerDrawer() { setMultiplayerDrawerOpen(dom.multiplayerDrawer?.classList.contains('is-collapsed')); }
@@ -464,6 +511,10 @@ export function startGame() {
       setBotDrawerOpen(false);
       closed = true;
     }
+    if (dom.templateDrawer && !dom.templateDrawer.classList.contains('is-collapsed')) {
+      setTemplateDrawerOpen(false);
+      closed = true;
+    }
     if (dom.buildDrawer && !dom.buildDrawer.classList.contains('is-collapsed')) {
       setBuildDrawerOpen(false);
       closed = true;
@@ -476,13 +527,19 @@ export function startGame() {
       setMultiplayerDrawerOpen(false);
       closed = true;
     }
+    if (dom.radioWidgetPanel && !dom.radioWidgetPanel.hidden) {
+      setRadioWidgetOpen(false);
+      closed = true;
+    }
     if (dom.settingsOverlay && !dom.settingsOverlay.hidden) {
       setSettingsOpen(false);
       closed = true;
     }
     return closed;
   }
-  function hasSavedGame() { return !!storageGet(SAVE_KEY); }
+  function currentSaveMode() { return normalizeGameMode(game.gameMode || game.multiplayer?.mapMode || (game.multiplayer?.enabled ? 'online_lakes' : 'test')); }
+  function modeLabel(mode) { return GAME_MODE_LABELS[normalizeGameMode(mode)] || 'Game mode'; }
+  function hasSavedGame(mode = currentSaveMode()) { return saveGames.hasSaves(mode); }
   let lastSuccessfulSaveAt = 0;
   function getLastSaveAgeMs() { return lastSuccessfulSaveAt ? Date.now() - lastSuccessfulSaveAt : Infinity; }
   function wasSavedRecently() { return getLastSaveAgeMs() <= RECENT_SAVE_MS; }
@@ -492,69 +549,208 @@ export function startGame() {
     dom.quitSavePrompt.classList.toggle('is-open', open);
     if (open) setTimeout(() => dom.saveAndQuitBtn?.focus(), 0);
   }
-  function syncSaveUi(message = '') {
-    const hasSave = hasSavedGame();
-    dom.mainMenuLoadBtn && (dom.mainMenuLoadBtn.disabled = !hasSave);
-    dom.loadGameBtn && (dom.loadGameBtn.disabled = !hasSave);
+  function formatSaveTime(value) {
+    const date = value ? new Date(value) : new Date();
+    return Number.isNaN(date.getTime()) ? 'unknown time' : date.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  }
+  function renderSaveManagerUi({ message = '', preserve = true } = {}) {
+    const mode = currentSaveMode();
+    const selectedSlotId = preserve ? dom.saveSlotSelect?.value : '';
+    const selectedSaveId = preserve ? dom.saveEntrySelect?.value : '';
+    const slots = saveGames.listSlots(mode);
+    if (dom.saveSlotSelect) {
+      dom.saveSlotSelect.innerHTML = '<option value="">+ New slot from typed name</option>' + slots.map(slot => `<option value="${escapeHtml(slot.id)}">${escapeHtml(slot.name)} (${slot.saves.length})</option>`).join('');
+      const slotExists = slots.some(slot => slot.id === selectedSlotId);
+      dom.saveSlotSelect.value = slotExists ? selectedSlotId : (slots[0]?.id || '');
+    }
+    const slot = slots.find(entry => entry.id === dom.saveSlotSelect?.value) || null;
+    if (dom.saveSlotName && !dom.saveSlotName.value) dom.saveSlotName.value = slot?.name || '';
+    const saves = slot?.saves || [];
+    if (dom.saveEntrySelect) {
+      dom.saveEntrySelect.innerHTML = saves.length ? saves.map(save => `<option value="${escapeHtml(save.id)}">${escapeHtml(save.name)} · ${escapeHtml(formatSaveTime(save.savedAt))}</option>`).join('') : '<option value="">No savegames in this slot</option>';
+      const saveExists = saves.some(save => save.id === selectedSaveId);
+      dom.saveEntrySelect.value = saveExists ? selectedSaveId : (saves[0]?.id || '');
+    }
+    if (dom.loadGameBtn) dom.loadGameBtn.disabled = !slot || !saves.length;
+    if (dom.renameSlotBtn) dom.renameSlotBtn.disabled = !slot;
+    if (dom.deleteSlotBtn) dom.deleteSlotBtn.disabled = !slot;
+    if (dom.renameSaveBtn) dom.renameSaveBtn.disabled = !slot || !saves.length;
+    if (dom.deleteSaveBtn) dom.deleteSaveBtn.disabled = !slot || !saves.length;
+    if (dom.deleteOldSavesBtn) dom.deleteOldSavesBtn.disabled = !slot || saves.length < 2;
     const pausedText = game.paused ? 'Paused' : 'Running';
+    const status = message || `${pausedText}. Managing ${modeLabel(mode)} savegames (${slots.reduce((sum, entry) => sum + entry.saves.length, 0)} saves across ${slots.length} slots).`;
+    if (dom.saveGameStatus) dom.saveGameStatus.textContent = status;
+  }
+  function syncMainMenuStatus(message = '') {
+    const mode = normalizeGameMode(selectedMainMenuMode);
+    const latest = saveGames.latest(mode);
+    if (dom.mainMenuLoadBtn) dom.mainMenuLoadBtn.disabled = !latest;
+    if (dom.mainMenuHostLoadBtn) dom.mainMenuHostLoadBtn.disabled = !saveGames.latest('online_lakes');
+    if (dom.mainMenuStatus) dom.mainMenuStatus.textContent = message || (latest ? `${modeLabel(mode)} save available: ${latest.slotName} / ${latest.name}.` : `No ${modeLabel(mode)} savegames yet.`);
+  }
+  function syncSaveUi(message = '') {
+    renderSaveManagerUi({ message });
     if (dom.pauseGameBtn) dom.pauseGameBtn.disabled = !!game.multiplayer?.enabled || game.paused;
     if (dom.resumeGameBtn) dom.resumeGameBtn.disabled = !!game.multiplayer?.enabled || !game.paused;
-    const status = message || (hasSave ? `${pausedText}. Browser-cache save available.` : `${pausedText}. No browser-cache save yet.`);
-    if (dom.saveGameStatus) dom.saveGameStatus.textContent = status;
-    if (dom.mainMenuStatus) dom.mainMenuStatus.textContent = hasSave ? 'Saved game found in this browser cache.' : 'No saved game in this browser cache yet.';
+    syncMainMenuStatus(message && dom.mainMenuOverlay && !dom.mainMenuOverlay.hidden ? message : '');
+  }
+  function playMainMenuCue(name = 'menu_whoosh', { force = false } = {}) {
+    if (!dom.mainMenuOverlay || dom.mainMenuOverlay.hidden) return false;
+    if (force) return audio.play(name, { cooldownKey: `main-menu:${name}`, minGapMs: name === 'ui_hover' ? 120 : 0 });
+    const firstGesture = !mainMenuAudioUnlocked;
+    mainMenuAudioUnlocked = true;
+    const cue = firstGesture ? 'menu_arrive' : name;
+    return audio.play(cue, { cooldownKey: `main-menu:${cue}`, minGapMs: cue === 'ui_hover' ? 120 : 0 });
+  }
+  function initMainMenuAudiovisuals() {
+    if (!dom.mainMenuOverlay) return;
+    dom.mainMenuOverlay.addEventListener('mouseover', e => {
+      if (e.target.closest('button, a, input')) playMainMenuCue('ui_hover', { force: true });
+    });
+    dom.mainMenuOverlay.addEventListener('focusin', e => {
+      if (e.target.closest('button, a, input')) playMainMenuCue('ui_hover', { force: true });
+    });
+    dom.mainMenuOverlay.addEventListener('click', e => {
+      const target = e.target.closest('button, a');
+      if (!target) return;
+      const label = (target.textContent || '').toLowerCase();
+      const cue = label.includes('back') ? 'menu_back' : (label.includes('start') || label.includes('host') || label.includes('join') || label.includes('load') ? 'menu_confirm' : 'menu_whoosh');
+      playMainMenuCue(cue);
+    }, true);
+  }
+  function setMainMenuLayer(layer = 'modes', mode = selectedMainMenuMode) {
+    selectedMainMenuMode = normalizeGameMode(mode);
+    if (dom.mainMenuModeChoices) dom.mainMenuModeChoices.hidden = layer !== 'modes';
+    if (dom.mainMenuModeLayer) dom.mainMenuModeLayer.hidden = layer !== 'mode-actions';
+    if (dom.mainMenuOnlineLayer) dom.mainMenuOnlineLayer.hidden = layer !== 'online-actions';
+    if (dom.mainMenuHostLayer) dom.mainMenuHostLayer.hidden = layer !== 'host-actions';
+    if (dom.mainMenuStartSelectedBtn) dom.mainMenuStartSelectedBtn.textContent = `Start new ${modeLabel(selectedMainMenuMode)}`;
+    if (dom.mainMenuLoadBtn) dom.mainMenuLoadBtn.textContent = `Load ${modeLabel(selectedMainMenuMode)} save`;
+    syncMainMenuStatus(layer === 'modes' ? 'Choose a game mode first.' : '');
+  }
+  function renderCampaignIntroScene() {
+    if (!dom.campaignIntroOverlay) return;
+    const scene = CAMPAIGN_INTRO_SCENES[campaignIntroSceneIndex] || CAMPAIGN_INTRO_SCENES[0];
+    if (dom.campaignIntroKicker) dom.campaignIntroKicker.textContent = scene.kicker;
+    if (dom.campaignIntroTitle) dom.campaignIntroTitle.textContent = scene.title;
+    if (dom.campaignIntroText) dom.campaignIntroText.textContent = scene.text;
+    if (dom.campaignIntroSceneNo) dom.campaignIntroSceneNo.textContent = `Scene ${campaignIntroSceneIndex + 1} / ${CAMPAIGN_INTRO_SCENES.length}`;
+    if (dom.campaignIntroNextBtn) dom.campaignIntroNextBtn.textContent = campaignIntroSceneIndex >= CAMPAIGN_INTRO_SCENES.length - 1 ? 'Begin at the lake' : 'Next';
+  }
+  function closeCampaignIntro({ resume = false, message = '' } = {}) {
+    campaignIntroActive = false;
+    if (dom.campaignIntroOverlay) {
+      dom.campaignIntroOverlay.hidden = true;
+      dom.campaignIntroOverlay.classList.add('is-hidden');
+    }
+    if (resume && !game.multiplayer?.enabled) game.setPaused(false);
+    syncSaveUi(message);
+    return true;
+  }
+  function finishCampaignIntro(reason = 'finished') {
+    const message = reason === 'skip' ? 'Campaign intro skipped. Welcome to the old lake.' : 'Campaign intro complete. Welcome to the old lake.';
+    return closeCampaignIntro({ resume: true, message });
+  }
+  function advanceCampaignIntro() {
+    if (!campaignIntroActive) return false;
+    if (campaignIntroSceneIndex >= CAMPAIGN_INTRO_SCENES.length - 1) return finishCampaignIntro('finished');
+    campaignIntroSceneIndex += 1;
+    renderCampaignIntroScene();
+    dom.campaignIntroNextBtn?.focus();
+    return true;
+  }
+  function showCampaignIntro() {
+    if (!dom.campaignIntroOverlay) { game.setPaused(false); return false; }
+    campaignIntroActive = true;
+    campaignIntroSceneIndex = 0;
+    game.setPaused(true);
+    renderCampaignIntroScene();
+    dom.campaignIntroOverlay.hidden = false;
+    dom.campaignIntroOverlay.classList.remove('is-hidden');
+    syncSaveUi('Campaign intro playing. Press Esc to skip.');
+    setTimeout(() => dom.campaignIntroNextBtn?.focus(), 0);
+    return true;
   }
   function setMainMenuOpen(open, { keepPaused = false } = {}) {
     if (!dom.mainMenuOverlay) return;
     dom.mainMenuOverlay.hidden = !open;
     dom.mainMenuOverlay.classList.toggle('is-hidden', !open);
     if (open) {
-      setSettingsOpen(false); setBuildDrawerOpen(false); setBotDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.hideMenus();
+      closeCampaignIntro({ resume: false });
+      setSettingsOpen(false); setTemplateDrawerOpen(false); setBuildDrawerOpen(false); setBotDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.hideMenus();
       game.setPaused(true);
+      setMainMenuLayer('modes');
       syncSaveUi();
-      setTimeout(() => dom.mainMenuNewBtn?.focus(), 0);
+      setTimeout(() => (dom.mainMenuCampaignBtn || dom.mainMenuNewBtn)?.focus(), 0);
     } else if (!keepPaused && !game.multiplayer?.enabled) {
       game.setPaused(false);
       syncSaveUi();
     }
   }
-  function saveGameToCache() {
+  function saveGameToCache({ slotId = dom.saveSlotSelect?.value || '', slotName = dom.saveSlotName?.value || '', saveName = dom.saveName?.value || '' } = {}) {
     const payload = game.exportSave();
-    const ok = storageSet(SAVE_KEY, JSON.stringify(payload));
+    const mode = normalizeGameMode(payload.mode || currentSaveMode());
+    const saved = saveGames.save(mode, payload, { slotId, slotName, saveName });
+    const ok = !!saved;
     if (ok) {
-      lastSuccessfulSaveAt = Date.parse(payload.savedAt) || Date.now();
+      storageSet(SAVE_KEY, JSON.stringify(saved.save.payload));
+      lastSuccessfulSaveAt = Date.parse(saved.save.savedAt) || Date.now();
       setQuitSavePromptOpen(false);
+      if (dom.saveSlotName) dom.saveSlotName.value = saved.slot.name;
+      if (dom.saveName) dom.saveName.value = '';
+      renderSaveManagerUi({ message: `Saved ${modeLabel(mode)} → ${saved.slot.name} / ${saved.save.name} at ${formatSaveTime(saved.save.savedAt)}.`, preserve: false });
+      if (dom.saveSlotSelect) dom.saveSlotSelect.value = saved.slot.id;
+      if (dom.saveEntrySelect) dom.saveEntrySelect.value = saved.save.id;
     }
-    syncSaveUi(ok ? `Saved to browser cache at ${new Date(payload.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.` : 'Save failed: browser cache unavailable.');
-    return ok ? payload : null;
+    syncSaveUi(ok ? `Saved ${modeLabel(mode)} savegame at ${formatSaveTime(saved.save.savedAt)}.` : 'Save failed: browser cache unavailable.');
+    return ok ? saved.save.payload : null;
   }
-  function loadGameFromCache({ closeMenus = true } = {}) {
-    const raw = storageGet(SAVE_KEY);
-    if (!raw) { syncSaveUi('No saved game in browser cache.'); return null; }
+  function loadGameFromCache({ closeMenus = true, mode = currentSaveMode(), slotId = dom.saveSlotSelect?.value || '', saveId = dom.saveEntrySelect?.value || '', asHost = false } = {}) {
+    const normalizedMode = normalizeGameMode(mode);
+    const found = saveGames.load(normalizedMode, slotId, saveId);
+    if (!found) { syncSaveUi(`No ${modeLabel(normalizedMode)} savegame in browser cache.`); return null; }
     try {
-      const parsedSave = JSON.parse(raw);
+      const parsedSave = found.payload;
       const state = game.loadSave(parsedSave);
-      lastSuccessfulSaveAt = Date.parse(parsedSave.savedAt) || 0;
+      if (asHost && game.multiplayer) {
+        game.multiplayer.enabled = true;
+        game.multiplayer.role = 'host';
+        game.multiplayer.mapMode = 'online_lakes';
+        game.multiplayer.status = `Hosting loaded save ${found.slotName} / ${found.save.name}`;
+      }
+      lastSuccessfulSaveAt = Date.parse(parsedSave.savedAt) || Date.parse(found.save.savedAt) || 0;
       setQuitSavePromptOpen(false);
       if (dom.targetFps) dom.targetFps.value = String(game.targetFps);
       if (dom.maxBots) dom.maxBots.value = String(game.maxBots);
       setPerformanceProfileValue('custom');
-      syncPerformanceUi('Loaded saved game from browser cache.');
+      syncPerformanceUi(`Loaded ${modeLabel(normalizedMode)} savegame.`);
       if (closeMenus) { setMainMenuOpen(false); setSettingsOpen(false); }
       game.setPaused(false);
-      syncSaveUi('Loaded saved game from browser cache.');
+      syncSaveUi(`Loaded ${modeLabel(normalizedMode)} savegame: ${found.slotName} / ${found.save.name}.`);
       return state;
     } catch (err) {
       syncSaveUi(`Load failed: ${err.message}`);
       return null;
     }
   }
-  function startNewGameFromMenu() {
+  function startNewGameFromMenu(mode = selectedMainMenuMode) {
+    const normalizedMode = normalizeGameMode(mode);
+    if (normalizedMode === 'campaign') return startCampaignFromMenu();
+    if (normalizedMode === 'local_ai') return startLocalAiFromMainMenu();
+    if (normalizedMode === 'online_lakes') return hostFromMainMenu({ loadSave: false });
     game.resetSoloWorld();
     lastSuccessfulSaveAt = 0;
     setQuitSavePromptOpen(false);
     setMainMenuOpen(false);
     game.setPaused(false);
-    syncSaveUi('Started a new single-player game.');
+    syncSaveUi('Started Test mode on the current solo play map.');
+  }
+  function startCampaignFromMenu() {
+    game.startCampaignMode();
+    lastSuccessfulSaveAt = 0;
+    setQuitSavePromptOpen(false);
+    setMainMenuOpen(false, { keepPaused: true });
+    showCampaignIntro();
   }
   function quitToMainMenu({ saveFirst = false, force = false } = {}) {
     if (!force && !saveFirst && !wasSavedRecently()) {
@@ -575,7 +771,12 @@ export function startGame() {
     game.startLocalAiMatch({ sessionId: `local-ai-${Date.now().toString(36)}` });
     syncSaveUi('Local vs AI started: Dota-like throne lane with AI creep waves.');
   }
-  async function hostFromMainMenu() {
+  async function hostFromMainMenu({ loadSave = false } = {}) {
+    if (loadSave) {
+      const loaded = loadGameFromCache({ mode: 'online_lakes', slotId: '', saveId: '', asHost: true });
+      if (loaded) syncSaveUi('Online multiplayer host loaded from saved game.');
+      return loaded;
+    }
     setMainMenuOpen(false);
     game.setPaused(false);
     await multiplayer.hostSession({ openSeparate: true });
@@ -626,6 +827,16 @@ export function startGame() {
       addChat('assistant', message);
       showAssignmentToast(`Generated DSL for <b>Bot ${assignment.botId}</b>.`);
     }
+    for (const assignment of parsed.templateAssignments || []) {
+      const res = game.assignTemplateToBot(assignment.arguments.botId, assignment.arguments.templateName, assignment.arguments);
+      if (!res.ok) {
+        addChat('error', escapeHtml(res.error));
+        continue;
+      }
+      const message = `Assigned <b>${escapeHtml(game.botDisplayName?.(res.bot) || `Bot ${res.bot.id}`)}</b> → template <code>${escapeHtml(res.template.name)}</code>.`;
+      addChat('assistant', message);
+      showAssignmentToast(message);
+    }
     for (const call of parsed.calls || []) {
       const res = game.assignBotProgram(call.arguments);
       if (!res.ok) {
@@ -659,38 +870,80 @@ export function startGame() {
     }
   }
 
+  function setRadioWidgetOpen(open) {
+    if (!dom.radioWidgetPanel || !dom.radioWidgetToggle) return;
+    dom.radioWidgetPanel.hidden = !open;
+    dom.radioWidgetToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    dom.widgetRoster?.classList.toggle('has-open-widget', open);
+  }
+
   function syncAudioUi(message = '') {
     if (dom.audioSfxToggle) dom.audioSfxToggle.checked = audio.state.enabled;
     if (dom.audioSfxVolume) dom.audioSfxVolume.value = String(audio.state.sfxVolume);
     if (dom.audioMusicVolume) dom.audioMusicVolume.value = String(audio.state.musicVolume);
-    if (dom.audioStation) dom.audioStation.value = audio.state.station;
+    if (dom.radioStationButtons) {
+      dom.radioStationButtons.querySelectorAll('[data-radio-station]').forEach(button => {
+        const selected = button.dataset.radioStation === audio.state.station;
+        button.classList.toggle('is-active', selected);
+        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      });
+    }
     if (dom.audioMusicStatus) {
       const station = audio.stations[audio.state.station];
       const playing = audio.isMusicPlaying();
-      dom.audioMusicStatus.textContent = message || `${audio.state.enabled ? 'SFX on' : 'SFX off'} · ${playing ? `Playing ${station?.label || audio.state.station}` : 'Cozy radio stopped'}.`;
+      dom.audioMusicStatus.textContent = message || `${playing ? 'Playing' : 'Selected'} ${station?.label || audio.state.station}. ${playing ? '' : 'Press Play to start.'}`;
     }
   }
 
   function initAudioUi() {
-    if (dom.audioStation) {
-      dom.audioStation.innerHTML = Object.entries(audio.stations).map(([id, station]) => `<option value="${escapeHtml(id)}">${escapeHtml(station.label)}</option>`).join('');
-      dom.audioStation.value = audio.state.station;
+    if (dom.radioStationButtons) {
+      dom.radioStationButtons.innerHTML = Object.entries(audio.stations).map(([id, station]) => `
+        <button type="button" class="radio-station-button" data-radio-station="${escapeHtml(id)}" aria-pressed="false">
+          <b>${escapeHtml(station.label)}</b>
+          <small>${escapeHtml(station.vibe || station.source || '')}</small>
+        </button>
+      `).join('');
     }
     syncAudioUi();
     dom.audioSfxToggle?.addEventListener('change', () => syncAudioUi(audio.setSfxEnabled(dom.audioSfxToggle.checked) ? 'Sound effects enabled.' : 'Sound effects muted.'));
     dom.audioSfxVolume?.addEventListener('input', () => { audio.setSfxVolume(dom.audioSfxVolume.value); syncAudioUi(); });
     dom.audioSfxTest?.addEventListener('click', () => { audio.play('craft_done', { cooldownKey: 'ui_test', minGapMs: 0 }); syncAudioUi('Played generated test chime.'); });
-    dom.audioStation?.addEventListener('change', () => { audio.state.station = dom.audioStation.value; syncAudioUi(); });
+    dom.radioWidgetToggle?.addEventListener('mouseenter', () => audio.play('ui_hover', { cooldownKey: 'radio:hover-toggle', minGapMs: 140 }));
+    dom.radioWidgetToggle?.addEventListener('click', () => { audio.play('ui_click', { cooldownKey: 'radio:toggle', minGapMs: 0 }); setRadioWidgetOpen(dom.radioWidgetPanel?.hidden !== false); });
+    dom.widgetRoster?.addEventListener('mouseleave', () => { if (dom.radioWidgetPanel?.hidden) audio.play('ui_hover', { cooldownKey: 'radio:hover-roster', minGapMs: 260 }); });
+    dom.radioStationButtons?.addEventListener('mouseover', e => { if (e.target.closest('[data-radio-station]')) audio.play('ui_hover', { cooldownKey: 'radio:hover-station', minGapMs: 120 }); });
+    dom.radioStationButtons?.addEventListener('click', async e => {
+      const button = e.target.closest('[data-radio-station]');
+      if (!button) return;
+      audio.play('switch', { cooldownKey: 'radio:station', minGapMs: 0 });
+      const station = audio.setMusicStation(button.dataset.radioStation);
+      syncAudioUi(`Selected ${station.label}.`);
+      if (audio.isMusicPlaying()) {
+        try {
+          const started = await audio.startMusic(button.dataset.radioStation);
+          syncAudioUi(`Playing ${started.label}. Low-bandwidth AAC stream.`);
+        } catch (err) {
+          syncAudioUi(`Could not switch radio: ${err.message}`);
+        }
+      }
+    });
     dom.audioMusicVolume?.addEventListener('input', () => { audio.setMusicVolume(dom.audioMusicVolume.value); syncAudioUi(); });
+    dom.audioMusicStart?.addEventListener('mouseenter', () => audio.play('ui_hover', { cooldownKey: 'radio:hover-play', minGapMs: 120 }));
+    dom.audioMusicStop?.addEventListener('mouseenter', () => audio.play('ui_hover', { cooldownKey: 'radio:hover-stop', minGapMs: 120 }));
     dom.audioMusicStart?.addEventListener('click', async () => {
+      audio.play('ui_click', { cooldownKey: 'radio:play', minGapMs: 0 });
       try {
-        const station = await audio.startMusic(dom.audioStation?.value || audio.state.station);
-        syncAudioUi(`Playing ${station.label}. Stream: ${station.url}`);
+        const station = await audio.startMusic(audio.state.station);
+        syncAudioUi(`Playing ${station.label}. Low-bandwidth AAC stream.`);
       } catch (err) {
         syncAudioUi(`Could not start radio: ${err.message}`);
       }
     });
-    dom.audioMusicStop?.addEventListener('click', () => { audio.stopMusic(); syncAudioUi('Cozy radio stopped.'); });
+    dom.audioMusicStop?.addEventListener('click', () => { audio.play('ui_click', { cooldownKey: 'radio:stop', minGapMs: 0 }); audio.stopMusic(); syncAudioUi('Cozy radio stopped.'); });
+    audio.state.music.addEventListener('waiting', () => syncAudioUi('Radio buffering… trying to keep the stream warm.'));
+    audio.state.music.addEventListener('playing', () => syncAudioUi());
+    audio.state.music.addEventListener('stalled', () => syncAudioUi('Radio stream stalled. Try another low-bandwidth station.'));
+    audio.state.music.addEventListener('error', () => syncAudioUi('Radio stream error. Pick another station or press Play again.'));
   }
 
   for (const id of PROGRAMS) { const o = document.createElement('option'); o.value = id; o.textContent = id; dom.programSelect.appendChild(o); }
@@ -699,8 +952,31 @@ export function startGame() {
   if (dom.dslWikiView) dom.dslWikiView.textContent = formatDslActionWiki();
   renderKnowledgePackSelector();
   renderActionStepChainTable();
+  game.syncTemplateDrawerUi?.();
   initAudioUi();
+  initMainMenuAudiovisuals();
 
+  dom.templateDrawerToggle?.addEventListener('click', toggleTemplateDrawer);
+  dom.templateSaveForm?.addEventListener('submit', e => {
+    e.preventDefault();
+    const res = game.saveRecordedLoopAsTemplate(dom.templateName?.value || '');
+    if (dom.templateStatus) dom.templateStatus.textContent = res.ok ? `Saved template ${res.template.name}.` : res.error;
+    if (res.ok && dom.templateName) dom.templateName.value = '';
+  });
+  dom.templateList?.addEventListener('click', e => {
+    const assign = e.target.closest('[data-assign-template]');
+    const del = e.target.closest('[data-delete-template]');
+    if (assign) {
+      const id = assign.dataset.assignTemplate;
+      const botInput = dom.templateList.querySelector(`[data-template-bot-id="${CSS.escape(id)}"]`);
+      const res = game.assignTemplateToBot(botInput?.value || 1, id);
+      if (dom.templateStatus) dom.templateStatus.textContent = res.ok ? `Assigned ${res.template.name} to ${game.botDisplayName?.(res.bot) || `Bot ${res.bot.id}`}.` : res.error;
+    }
+    if (del) {
+      const res = game.deleteCustomTemplate(del.dataset.deleteTemplate);
+      if (dom.templateStatus) dom.templateStatus.textContent = res.ok ? `Deleted template ${res.template.name}.` : res.error;
+    }
+  });
   dom.buildPanel.addEventListener('click', e => {
     const tab = e.target.closest('[data-build-tab]');
     if (tab) { setBuildTab(tab.dataset.buildTab); return; }
@@ -727,6 +1003,11 @@ export function startGame() {
     dom.maxBots.value = String(game.maxBots);
     setPerformanceProfileValue('custom');
     syncPerformanceUi('Saved a custom performance profile to this browser.');
+    saveBrowserSettings();
+  });
+  dom.dynamicShadows?.addEventListener('change', () => {
+    game.dynamicShadowsEnabled = getDynamicShadowsEnabled();
+    syncPerformanceUi(game.dynamicShadowsEnabled ? 'Dynamic light shadows enabled. Disable for better performance.' : 'Dynamic light shadows disabled for smoother performance.');
     saveBrowserSettings();
   });
   dom.performanceProfile?.addEventListener('change', () => {
@@ -793,17 +1074,51 @@ export function startGame() {
   dom.settingsClose.addEventListener('click', () => setSettingsOpen(false));
   dom.resumeGameBtn?.addEventListener('click', () => setSettingsOpen(false));
   dom.pauseGameBtn?.addEventListener('click', () => { if (!game.multiplayer?.enabled) { game.setPaused(true); syncSaveUi('Game paused.'); } });
-  dom.saveGameBtn?.addEventListener('click', saveGameToCache);
+  dom.saveGameBtn?.addEventListener('click', () => saveGameToCache());
   dom.loadGameBtn?.addEventListener('click', () => loadGameFromCache());
+  dom.saveSlotSelect?.addEventListener('change', () => { dom.saveSlotName && (dom.saveSlotName.value = ''); renderSaveManagerUi(); });
+  dom.saveEntrySelect?.addEventListener('change', () => renderSaveManagerUi());
+  dom.renameSlotBtn?.addEventListener('click', () => {
+    const ok = saveGames.renameSlot(currentSaveMode(), dom.saveSlotSelect?.value || '', dom.saveSlotName?.value || '');
+    syncSaveUi(ok ? 'Save slot renamed.' : 'Choose a slot and type a new slot name first.');
+  });
+  dom.deleteSlotBtn?.addEventListener('click', () => {
+    const ok = saveGames.deleteSlot(currentSaveMode(), dom.saveSlotSelect?.value || '');
+    if (dom.saveSlotName) dom.saveSlotName.value = '';
+    syncSaveUi(ok ? 'Save slot deleted.' : 'Choose a slot to delete.');
+  });
+  dom.renameSaveBtn?.addEventListener('click', () => {
+    const ok = saveGames.renameSave(currentSaveMode(), dom.saveSlotSelect?.value || '', dom.saveEntrySelect?.value || '', dom.saveName?.value || '');
+    if (dom.saveName) dom.saveName.value = '';
+    syncSaveUi(ok ? 'Savegame renamed.' : 'Choose a savegame and type a new save name first.');
+  });
+  dom.deleteSaveBtn?.addEventListener('click', () => {
+    const ok = saveGames.deleteSave(currentSaveMode(), dom.saveSlotSelect?.value || '', dom.saveEntrySelect?.value || '');
+    syncSaveUi(ok ? 'Savegame deleted.' : 'Choose a savegame to delete.');
+  });
+  dom.deleteOldSavesBtn?.addEventListener('click', () => {
+    const removed = saveGames.deleteOldSaves(currentSaveMode(), dom.saveSlotSelect?.value || '', dom.deleteKeepCount?.value || 1);
+    syncSaveUi(`Deleted ${removed} old savegame${removed === 1 ? '' : 's'} from this slot.`);
+  });
   dom.quitToMainMenuBtn?.addEventListener('click', () => quitToMainMenu());
   dom.saveAndQuitBtn?.addEventListener('click', () => quitToMainMenu({ saveFirst: true }));
   dom.quitWithoutSaveBtn?.addEventListener('click', () => quitToMainMenu({ force: true }));
   dom.cancelQuitBtn?.addEventListener('click', () => { setQuitSavePromptOpen(false); syncSaveUi('Quit cancelled.'); });
-  dom.mainMenuNewBtn?.addEventListener('click', startNewGameFromMenu);
-  dom.mainMenuLoadBtn?.addEventListener('click', () => loadGameFromCache());
-  dom.mainMenuLocalAiBtn?.addEventListener('click', startLocalAiFromMainMenu);
-  dom.mainMenuHostBtn?.addEventListener('click', () => hostFromMainMenu());
+  dom.mainMenuCampaignBtn?.addEventListener('click', () => setMainMenuLayer('mode-actions', 'campaign'));
+  dom.mainMenuNewBtn?.addEventListener('click', () => setMainMenuLayer('mode-actions', 'test'));
+  dom.mainMenuLocalAiBtn?.addEventListener('click', () => setMainMenuLayer('mode-actions', 'local_ai'));
+  dom.mainMenuHostBtn?.addEventListener('click', () => setMainMenuLayer('online-actions', 'online_lakes'));
+  dom.mainMenuStartSelectedBtn?.addEventListener('click', () => startNewGameFromMenu(selectedMainMenuMode));
+  dom.mainMenuLoadBtn?.addEventListener('click', () => loadGameFromCache({ mode: selectedMainMenuMode, slotId: '', saveId: '' }));
+  dom.mainMenuBackBtn?.addEventListener('click', () => setMainMenuLayer('modes'));
+  dom.mainMenuOnlineHostBtn?.addEventListener('click', () => setMainMenuLayer('host-actions', 'online_lakes'));
+  dom.mainMenuOnlineBackBtn?.addEventListener('click', () => setMainMenuLayer('modes'));
+  dom.mainMenuHostNewBtn?.addEventListener('click', () => hostFromMainMenu({ loadSave: false }));
+  dom.mainMenuHostLoadBtn?.addEventListener('click', () => hostFromMainMenu({ loadSave: true }));
+  dom.mainMenuHostBackBtn?.addEventListener('click', () => setMainMenuLayer('online-actions', 'online_lakes'));
   dom.mainMenuJoinBtn?.addEventListener('click', () => joinFromMainMenu());
+  dom.campaignIntroNextBtn?.addEventListener('click', advanceCampaignIntro);
+  dom.campaignIntroSkipBtn?.addEventListener('click', () => finishCampaignIntro('skip'));
   dom.settingsOverlay.addEventListener('click', e => { if (e.target === dom.settingsOverlay) setSettingsOpen(false); });
   document.querySelector('.settings-tabs')?.addEventListener('click', e => { const tab = e.target.closest('[data-settings-tab]'); if (tab) setSettingsTab(tab.dataset.settingsTab); });
   dom.chatToggle.addEventListener('click', toggleChat);
@@ -820,6 +1135,10 @@ export function startGame() {
 
   window.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
+    if (campaignIntroActive) {
+      if (k === 'escape') { e.preventDefault(); finishCampaignIntro('skip'); return; }
+      if (k === 'enter' || k === ' ' || k === 'spacebar') { e.preventDefault(); advanceCampaignIntro(); return; }
+    }
     if (k === 'escape') {
       e.preventDefault();
       if (closeOpenUiPanels()) return;
@@ -857,7 +1176,7 @@ export function startGame() {
   window.allowedProgramOps = ALLOWED_OPS.slice();
   window.validateDslProgram = p => game.validateDslProgram(p);
   window.getGameState = () => game.getState();
-  window.gameMenuDebug = { save: saveGameToCache, load: loadGameFromCache, startNew: startNewGameFromMenu, openMainMenu: () => setMainMenuOpen(true), closeMainMenu: () => setMainMenuOpen(false), quitToMainMenu, showQuitSavePrompt: () => setQuitSavePromptOpen(true), hideQuitSavePrompt: () => setQuitSavePromptOpen(false), hasSavedGame, wasSavedRecently, getLastSaveAgeMs, setLastSaveAgeSeconds: seconds => { lastSuccessfulSaveAt = Number.isFinite(Number(seconds)) ? Date.now() - (Number(seconds) * 1000) : 0; return getLastSaveAgeMs(); }, isPaused: () => !!game.paused };
+  window.gameMenuDebug = { save: saveGameToCache, load: loadGameFromCache, saveLibrary: () => saveGames.snapshot(), selectMenuMode: mode => setMainMenuLayer(normalizeGameMode(mode) === 'online_lakes' ? 'online-actions' : 'mode-actions', mode), startCampaign: startCampaignFromMenu, startTest: () => startNewGameFromMenu('test'), startNew: startNewGameFromMenu, openMainMenu: () => setMainMenuOpen(true), closeMainMenu: () => setMainMenuOpen(false), quitToMainMenu, showQuitSavePrompt: () => setQuitSavePromptOpen(true), hideQuitSavePrompt: () => setQuitSavePromptOpen(false), hasSavedGame, wasSavedRecently, getLastSaveAgeMs, setLastSaveAgeSeconds: seconds => { lastSuccessfulSaveAt = Number.isFinite(Number(seconds)) ? Date.now() - (Number(seconds) * 1000) : 0; return getLastSaveAgeMs(); }, isPaused: () => !!game.paused, campaignIntroActive: () => campaignIntroActive, campaignIntroScene: () => ({ active: campaignIntroActive, index: campaignIntroSceneIndex, total: CAMPAIGN_INTRO_SCENES.length }), advanceCampaignIntro, skipCampaignIntro: () => finishCampaignIntro('skip') };
   window.getCameraState = () => ({ camera: { ...game.camera }, player: { x: game.player.x, y: game.player.y, target: game.player.target ? { ...game.player.target } : null }, map: { ...game.map } });
   window.getWorldObjects = () => game.getObjectRegistry();
   window.getHoverState = () => game.getHoverState();
@@ -872,7 +1191,11 @@ export function startGame() {
     editStepLocation: (index, mode = 'select_zone') => game.beginTeachLocationEdit(index, mode),
     applyLocation: (x, y) => game.applyTeachLocationSelection(x, y),
     interact: () => game.interact(),
+    recordStep: step => { game.recordTeachStep(step); return game.getRecorderState(); },
     assignToBot: botId => game.assignRecordedLoopToBot(botId),
+    saveTemplate: name => game.saveRecordedLoopAsTemplate(name),
+    assignTemplate: (botId, templateName) => game.assignTemplateToBot(botId, templateName),
+    deleteTemplate: nameOrId => game.deleteCustomTemplate(nameOrId),
     pauseBot: botId => { const bot = game.findBot(botId); if (!bot) return null; bot.paused = true; return window.getGameState(); },
     openBotMenu: botId => { const bot = game.findBot(botId); if (!bot) return null; game.showBotMenu(bot, 320, 240, { refreshEdit: true }); return window.getGameState(); },
     setBotName: (botId, name) => { game.setBotName(botId, name); return window.getGameState(); },
@@ -885,7 +1208,7 @@ export function startGame() {
     equipPlayer: type => { if (type) game.equipActor(game.player, type); else game.player.equipment = null; return window.getGameState(); },
     spawnItem: (type, x, y, count = 1) => { game.spawnItem(type, x, y, count); return window.getGameState(); },
     switchWeapon: () => { game.switchWeaponSet(); return window.getGameState(); },
-    placeStructure: (type, x, y) => game.addStructure(type, x, y),
+    placeStructure: (type, x, y) => game.addStructure(type, x, y, { placed: true }),
     startMultiplayer: (sessionId = 'test-session', playerId = 'p1') => game.startMultiplayerSession({ sessionId, role: playerId === 'p1' ? 'host' : 'client', playerId }),
     startLocalAi: (sessionId = 'local-ai-test') => game.startLocalAiMatch({ sessionId }),
     attackThrone: structureId => game.damageThrone(game.structures.find(s => s.id === Number(structureId))),
@@ -912,9 +1235,9 @@ export function startGame() {
   window.voiceInputDebug = { applyStreamingTranscript: chat.applyTranscript, insertTextAtChatCursor: chat.insertAtCursor, defaultAsrWsUrl: chat.wsUrl, transcribeUrl: chat.transcribeUrl, getChatSelection: chat.getSelection, getAsrMode };
   window.audioDebug = { controller: audio, play: name => audio.play(name, { cooldownKey: `debug:${name}`, minGapMs: 0 }), startMusic: station => audio.startMusic(station), stopMusic: () => audio.stopMusic(), state: () => ({ enabled: audio.state.enabled, sfxVolume: audio.state.sfxVolume, musicVolume: audio.state.musicVolume, station: audio.state.station, musicPlaying: audio.isMusicPlaying(), stations: Object.keys(audio.stations) }) };
 
-  window.uiDebug = { toggleSettings, setSettingsOpen, toggleChat, setChatOpen, setSettingsTab, toggleBotDrawer, setBotDrawerOpen, toggleBuildDrawer, setBuildDrawerOpen, toggleZonesDrawer, setZonesDrawerOpen, toggleMultiplayerDrawer, setMultiplayerDrawerOpen, setBuildTab, showAssignmentToast, hideAssignmentToast };
+  window.uiDebug = { toggleSettings, setSettingsOpen, toggleChat, setChatOpen, setSettingsTab, toggleBotDrawer, setBotDrawerOpen, toggleBuildDrawer, setBuildDrawerOpen, toggleZonesDrawer, setZonesDrawerOpen, toggleMultiplayerDrawer, setMultiplayerDrawerOpen, setRadioWidgetOpen, setBuildTab, setDynamicShadows: value => { if (dom.dynamicShadows) dom.dynamicShadows.checked = !!value; game.dynamicShadowsEnabled = !!value; saveBrowserSettings(); return game.dynamicShadowsEnabled; }, showAssignmentToast, hideAssignmentToast };
 
-  addChat('assistant', 'Ready. WASD/arrows pan the camera, mouse wheel zooms around your cursor. Main menu now offers Local vs AI for the throne-lane creep map, or Online Multiplayer for the lake-camp map.');
+  addChat('assistant', 'Ready. WASD/arrows pan the camera, mouse wheel zooms around your cursor. Main menu now offers Campaign mode, Test mode, Local vs AI, and Online Multiplayer.');
   game.syncBuildUi(); game.syncTeachUi(); game.syncZonesUi?.(); game.syncBotDrawerUi?.(); syncSaveUi();
   const params = new URLSearchParams(window.location.search);
   if (!params.get('multiplayer')) setMainMenuOpen(true);

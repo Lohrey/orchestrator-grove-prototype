@@ -30,6 +30,9 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             assert page.locator("#mainMenuLocalAiBtn").inner_text() == "Local vs AI"
             assert "online" in page.locator("#mainMenuHostBtn").inner_text().lower()
             page.locator("#mainMenuLocalAiBtn").click()
+            page.wait_for_function("() => !document.getElementById('mainMenuModeLayer').hidden")
+            assert "Local vs AI" in page.locator("#mainMenuStartSelectedBtn").inner_text()
+            page.locator("#mainMenuStartSelectedBtn").click()
             page.wait_for_function("() => window.getGameState().multiplayer.mapMode === 'local_ai'")
             state = page.evaluate("window.getGameState()")
             assert len(state["multiplayer"]["thrones"]) == 2, state["multiplayer"]
