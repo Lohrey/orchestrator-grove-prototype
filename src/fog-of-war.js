@@ -173,11 +173,11 @@ function drawCellLayer(c, cells, cellSize, alpha, view, map) {
   const minCellY = Math.max(0, Math.floor((view.top - cellSize) / cellSize));
   const maxCellY = Math.min(Math.ceil((map.height || view.bottom) / cellSize) - 1, Math.floor((view.bottom + cellSize) / cellSize));
   c.fillStyle = `rgba(255,255,255,${alpha})`;
-  for (const key of Object.keys(cells)) {
-    const parsed = parseCellKey(key);
-    if (!parsed) continue;
-    if (parsed.x < minCellX || parsed.x > maxCellX || parsed.y < minCellY || parsed.y > maxCellY) continue;
-    c.fillRect(parsed.x * cellSize - 2, parsed.y * cellSize - 2, cellSize + 4, cellSize + 4);
+  for (let cy = minCellY; cy <= maxCellY; cy += 1) {
+    for (let cx = minCellX; cx <= maxCellX; cx += 1) {
+      if (!cells[makeCellKey(cx, cy)]) continue;
+      c.fillRect(cx * cellSize - 2, cy * cellSize - 2, cellSize + 4, cellSize + 4);
+    }
   }
 }
 
@@ -244,15 +244,29 @@ function drawOccluderShadows(c, { sources = [], occluders = [], view } = {}) {
   }
 }
 
+const fogLayerCache = new WeakMap();
+
 function createFogLayer(width, height, targetContext) {
   const layerWidth = Math.max(1, Math.ceil(width));
   const layerHeight = Math.max(1, Math.ceil(height));
-  if (typeof OffscreenCanvas === 'function') return new OffscreenCanvas(layerWidth, layerHeight);
+  const cacheKey = targetContext?.canvas || targetContext;
+  const cached = cacheKey ? fogLayerCache.get(cacheKey) : null;
+  if (cached?.canvas) {
+    if (cached.width !== layerWidth) { cached.canvas.width = layerWidth; cached.width = layerWidth; }
+    if (cached.height !== layerHeight) { cached.canvas.height = layerHeight; cached.height = layerHeight; }
+    return cached.canvas;
+  }
+  if (typeof OffscreenCanvas === 'function') {
+    const canvas = new OffscreenCanvas(layerWidth, layerHeight);
+    if (cacheKey) fogLayerCache.set(cacheKey, { canvas, width: layerWidth, height: layerHeight });
+    return canvas;
+  }
   const doc = targetContext?.canvas?.ownerDocument || globalThis.document;
   if (!doc?.createElement) return null;
   const layer = doc.createElement('canvas');
   layer.width = layerWidth;
   layer.height = layerHeight;
+  if (cacheKey) fogLayerCache.set(cacheKey, { canvas: layer, width: layerWidth, height: layerHeight });
   return layer;
 }
 

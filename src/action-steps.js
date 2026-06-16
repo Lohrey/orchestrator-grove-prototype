@@ -394,6 +394,12 @@ export function runtimeDslSignaturesForOps(ops = []) {
   return ops.map(op => ACTION_STEP_REGISTRY[op]?.signature).filter(Boolean);
 }
 
+function actionStepDslSnippet(step) {
+  const snippet = { op: step.op };
+  for (const arg of step.args || []) snippet[arg] = `$${arg}`;
+  return JSON.stringify(snippet);
+}
+
 export function actionStepChainRows({ programTemplates = {}, knowledgePacks = {} } = {}) {
   const templateNamesByOp = {};
   for (const [templateId, template] of Object.entries(programTemplates || {})) {
@@ -427,6 +433,7 @@ export function actionStepChainRows({ programTemplates = {}, knowledgePacks = {}
       customLoop: !!step.customLoop,
       recordable: !!step.recordable,
       uiCard: step.uiCard,
+      dslSnippet: step.dslSnippet || actionStepDslSnippet(step),
       promptSignature: step.signature || '',
       notes: step.customLoopNote || ''
     };

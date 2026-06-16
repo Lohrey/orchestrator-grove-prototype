@@ -1,6 +1,6 @@
 import { BUILDING_TYPES } from './data.js?v=t_bdae19d0';
 import { clamp } from './utils.js?v=20260613-player-tools';
-import { drawFogOfWarOverlay, fogRevealSources as buildFogRevealSources, isLightEmittingStructure, isPointCurrentlyVisible, isPointExplored as isFogPointExplored, structureLightRadius as getFogStructureLightRadius } from './fog-of-war.js?v=t_91fd08d9';
+import { drawFogOfWarOverlay, fogRevealSources as buildFogRevealSources, isLightEmittingStructure, isPointCurrentlyVisible, isPointExplored as isFogPointExplored, structureLightRadius as getFogStructureLightRadius } from './fog-of-war.js?v=t_mobile_controls';
 import { createDepthDrawable, sortDepthDrawables } from './depth-sort.js?v=t_da28d8dd';
 import {
   drawBuildingAsset,
@@ -23,6 +23,8 @@ export function drawWorld(renderState, ctx) {
   const c = ctx;
   const now = performance.now();
   const view = getWorldViewBounds(game);
+  const lighting = lightingEnabled(game);
+  const revealSources = fogEnabled(game) || lighting ? fogRevealSources(game) : [];
   prepareAnimationState(game, now, view);
   c.clearRect(0, 0, game.W, game.H);
   drawViewportBackdrop(game, c);
@@ -34,8 +36,8 @@ export function drawWorld(renderState, ctx) {
   drawMapFeatures(game, c, view);
   drawGrid(game, c, view);
   drawZones(game, c, view);
-  drawNightTint(game, c, view);
-  drawStructureLightGlows(game, c, view);
+  if (lighting) drawNightTint(game, c, view);
+  if (lighting) drawStructureLightGlows(game, c, view);
   const visibleStructures = [];
   const visibleProjectiles = [];
   const visibleItems = [];
@@ -100,8 +102,8 @@ export function drawWorld(renderState, ctx) {
   drawPlacement(game, c);
   drawZoneDraft(game, c);
   drawFloaters(game, c, view);
-  drawRevealSourceGlows(game, c, view);
-  drawFogOfWar(game, c, view);
+  if (lighting) drawRevealSourceGlows(game, c, view, revealSources);
+  drawFogOfWar(game, c, view, revealSources);
   c.restore();
 
   drawHud(game, c);
@@ -121,7 +123,7 @@ function drawViewportBackdrop(game, c) {
   glow.addColorStop(1, 'rgba(116, 173, 112, 0)');
   c.fillStyle = glow;
   c.fillRect(0, 0, game.W, game.H);
-  const night = getNightAmount(game);
+  const night = lightingEnabled(game) ? getNightAmount(game) : 0;
   if (night > 0.01) {
     c.fillStyle = `rgba(2, 8, 20, ${0.16 + night * 0.34})`;
     c.fillRect(0, 0, game.W, game.H);
@@ -134,6 +136,7 @@ function drawViewportBackdrop(game, c) {
 }
 
 function getNightAmount(game) { return clamp(game.dayNight?.nightAmount ?? 0, 0, 1); }
+function lightingEnabled(game) { return game.lightingEffectsEnabled !== false; }
 function isLightStructure(s) { return isLightEmittingStructure(s); }
 function structureLightRadius(s) { return getFogStructureLightRadius(s); }
 function fogRevealSources(game) {
@@ -202,9 +205,9 @@ function drawNightTint(game, c, view) {
   c.fillRect(clipped.left, clipped.top, clipped.width, clipped.height);
   c.restore();
 }
-function drawRevealSourceGlows(game, c, view) {
+function drawRevealSourceGlows(game, c, view, revealSources = fogRevealSources(game)) {
   const night = getNightAmount(game);
-  const sources = fogRevealSources(game).filter(source => source.kind !== 'structure');
+  const sources = revealSources.filter(source => source.kind !== 'structure');
   if (!sources.length) return;
   c.save();
   c.globalCompositeOperation = 'screen';
@@ -224,11 +227,12 @@ function drawRevealSourceGlows(game, c, view) {
   }
   c.restore();
 }
-function drawFogOfWar(game, c, view) {
+function drawFogOfWar(game, c, view, revealSources = fogRevealSources(game)) {
   const clipped = getClippedMapView(game, view);
   if (!clipped) return;
+  if (!fogEnabled(game)) return;
   const occluders = game.dynamicShadowsEnabled ? fogLightOccluders(game, clipped) : [];
-  drawFogOfWarOverlay(c, { fog: game.fogOfWar, map: game.map, view: clipped, sources: fogRevealSources(game), occluders, nightAmount: getNightAmount(game) });
+  drawFogOfWarOverlay(c, { fog: game.fogOfWar, map: game.map, view: clipped, sources: revealSources, occluders, nightAmount: lightingEnabled(game) ? getNightAmount(game) : 0 });
 }
 
 function drawMapBase(game, c, view) {
@@ -1143,16 +1147,34 @@ function drawHud(game, c) {
   const zoom = Math.round((game.camera.zoom || 1) * 100);
   const mp = game.multiplayer?.enabled ? ` · Multiplayer ${game.multiplayer.sessionId || 'session'} · destroy enemy throne` : '';
   const clock = game.dayNight ? ` · ${game.dayNight.label} ${Math.round((game.dayNight.phase || 0) * 100)}%` : '';
-  const text = `WASD / arrows pan · Hold Shift = fast pan · Mouse wheel zoom ${zoom}% · Right-click moves/attacks/deposits · E acts · B build${clock}${mp}`;
-  c.font = '700 13px system-ui';
+  const mobile = game.dom?.gameStage?.classList?.contains('is-mobile-device');
+  const text = mobile
+    ? `Tap move/select · Long-press action · Drag pan · Pinch/＋/－ zoom ${zoom}% · Menu/Build/Chat buttons${clock}${mp}`
+    : `WASD / arrows pan · Hold Shift = fast pan · Mouse wheel zoom ${zoom}% · Right-click moves/attacks/deposits · E acts · B build${clock}${mp}`;
+  c.font = mobile ? '800 12px system-ui' : '700 13px system-ui';
   const w = Math.min(game.W - 32, c.measureText(text).width + 28);
-  const h = 32;
+  const h = mobile ? 28 : 32;
   c.fillStyle = 'rgba(9, 14, 12, .72)';
   c.strokeStyle = 'rgba(211, 169, 95, .25)';
   c.lineWidth = 1;
   roundedRect(c, 16, 14, w, h, 999); c.fill(); c.stroke();
   c.fillStyle = '#e6eee8';
   c.fillText(text, 30, 35);
+  if (game.showFpsOverlay !== false) {
+    const fps = Math.round(Number(game.fps || 0));
+    const target = Math.max(1, Number(game.targetFps || 60));
+    const fpsText = `${fps || '…'} FPS`;
+    c.font = '800 13px system-ui';
+    const fw = c.measureText(fpsText).width + 24;
+    const fx = Math.max(16, game.W - fw - 16);
+    const color = fps >= target * 0.85 ? 'rgba(116, 205, 137, .65)' : fps >= target * 0.6 ? 'rgba(211, 169, 95, .72)' : 'rgba(207, 94, 82, .72)';
+    c.fillStyle = 'rgba(8, 12, 10, .78)';
+    c.strokeStyle = color;
+    roundedRect(c, fx, 14, fw, 28, 999); c.fill(); c.stroke();
+    c.fillStyle = '#f4fbf5';
+    c.textAlign = 'right';
+    c.fillText(fpsText, game.W - 28, 33);
+  }
   c.restore();
 }
 

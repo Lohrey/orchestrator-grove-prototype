@@ -4,7 +4,7 @@ import {
   actionStepChainRows,
   actionStepOpsForPack,
   actionStepWikiActions
-} from './action-steps.js?v=t_step_registry';
+} from './action-steps.js?v=t_action_chain_snippets';
 
 export const PROGRAMS = ['chop_wood', 'mine_stone', 'dig_holes', 'pickup_item', 'plant_trees', 'haul_logs', 'make_planks', 'make_poles', 'haul_planks', 'craft_axes', 'build_bots', 'taught_loop', 'idle'];
 export const ACTION_STEPS = ACTION_STEP_REGISTRY;

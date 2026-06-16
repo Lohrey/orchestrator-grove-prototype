@@ -1,7 +1,7 @@
 import { BUILDING_TYPES, PROGRAMS, PROGRAM_TEMPLATES, ALLOWED_OPS, DEFAULT_WORLD_ZONES } from './data.js?v=t_bdae19d0';
-import { drawWorld } from './canvas-renderer.js?v=t_91fd08d9';
+import { drawWorld } from './canvas-renderer.js?v=t_mobile_controls';
 import { createRenderState } from './render-state.js?v=t_1f53483a';
-import { FOG_CELL_SIZE, createFogOfWar, fogRevealSources as createFogRevealSources, getFogStats, isLightEmittingStructure as isFogLightEmittingStructure, normalizeFogOfWar, revealFogCircle, serializeFogOfWar, structureLightRadius as fogStructureLightRadius, updateFogOfWarState } from './fog-of-war.js?v=t_91fd08d9';
+import { FOG_CELL_SIZE, createFogOfWar, fogRevealSources as createFogRevealSources, getFogStats, isLightEmittingStructure as isFogLightEmittingStructure, normalizeFogOfWar, revealFogCircle, serializeFogOfWar, structureLightRadius as fogStructureLightRadius, updateFogOfWarState } from './fog-of-war.js?v=t_mobile_controls';
 import { clamp, rand, distXY, nearest, pointInRect, rectDistance, canvasPoint, escapeHtml } from './utils.js?v=20260613-player-tools';
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -223,7 +223,7 @@ export class Game {
     this.zones = clone(DEFAULT_WORLD_ZONES); this.nextZoneId = 1;
     this.idleDepot = { x: 115, y: 245, label: 'idle depot' };
     this.nextItemId = 1; this.nextRockId = 1; this.nextHoleId = 1; this.nextTreeId = 1; this.nextHempId = 1; this.nextMonsterId = 1; this.nextProjectileId = 1; this.nextBotId = 1; this.nextStructureId = 1;
-    this.maxBots = 24; this.targetFps = 30; this.dynamicShadowsEnabled = false; this.fps = 0; this.frameCount = 0; this.fpsAcc = 0; this.lastFrame = 0; this.worldTime = 0;
+    this.maxBots = 24; this.targetFps = 30; this.dynamicShadowsEnabled = false; this.lightingEffectsEnabled = true; this.showFpsOverlay = true; this.fps = 0; this.frameCount = 0; this.fpsAcc = 0; this.lastFrame = 0; this.worldTime = 0; this._lastFogSignature = '';
     this.mouse = { x: 0, y: 0, screenX: 0, screenY: 0, clientX: 0, clientY: 0, hoverBot: null, hoverStructure: null, hoverMonster: null, hoverTree: null, hoverHole: null, hoverItem: null, hoverHemp: null, hoverZone: null };
     this.placementType = null; this.zoneDraft = null; this.zoneDrag = null; this.zoneResize = null; this.justDrewZone = false; this.justDraggedZone = false;
     this.renderer = { text: 'Canvas 2D fallback', webgpu: false, reason: 'not probed' };
@@ -451,8 +451,17 @@ export class Game {
     this.fogOfWar = revealFogCircle(this.fogOfWar, { x, y, radius }, { map: this.map, time: this.worldTime, visible: true });
   }
   updateFogOfWar() {
-    if (!this.fogOfWar?.enabled) return;
-    this.fogOfWar = updateFogOfWarState(this.fogOfWar, { map: this.map, sources: this.fogSources(), time: this.worldTime });
+    if (!this.fogOfWar?.enabled) {
+      if (this.fogOfWar?.visible && Object.keys(this.fogOfWar.visible).length) this.fogOfWar = { ...this.fogOfWar, visible: {} };
+      this._lastFogSignature = '';
+      return;
+    }
+    const sources = this.fogSources();
+    const cell = this.fogOfWar.cellSize || FOG_CELL_SIZE;
+    const signature = sources.map(source => `${source.kind}:${Math.floor(source.x / cell)},${Math.floor(source.y / cell)}:${Math.round(source.radius || 0)}`).join('|');
+    if (signature === this._lastFogSignature && (this.fogOfWar.revision || 0) > 0) return;
+    this._lastFogSignature = signature;
+    this.fogOfWar = updateFogOfWarState(this.fogOfWar, { map: this.map, sources, time: this.worldTime });
   }
   playerOwnedStructures() {
     const playerId = this.multiplayer?.playerId || 'p1';
@@ -515,6 +524,46 @@ export class Game {
     [[470,500],[530,545],[720,565],[905,165],[1025,255],[660,705],[1320,650],[1600,850],[2100,700],[2500,940],[3060,880],[3350,1420],[2700,1760],[1500,1350]].forEach(([x,y]) => this.spawnStoneDeposit(x, y));
     this.createBot(175,250,'idle',true); this.createBot(205,265,'idle',true); this.createBot(235,250,'idle',true); this.createBot(185,290,'idle',true);
     this.spawnItem('log', 285, 500, 3); this.spawnItem('stick', 410, 500, 5); this.spawnItem('tree_seed', 535, 500, 3); this.spawnItem('crude_axe', 610, 500, STARTING_AXE_COUNT); this.spawnItem('crude_pickaxe', 665, 500, STARTING_PICKAXE_COUNT); this.spawnItem('crude_shovel', 720, 500, STARTING_SHOVEL_COUNT);
+  }
+
+  handleCanvasTap(p, { allowMoveOnEmpty = false } = {}) {
+    Object.assign(this.mouse, p);
+    this.hideMenus();
+    if (this.justDraggedZone) { this.justDraggedZone = false; return true; }
+    if (this.justDrewZone) { this.justDrewZone = false; return true; }
+    if (this.zoneDraft?.active) return true;
+    if (this.placementType) { this.placeStructure(this.placementType, p.x, p.y); return true; }
+    if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return true; }
+    const bot = this.botAt(p.x, p.y); if (bot) { this.showBotMenu(bot, p.clientX, p.clientY, { refreshEdit: true }); return true; }
+    const s = this.structureAt(p.x, p.y); if (s) { this.showStructureMenu(s, p.clientX, p.clientY); return true; }
+    const tree = this.treeAt(p.x, p.y); if (tree) { this.showTreeMenu(tree, p.clientX, p.clientY); return true; }
+    const hole = this.holeAt(p.x, p.y); if (hole) { this.showHoleMenu(hole, p.clientX, p.clientY); return true; }
+    const z = this.zoneAt(p.x, p.y); if (z) { this.showZoneMenu(z, p.clientX, p.clientY); return true; }
+    if (allowMoveOnEmpty) { this.setPlayerDestination(p.x, p.y); return true; }
+    return false;
+  }
+
+  handleCanvasContextAction(p) {
+    Object.assign(this.mouse, p);
+    if (this.zoneDraft?.active) return true;
+    if (this.placementType) { this.cancelPlacement(); return true; }
+    if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return true; }
+    const friendlyBot = this.botAt(p.x, p.y); if (friendlyBot && !this.isHostileTarget(friendlyBot)) { this.showBotMenu(friendlyBot, p.clientX, p.clientY, { refreshEdit: true }); return true; }
+    const attackTarget = this.attackTargetAt(p.x, p.y); if (attackTarget && this.queuePlayerAttackTarget(attackTarget)) return true;
+    const item = this.itemAt(p.x, p.y); if (item) return this.queuePlayerItemPickup(item);
+    const s = this.structureAt(p.x, p.y);
+    if (s) {
+      if (this.queuePlayerDemolishStructure(s)) return true;
+      if (STORAGE_STRUCTURE_TYPES.includes(s.type)) return this.queuePlayerPaletteInteraction(s);
+      if (this.queuePlayerThroneAttack(s)) return true;
+      return this.queuePlayerStructureDeposit(s) || (this.showStructureMenu(s, p.clientX, p.clientY), true);
+    }
+    const hole = this.holeAt(p.x, p.y); if (hole) { if (this.player.inventory?.type === 'tree_seed' && this.queuePlayerPlantSeedAtHole(hole)) return true; this.showHoleMenu(hole, p.clientX, p.clientY); return true; }
+    const hemp = this.hempAt(p.x, p.y); if (hemp && this.queuePlayerHempAction(hemp)) return true;
+    const tree = this.treeAt(p.x, p.y); if (tree) { this.showTreeMenu(tree, p.clientX, p.clientY); return true; }
+    const rock = this.rockAt(p.x, p.y); if (rock && this.queuePlayerResourceAction(rock, 'mine_stone')) return true;
+    this.setPlayerDestination(p.x, p.y);
+    return true;
   }
 
   bindCanvas() {
@@ -598,33 +647,139 @@ export class Game {
       this.justDrewZone = Boolean(zone);
       e.preventDefault();
     });
+
+    const touchPointers = new Map();
+    let longPressTimer = 0;
+    let longPressFired = false;
+    let activeTouchGesture = null;
+    const clearLongPress = () => { clearTimeout(longPressTimer); longPressTimer = 0; };
+    const touchPointFromEvent = event => {
+      const p = this.canvasToWorld(event);
+      return { id: event.pointerId, clientX: event.clientX, clientY: event.clientY, screenX: p.screenX, screenY: p.screenY, x: p.x, y: p.y };
+    };
+    const startLongPress = pointerId => {
+      clearLongPress();
+      longPressFired = false;
+      longPressTimer = setTimeout(() => {
+        const entry = touchPointers.get(pointerId);
+        if (!entry || activeTouchGesture?.pinching || entry.panned || entry.moved) return;
+        longPressFired = true;
+        this.suppressNextClick = true;
+        this.handleCanvasContextAction({ clientX: entry.clientX, clientY: entry.clientY, screenX: entry.screenX, screenY: entry.screenY, x: entry.x, y: entry.y });
+      }, 560);
+    };
+    const pinchMetrics = () => {
+      const pts = [...touchPointers.values()];
+      if (pts.length < 2) return null;
+      const a = pts[0], b = pts[1];
+      return {
+        distance: Math.max(1, Math.hypot(a.screenX - b.screenX, a.screenY - b.screenY)),
+        centerX: (a.screenX + b.screenX) / 2,
+        centerY: (a.screenY + b.screenY) / 2
+      };
+    };
+    const beginPinch = () => {
+      const metrics = pinchMetrics();
+      if (!metrics) return;
+      clearLongPress();
+      activeTouchGesture = { pinching: true, startDistance: metrics.distance, startZoom: this.camera.zoom || 1, lastCenterX: metrics.centerX, lastCenterY: metrics.centerY };
+    };
+    this.canvas.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+      e.preventDefault();
+      try { this.canvas.setPointerCapture?.(e.pointerId); } catch {}
+      const p = touchPointFromEvent(e);
+      touchPointers.set(e.pointerId, { ...p, startScreenX: p.screenX, startScreenY: p.screenY, lastScreenX: p.screenX, lastScreenY: p.screenY, moved: false, panned: false });
+      Object.assign(this.mouse, p);
+      this.updateHover();
+      if (touchPointers.size >= 2) beginPinch();
+      else {
+        activeTouchGesture = { pinching: false, panning: false };
+        startLongPress(e.pointerId);
+      }
+    }, { passive: false });
+    this.canvas.addEventListener('pointermove', e => {
+      if (!touchPointers.has(e.pointerId)) return;
+      e.preventDefault();
+      const p = touchPointFromEvent(e);
+      const entry = touchPointers.get(e.pointerId);
+      const dx = p.screenX - entry.lastScreenX;
+      const dy = p.screenY - entry.lastScreenY;
+      const movedFromStart = Math.hypot(p.screenX - entry.startScreenX, p.screenY - entry.startScreenY);
+      Object.assign(entry, p, { moved: entry.moved || movedFromStart > 8 });
+      Object.assign(this.mouse, p);
+      if (touchPointers.size >= 2) {
+        if (!activeTouchGesture?.pinching) beginPinch();
+        const metrics = pinchMetrics();
+        if (metrics && activeTouchGesture?.pinching) {
+          const ratio = metrics.distance / activeTouchGesture.startDistance;
+          this.setCameraZoom(activeTouchGesture.startZoom * ratio, metrics.centerX, metrics.centerY);
+          this.camera.x -= (metrics.centerX - activeTouchGesture.lastCenterX) / (this.camera.zoom || 1);
+          this.camera.y -= (metrics.centerY - activeTouchGesture.lastCenterY) / (this.camera.zoom || 1);
+          this.clampCamera();
+          activeTouchGesture.lastCenterX = metrics.centerX;
+          activeTouchGesture.lastCenterY = metrics.centerY;
+          this.refreshMouseWorld();
+          this.updateHover();
+        }
+        return;
+      }
+      if (entry.moved) clearLongPress();
+      if (entry.moved && !longPressFired && !this.zoneDraft?.active && !this.placementType) {
+        activeTouchGesture = { pinching: false, panning: true };
+        entry.panned = true;
+        this.camera.x += dx / (this.camera.zoom || 1);
+        this.camera.y += dy / (this.camera.zoom || 1);
+        this.clampCamera();
+        this.refreshMouseWorld();
+        this.updateHover();
+      }
+      entry.lastScreenX = p.screenX;
+      entry.lastScreenY = p.screenY;
+    }, { passive: false });
+    const finishTouchPointer = e => {
+      const entry = touchPointers.get(e.pointerId);
+      if (!entry) return;
+      e.preventDefault();
+      clearLongPress();
+      const wasPinching = !!activeTouchGesture?.pinching || touchPointers.size > 1;
+      const p = touchPointFromEvent(e);
+      touchPointers.delete(e.pointerId);
+      try { this.canvas.releasePointerCapture?.(e.pointerId); } catch {}
+      if (wasPinching) {
+        this.suppressNextClick = true;
+        activeTouchGesture = touchPointers.size >= 2 ? activeTouchGesture : null;
+        if (touchPointers.size >= 2) beginPinch();
+        return;
+      }
+      if (!longPressFired && !entry.panned && !entry.moved) {
+        this.suppressNextClick = true;
+        this.handleCanvasTap(p, { allowMoveOnEmpty: true });
+      } else {
+        this.suppressNextClick = true;
+      }
+      longPressFired = false;
+      activeTouchGesture = null;
+    };
+    this.canvas.addEventListener('pointerup', finishTouchPointer, { passive: false });
+    this.canvas.addEventListener('pointercancel', e => {
+      if (!touchPointers.has(e.pointerId)) return;
+      e.preventDefault();
+      clearLongPress();
+      touchPointers.delete(e.pointerId);
+      longPressFired = false;
+      activeTouchGesture = null;
+      this.suppressNextClick = true;
+    }, { passive: false });
     this.canvas.addEventListener('click', e => {
-      const p = this.canvasToWorld(e); Object.assign(this.mouse, p); this.hideMenus();
-      if (this.justDraggedZone) { this.justDraggedZone = false; return; }
-      if (this.justDrewZone) { this.justDrewZone = false; return; }
-      if (this.zoneDraft?.active) return;
-      if (this.placementType) { this.placeStructure(this.placementType, p.x, p.y); return; }
-      if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return; }
-      const bot = this.botAt(p.x, p.y); if (bot) return this.showBotMenu(bot, p.clientX, p.clientY, { refreshEdit: true });
-      const s = this.structureAt(p.x, p.y); if (s) return this.showStructureMenu(s, p.clientX, p.clientY);
-      const tree = this.treeAt(p.x, p.y); if (tree) return this.showTreeMenu(tree, p.clientX, p.clientY);
-      const hole = this.holeAt(p.x, p.y); if (hole) return this.showHoleMenu(hole, p.clientX, p.clientY);
-      const z = this.zoneAt(p.x, p.y); if (z) return this.showZoneMenu(z, p.clientX, p.clientY);
+      if (this.suppressNextClick) { this.suppressNextClick = false; e.preventDefault(); return; }
+      const p = this.canvasToWorld(e);
+      this.handleCanvasTap(p, { allowMoveOnEmpty: false });
     });
     this.canvas.addEventListener('contextmenu', e => {
-      e.preventDefault(); const p = this.canvasToWorld(e); Object.assign(this.mouse, p);
-      if (this.zoneDraft?.active) return;
-      if (this.placementType) { this.cancelPlacement(); return; }
-      if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return; }
-      const friendlyBot = this.botAt(p.x, p.y); if (friendlyBot && !this.isHostileTarget(friendlyBot)) return this.showBotMenu(friendlyBot, p.clientX, p.clientY, { refreshEdit: true });
-      const attackTarget = this.attackTargetAt(p.x, p.y); if (attackTarget && this.queuePlayerAttackTarget(attackTarget)) return;
-      const item = this.itemAt(p.x, p.y); if (item) return this.queuePlayerItemPickup(item);
-      const s = this.structureAt(p.x, p.y); if (s) { if (this.queuePlayerDemolishStructure(s)) return; if (STORAGE_STRUCTURE_TYPES.includes(s.type)) return this.queuePlayerPaletteInteraction(s); if (this.queuePlayerThroneAttack(s)) return; return this.queuePlayerStructureDeposit(s) || this.showStructureMenu(s, p.clientX, p.clientY); }
-      const hole = this.holeAt(p.x, p.y); if (hole) { if (this.player.inventory?.type === 'tree_seed' && this.queuePlayerPlantSeedAtHole(hole)) return; return this.showHoleMenu(hole, p.clientX, p.clientY); }
-      const hemp = this.hempAt(p.x, p.y); if (hemp && this.queuePlayerHempAction(hemp)) return;
-      const tree = this.treeAt(p.x, p.y); if (tree) return this.showTreeMenu(tree, p.clientX, p.clientY);
-      const rock = this.rockAt(p.x, p.y); if (rock && this.queuePlayerResourceAction(rock, 'mine_stone')) return;
-      this.setPlayerDestination(p.x, p.y);
+      e.preventDefault();
+      const p = this.canvasToWorld(e);
+      this.handleCanvasContextAction(p);
     });
   }
 
@@ -3738,5 +3893,5 @@ export class Game {
     ...this.rocks.map(r=>({ id:r.ref, numericId:r.id, kind:'resource', type:'stone_deposit', name:'stone deposit', x:Math.round(r.x), y:Math.round(r.y), hp:r.hp, maxHp:r.maxHp, depleted:!!r.depleted })),
     ...this.bots.map(b=>({ id:b.ref, numericId:b.id, kind:'bot', name:this.botDisplayName(b), x:Math.round(b.x), y:Math.round(b.y), hp:b.hp, maxHp:b.maxHp, hostile:!!b.hostile, equipment:this.equipmentSummary(b), program:b.program, teamId:b.teamId||null, teamName:this.botTeam(b)?.name||null }))
   ]; }
-  getState(){ return { gameMode:this.gameMode||this.multiplayer?.mapMode||'test', map:{...this.map}, mapFeatures:clone(this.mapFeatures || []), paused:!!this.paused, dayNight:this.getDayNightState(), fogOfWar:getFogStats(this.fogOfWar), nightSpawns:clone(this.nightSpawns||{}), multiplayer:this.getMultiplayerSnapshot(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), customTemplates:clone(this.customTemplates || []), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,customTemplateName:b.customTemplateName||'',paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,label:s.label,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,hammers:s.hammers||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:z.kind==='rect'?Math.round(z.w):undefined,h:z.kind==='rect'?Math.round(z.h):undefined,radius:z.kind==='radius'?Math.round(z.radius||DEFAULT_RESOURCE_RADIUS):undefined})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, webgpuAvailable:this.renderer.webgpu, fps:this.fps, maxBots:this.maxBots, dynamicShadowsEnabled:!!this.dynamicShadowsEnabled, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
+  getState(){ return { gameMode:this.gameMode||this.multiplayer?.mapMode||'test', map:{...this.map}, mapFeatures:clone(this.mapFeatures || []), paused:!!this.paused, fps:Math.round(this.fps||0), targetFps:this.targetFps, dynamicShadowsEnabled:!!this.dynamicShadowsEnabled, lightingEffectsEnabled:this.lightingEffectsEnabled!==false, showFpsOverlay:this.showFpsOverlay!==false, dayNight:this.getDayNightState(), fogOfWar:getFogStats(this.fogOfWar), nightSpawns:clone(this.nightSpawns||{}), multiplayer:this.getMultiplayerSnapshot(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), customTemplates:clone(this.customTemplates || []), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,customTemplateName:b.customTemplateName||'',paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,label:s.label,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,hammers:s.hammers||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:z.kind==='rect'?Math.round(z.w):undefined,h:z.kind==='rect'?Math.round(z.h):undefined,radius:z.kind==='radius'?Math.round(z.radius||DEFAULT_RESOURCE_RADIUS):undefined})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, webgpuAvailable:this.renderer.webgpu, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
 }

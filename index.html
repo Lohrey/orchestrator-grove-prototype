@@ -6,7 +6,7 @@
   <title>Orchestrator Grove Prototype v9</title>
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="styles.css?v=t_8ab80257" />
-  <link rel="stylesheet" href="styles-interactions.css?v=t_3ef6c5ab_menu_polish" />
+  <link rel="stylesheet" href="styles-interactions.css?v=t_mobile_controls" />
 </head>
 <body>
   <main class="shell" aria-label="Orchestrator Grove fullscreen game">
@@ -91,6 +91,28 @@
           </div>
         </section>
         <div id="assignmentToast" class="assignment-toast" role="status" aria-live="polite" hidden></div>
+        <div id="mobileControls" class="mobile-controls" aria-label="Mobile game controls">
+          <div class="mobile-controls-row mobile-top-actions" role="toolbar" aria-label="Mobile menu controls">
+            <button id="mobileSettingsBtn" class="mobile-control-button" type="button" aria-label="Open pause and settings menu">☰<span>Menu</span></button>
+            <button id="mobileBuildBtn" class="mobile-control-button" type="button" aria-label="Open build drawer">⚒<span>Build</span></button>
+            <button id="mobileChatBtn" class="mobile-control-button" type="button" aria-label="Open assistant chat">💬<span>Chat</span></button>
+          </div>
+          <div class="mobile-action-cluster" role="toolbar" aria-label="Mobile action controls">
+            <button id="mobileInteractBtn" class="mobile-control-button mobile-primary-action" type="button" aria-label="Interact, same as E">E<span>Interact</span></button>
+            <button id="mobileDropBtn" class="mobile-control-button" type="button" aria-label="Drop held item, same as Q">Q<span>Drop</span></button>
+          </div>
+          <div class="mobile-zoom-controls" role="toolbar" aria-label="Mobile zoom controls">
+            <button id="mobileZoomInBtn" class="mobile-control-button" type="button" aria-label="Zoom in">＋</button>
+            <button id="mobileZoomOutBtn" class="mobile-control-button" type="button" aria-label="Zoom out">－</button>
+          </div>
+          <div class="mobile-camera-pad" aria-label="Mobile camera pad">
+            <button class="mobile-pad-button pad-up" type="button" data-mobile-pan="arrowup" aria-label="Pan camera up">▲</button>
+            <button class="mobile-pad-button pad-left" type="button" data-mobile-pan="arrowleft" aria-label="Pan camera left">◀</button>
+            <button class="mobile-pad-button pad-center" type="button" aria-label="Camera pad" tabindex="-1">•</button>
+            <button class="mobile-pad-button pad-right" type="button" data-mobile-pan="arrowright" aria-label="Pan camera right">▶</button>
+            <button class="mobile-pad-button pad-down" type="button" data-mobile-pan="arrowdown" aria-label="Pan camera down">▼</button>
+          </div>
+        </div>
         <aside id="widgetRoster" class="widget-roster" aria-label="Canvas widget roster">
           <div class="widget-roster-rail" aria-hidden="true"></div>
           <div class="widget-roster-buttons" role="toolbar" aria-label="Canvas widgets">
@@ -269,7 +291,7 @@
           <div class="canvas-chat-head">
             <div>
               <b>Assistant Orchestrator</b>
-              <span class="chat-key-hint">Wheel zooms · Enter opens chat · L hides</span>
+              <span class="chat-key-hint"><span class="desktop-control-hint">Wheel zooms · Enter opens chat · L hides</span><span class="mobile-control-hint">Tap map to move/select · long-press for context · pinch/＋/－ zoom</span></span>
             </div>
             <button id="chatCollapse" type="button" aria-label="Hide chat">×</button>
           </div>
@@ -375,14 +397,16 @@
       <section class="settings-section settings-tab-panel is-active" data-settings-panel="controls">
         <h3>Game Controls</h3>
         <div class="hintbar">
-          <span><b>Camera:</b> WASD / Arrow keys pan</span>
-          <span><b>Move:</b> Right-click map</span>
-          <span><b>Action:</b> E mines, chops trees, digs holes, or operates nearby production</span>
-          <span><b>Drop:</b> Q drops the item in hand</span>
-          <span><b>Chat:</b> Enter opens · L toggles</span>
-          <span><b>Menus:</b> Left-click bots/buildings/trees/holes</span>
-          <span><b>Build:</b> B drawer</span>
-          <span><b>Game menu:</b> Esc closes open UI first, then opens settings</span>
+          <span><b>Camera:</b> WASD / Arrow keys, mobile camera pad, or one-finger drag-pan</span>
+          <span><b>Zoom:</b> Mouse wheel, mobile ＋/－, or two-finger pinch</span>
+          <span><b>Move:</b> Right-click map on desktop · tap empty map on mobile</span>
+          <span><b>Action:</b> E / Interact mines, chops trees, digs holes, or operates nearby production</span>
+          <span><b>Context:</b> Right-click desktop · long-press mobile to pick up, attack, deposit, or work a target</span>
+          <span><b>Drop:</b> Q or mobile Drop drops the item in hand</span>
+          <span><b>Chat:</b> Enter/L on desktop · mobile Chat button</span>
+          <span><b>Menus:</b> Left-click or tap bots/buildings/trees/holes</span>
+          <span><b>Build:</b> B drawer or mobile Build button</span>
+          <span><b>Game menu:</b> Esc or mobile Menu opens pause/settings</span>
         </div>
         <p class="small">Performance and hardware tuning lives in the <b>Performance</b> tab.</p>
       </section>
@@ -409,8 +433,20 @@
           <span class="renderer-pill" id="rendererStatus">Renderer: probing…</span>
         </section>
         <label class="checkline">
+          <input id="fogOfWarToggle" type="checkbox" checked />
+          Enable fog of war <span class="small">(disable for best FPS)</span>
+        </label>
+        <label class="checkline">
+          <input id="lightingEffects" type="checkbox" checked />
+          Enable lighting and night glows <span class="small">(visual only)</span>
+        </label>
+        <label class="checkline">
           <input id="dynamicShadows" type="checkbox" />
-          Enable dynamic light shadows <span class="small">(extra CPU/GPU cost)</span>
+          Enable dynamic light shadows <span class="small">(highest extra CPU/GPU cost)</span>
+        </label>
+        <label class="checkline">
+          <input id="showFpsOverlay" type="checkbox" checked />
+          Show FPS meter in top-right HUD
         </label>
         <dl class="stores">
           <div><dt>Detected GPU</dt><dd id="detectedGpu">Probing…</dd></div>
@@ -581,6 +617,6 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
   <div id="botMenu" class="entity-menu" hidden></div>
   <div id="structureMenu" class="entity-menu" hidden></div>
 
-  <script src="game.js?v=t_91fd08d9"></script>
+  <script src="game.js?v=t_mobile_controls"></script>
 </body>
 </html>

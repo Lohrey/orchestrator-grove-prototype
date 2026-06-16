@@ -55,11 +55,20 @@ assert.deepEqual(rows.map(row => row.op), ALLOWED_OPS, 'step-chain rows must cov
 for (const row of rows) {
   assert.ok(row.backend, `${row.op} needs backend chain text`);
   assert.ok(row.uiCard, `${row.op} needs UI-card metadata`);
+  assert.ok(row.dslSnippet, `${row.op} needs a DSL snippet`);
+  const snippet = JSON.parse(row.dslSnippet);
+  assert.equal(snippet.op, row.op, `${row.op} DSL snippet op must match`);
+  assert.deepEqual(Object.keys(snippet), ['op', ...row.args], `${row.op} DSL snippet keys must match op + args`);
+  for (const arg of row.args) {
+    assert.equal(snippet[arg], `$${arg}`, `${row.op} DSL snippet must expose ${arg} placeholder`);
+  }
   assert.ok(row.promptSignature, `${row.op} needs a prompt signature`);
   if (row.packs.length && !row.customLoop && !row.notes) {
     throw new Error(`${row.op} is exposed to knowledge packs without custom-loop support or an explicit registry note`);
   }
 }
+assert.equal(rows.find(row => row.op === 'pick_up').dslSnippet, '{"op":"pick_up","type":"$type","zone":"$zone"}', 'pick_up DSL snippet must show op/type/zone JSON');
+assert.equal(rows.find(row => row.op === 'loop').dslSnippet, '{"op":"loop"}', 'loop DSL snippet must show op-only JSON');
 
 const worldSource = read('src/world.js');
 const taughtLoopStart = worldSource.indexOf('programTaughtLoop');
@@ -86,6 +95,8 @@ assert.match(assistantSource, /return runtimeDslSignaturesForOps\(unlockedOps\)/
 
 const mainSource = read('src/main.js');
 assert.match(mainSource, /getActionStepChainRows/, 'main UI must render registry-backed step-chain rows');
+assert.match(mainSource, /DSL snippet/, 'settings step-chain table must label the DSL snippet column');
+assert.match(mainSource, /row\.dslSnippet/, 'settings step-chain table must render row.dslSnippet');
 assert.match(mainSource, /window\.allowedProgramOps = ALLOWED_OPS\.slice\(\)/, 'public allowedProgramOps must expose ALLOWED_OPS');
 
 const indexSource = read('index.html');
