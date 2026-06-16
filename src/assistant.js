@@ -1,4 +1,5 @@
-import { PROGRAMS, PROGRAM_TEMPLATES, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, DSL_ACTION_WIKI } from './data.js?v=t_c4955ba2_player_storage';
+import { PROGRAMS, PROGRAM_TEMPLATES, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, DSL_ACTION_WIKI } from './data.js?v=t_step_registry';
+import { runtimeDslSignaturesForOps } from './action-steps.js?v=t_step_registry';
 
 export const LOCAL_AI_PROVIDERS = {
   ollama: {
@@ -263,25 +264,6 @@ function compactTemplateInfo() {
 
 const CANONICAL_ITEM_TYPES = ['log', 'plank', 'pole', 'stick', 'stone', 'tree_seed', 'crude_axe', 'crude_pickaxe', 'crude_shovel', 'hemp', 'hemp_seed'];
 
-const RUNTIME_SAFE_DSL_SIGNATURES = {
-  pick_up: 'pick_up(type, zone?) — loose ground items only, e.g. crude_axe/log/stick; not trees or buildings',
-  pick_up_from_storage: 'pick_up_from_storage(type, source/structureId) — source must be an existing storage structure',
-  deposit_to_structure: 'deposit_to_structure(type, target/structureId) — target must be an existing production/storage structure',
-  deposit_to_player: 'deposit_to_player(type) — move to the player and give them the carried item; player acts like one-slot storage',
-  take_from_player: 'take_from_player(type) — move to the player and take the matching item from their one-slot storage/inventory',
-  drop_item: 'drop_item(type, zone?) — drop carried item on ground/zone',
-  use_held_item: 'use_held_item(targetKind, target?, type?, zone?) — generic held-item/tool action; targetKind tree/hemp/stone_deposit/dig_spot/dug_hole/structure/ground; validation resolves to the locked concrete op, so do not use it to bypass missing packs',
-  move_to_structure: 'move_to_structure(target/structureId) — structure-only movement; target must be an existing structure name/id; never use for trees/resources',
-  plant_seed: 'plant_seed(zone?) — plant carried tree_seed in a dug hole resource',
-  chop_tree: 'chop_tree(zone?) — chop/cut/fell nearest tree resource; use this for tree chopping, not move_to_structure',
-  search_tree: 'search_tree(zone?) — search nearest tree resource for sticks/seeds without axe',
-  mine_stone: 'mine_stone(zone?) — mine nearest stone deposit resource',
-  chop_hemp: 'chop_hemp(zone?) — chop nearest hemp resource with an axe',
-  search_hemp: 'search_hemp(zone?) — search nearest hemp resource for seeds',
-  wait: 'wait(seconds) — pause briefly',
-  loop: 'loop() — final step only; repeat from first step'
-};
-
 const RESOURCE_STRUCTURE_RULES = {
   resourcesAreNotStructures: ['tree', 'trees', 'hemp', 'stone deposit', 'stone_deposit', 'rock', 'rocks', 'dug hole', 'hole'],
   structureOps: ['move_to_structure', 'deposit_to_structure', 'pick_up_from_storage'],
@@ -316,7 +298,7 @@ function likelyLockedRequestHints(text, unlockedOps) {
 }
 
 function runtimeSignaturesForOps(unlockedOps) {
-  return unlockedOps.filter(op => RUNTIME_SAFE_DSL_SIGNATURES[op]).map(op => RUNTIME_SAFE_DSL_SIGNATURES[op]);
+  return runtimeDslSignaturesForOps(unlockedOps);
 }
 
 function optionalRuntimeKnowledge(game, equippedPacks) {

@@ -6,7 +6,7 @@
   <title>Orchestrator Grove Prototype v9</title>
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="styles.css?v=t_8ab80257" />
-  <link rel="stylesheet" href="styles-interactions.css?v=t_f62dde4d_modes" />
+  <link rel="stylesheet" href="styles-interactions.css?v=t_step_registry" />
 </head>
 <body>
   <main class="shell" aria-label="Orchestrator Grove fullscreen game">
@@ -196,6 +196,7 @@
         <button type="button" data-settings-tab="log" aria-selected="false">log (chat)</button>
         <button type="button" data-settings-tab="programs" aria-selected="false">DSL</button>
         <button type="button" data-settings-tab="dsl-wiki" aria-selected="false">DSL Wiki</button>
+        <button type="button" data-settings-tab="step-chain" aria-selected="false">Step Chains</button>
       </nav>
 
       <section class="settings-section game-menu-actions-panel" aria-label="Pause and save controls">
@@ -342,6 +343,7 @@
           <button id="serverOllamaBtn" type="button">Use server proxy</button>
           <button id="localOllamaBtn" type="button">Use my local Ollama</button>
           <button id="localTabbyBtn" type="button">Use local TabbyAPI</button>
+          <a class="settings-help-link" href="./local-ai-guide.html" target="_blank" rel="noopener noreferrer">Install + model guide</a>
         </div>
         <p class="small local-ollama-help">Local mode calls Ollama from <b>your browser</b>. Use <code>http://127.0.0.1:11434</code> and allow this site in Ollama CORS.</p>
         <p id="localTabbyHelp" class="small local-ollama-help" hidden>TabbyAPI uses the local OpenAI-compatible endpoint <code>http://127.0.0.1:5000/v1</code>. This setup already allows permissive local CORS.</p>
@@ -423,12 +425,18 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
         <p class="small">Same action context injected into Local AI prompts, so JSON answers know which loop-step ops exist.</p>
         <pre id="dslWikiView" class="program-view dsl-wiki-view"></pre>
       </section>
+
+      <section class="settings-section settings-tab-panel" data-settings-panel="step-chain">
+        <h3>Action Step Mechanism Chains</h3>
+        <p class="small">Registry-backed view of each action step and its backend, DSL, knowledge-pack, template, recorder, UI-card, and prompt representations.</p>
+        <div id="actionStepChainTable" class="action-step-chain-wrap"></div>
+      </section>
     </section>
   </div>
 
   <div id="botMenu" class="entity-menu" hidden></div>
   <div id="structureMenu" class="entity-menu" hidden></div>
 
-  <script src="game.js?v=t_f62dde4d_modes"></script>
+  <script src="game.js?v=t_step_registry"></script>
 </body>
 </html>

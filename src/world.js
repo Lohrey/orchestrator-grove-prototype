@@ -1,4 +1,4 @@
-import { BUILDING_TYPES, PROGRAMS, PROGRAM_TEMPLATES, ALLOWED_OPS, DEFAULT_WORLD_ZONES } from './data.js?v=t_c4955ba2_player_storage';
+import { BUILDING_TYPES, PROGRAMS, PROGRAM_TEMPLATES, ALLOWED_OPS, DEFAULT_WORLD_ZONES } from './data.js?v=t_step_registry';
 import { drawWorld } from './canvas-renderer.js?v=t_f62dde4d_modes';
 import { createRenderState } from './render-state.js?v=t_f62dde4d_modes';
 import { clamp, rand, distXY, nearest, pointInRect, rectDistance, canvasPoint, escapeHtml } from './utils.js?v=20260613-player-tools';

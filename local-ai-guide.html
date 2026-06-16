@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Local AI Install and Model Guide - Orchestrator Grove</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07110d;
+      --panel: rgba(15, 22, 18, .94);
+      --panel-2: rgba(22, 32, 26, .88);
+      --line: rgba(216, 170, 99, .28);
+      --line-strong: rgba(130, 196, 126, .55);
+      --text: #f3ead7;
+      --muted: #b9aa8b;
+      --green: #82c47e;
+      --gold: #d8aa63;
+      --code: #111a15;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 15px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 24% 10%, rgba(130, 196, 126, .16), transparent 26rem),
+        radial-gradient(circle at 78% 0%, rgba(216, 170, 99, .12), transparent 24rem),
+        linear-gradient(135deg, #122018, var(--bg) 72%);
+    }
+    a { color: var(--green); }
+    .shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 48px; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 22px; }
+    .back {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      color: var(--text);
+      text-decoration: none;
+      border: 1px solid var(--line);
+      background: rgba(7, 11, 9, .55);
+    }
+    h1, h2, h3 { line-height: 1.12; margin: 0; }
+    h1 { font-size: clamp(30px, 5vw, 56px); max-width: 880px; }
+    h2 { font-size: 20px; margin-bottom: 12px; }
+    h3 { font-size: 16px; margin-bottom: 8px; color: var(--gold); }
+    p { margin: 0 0 12px; color: var(--muted); }
+    .lede { max-width: 820px; font-size: 17px; margin-top: 14px; }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 0; }
+    .badge {
+      border: 1px solid rgba(130, 196, 126, .36);
+      color: var(--green);
+      background: rgba(16, 20, 19, .72);
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 18px; }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, var(--panel), rgba(7, 11, 9, .9));
+      box-shadow: 0 20px 55px rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255,255,255,.05);
+      padding: 18px;
+    }
+    .card strong { color: var(--text); }
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    }
+    code { color: var(--text); }
+    pre {
+      overflow-x: auto;
+      white-space: pre-wrap;
+      margin: 10px 0 0;
+      padding: 12px;
+      border: 1px solid rgba(255,255,255,.1);
+      background: var(--code);
+      color: #f9f0dc;
+      font-size: 13px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 780px;
+      color: var(--muted);
+    }
+    th, td {
+      border-bottom: 1px solid rgba(216, 170, 99, .16);
+      text-align: left;
+      vertical-align: top;
+      padding: 10px 12px;
+    }
+    th {
+      color: var(--gold);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    td:first-child { color: var(--text); font-weight: 700; white-space: nowrap; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); background: rgba(7, 11, 9, .48); }
+    .steps { counter-reset: step; list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+    .steps li {
+      counter-increment: step;
+      display: grid;
+      grid-template-columns: 30px 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .steps li::before {
+      content: counter(step);
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--line-strong);
+      color: var(--green);
+      font-weight: 800;
+    }
+    .callout {
+      border-left: 3px solid var(--green);
+      background: rgba(130, 196, 126, .08);
+      padding: 12px 14px;
+      margin-top: 12px;
+    }
+    .full { margin-top: 16px; }
+    .compact-list { margin: 0; padding-left: 18px; color: var(--muted); }
+    .compact-list li { margin: 5px 0; }
+    @media (max-width: 820px) {
+      .grid, .grid.three { grid-template-columns: 1fr; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <a class="back" href="./index.html">Back to game</a>
+      <span class="badge">Settings -> Local AI</span>
+    </div>
+
+    <header>
+      <h1>Local AI install and model guide</h1>
+      <p class="lede">For Orchestrator Grove, prefer models that can read DSL action docs, interpret player intent, and return strict JSON tool calls. The first recommended fast NVIDIA setup is TabbyAPI with ExLlama and Qwen2.5-Coder 7B EXL2.</p>
+      <div class="badges">
+        <span class="badge">TabbyAPI</span>
+        <span class="badge">ExLlama</span>
+        <span class="badge">OpenAI-compatible</span>
+        <span class="badge">Strict JSON</span>
+        <span class="badge">DSL action routing</span>
+      </div>
+    </header>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Best first test on RTX 4070 12 GB</h2>
+        <p><strong>Model:</strong> <code>Qwen2.5-Coder-7B-Instruct-exl2-6_5</code></p>
+        <p><strong>Source:</strong> <code>bartowski/Qwen2.5-Coder-7B-Instruct-exl2</code>, revision <code>6_5</code></p>
+        <p><strong>Why:</strong> stronger JSON/schema/DSL behavior than Gemma-family models while leaving enough VRAM for long action-doc context.</p>
+        <pre>Base URL: http://127.0.0.1:5000/v1
+Chat endpoint: http://127.0.0.1:5000/v1/chat/completions
+Model: Qwen2.5-Coder-7B-Instruct-exl2-6_5
+Temperature: 0 or 0.1</pre>
+      </article>
+
+      <article class="card">
+        <h2>Installed local layout</h2>
+        <p>Use a shared runtime venv per Torch/CUDA stack, then point tools at the matching runtime.</p>
+        <pre>G:\Coding\Projects\local inference\
+  runtimes\
+    torch290-cu128-py311\
+  tabby-exllama\
+  models\
+    Qwen2.5-Coder-7B-Instruct-exl2-6_5\</pre>
+        <div class="callout">
+          <p><strong>Do not reuse Ollama model files in ExLlama.</strong> Ollama commonly uses GGUF-style artifacts. ExLlama expects EXL2, EXL3, or safetensors-compatible model folders.</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="card full">
+      <h2>Install and run commands</h2>
+      <div class="grid three">
+        <div>
+          <h3>Start TabbyAPI</h3>
+          <pre>& "G:\Coding\Projects\local inference\tabby-exllama\start-tabby.ps1"</pre>
+        </div>
+        <div>
+          <h3>Test strict JSON</h3>
+          <pre>& "G:\Coding\Projects\local inference\tabby-exllama\test-json.ps1"</pre>
+        </div>
+        <div>
+          <h3>Stop TabbyAPI</h3>
+          <pre>& "G:\Coding\Projects\local inference\tabby-exllama\stop-tabby.ps1"</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="card full">
+      <h2>Exact model recommendations by consumer GPU</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>GPU VRAM</th>
+              <th>Exact ExLlama model</th>
+              <th>Quant / revision</th>
+              <th>Best fit</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>4 GB</td>
+              <td><code>ArtusDev/Qwen_Qwen3-4B-Instruct-2507-EXL3</code></td>
+              <td><code>3.0bpw_H6</code> or <code>3.5bpw_H6</code></td>
+              <td>Minimum viable local option. Keep DSL context compact.</td>
+            </tr>
+            <tr>
+              <td>6 GB</td>
+              <td><code>turboderp/Qwen3-8B-exl3</code></td>
+              <td><code>3.0</code> or <code>3.5</code> bpw branch</td>
+              <td>Better intent handling than 4B, but still context-sensitive.</td>
+            </tr>
+            <tr>
+              <td>8 GB</td>
+              <td><code>bartowski/Qwen2.5-Coder-7B-Instruct-exl2</code></td>
+              <td><code>5_0</code></td>
+              <td>Good structured output and DSL action selection.</td>
+            </tr>
+            <tr>
+              <td>12 GB</td>
+              <td><code>bartowski/Qwen2.5-Coder-7B-Instruct-exl2</code></td>
+              <td><code>6_5</code></td>
+              <td>Recommended first choice for this game: JSON, DSL, and 16k-32k context headroom.</td>
+            </tr>
+            <tr>
+              <td>12 GB, shorter prompts</td>
+              <td><code>bartowski/Qwen2.5-Coder-14B-Instruct-exl2</code></td>
+              <td><code>4_25</code> or <code>3_5</code></td>
+              <td>Smarter, but long DSL context may pressure VRAM.</td>
+            </tr>
+            <tr>
+              <td>16 GB</td>
+              <td><code>bartowski/Qwen2.5-Coder-14B-Instruct-exl2</code></td>
+              <td><code>4_25</code> or <code>5_0</code></td>
+              <td>Better DSL reasoning if prompt size fits comfortably.</td>
+            </tr>
+            <tr>
+              <td>24 GB</td>
+              <td><code>ArtusDev/Qwen_Qwen3-Coder-30B-A3B-Instruct-EXL3</code></td>
+              <td><code>4.0_H6</code> or <code>4.5_H6</code></td>
+              <td>Strong local tool/function-call reasoning.</td>
+            </tr>
+            <tr>
+              <td>24 GB alternative</td>
+              <td><code>bartowski/Qwen2.5-Coder-32B-Instruct-exl2</code></td>
+              <td><code>3_5</code> or <code>4_25</code></td>
+              <td>Strong structured/code model, heavier than Qwen3-Coder MoE.</td>
+            </tr>
+            <tr>
+              <td>48 GB+</td>
+              <td><code>bartowski/Qwen2.5-Coder-32B-Instruct-exl2</code></td>
+              <td><code>6_5</code> or <code>8_0</code></td>
+              <td>High-quality local structured-output setup.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Prompt layout for cache reuse</h2>
+        <p>Put stable prompt text first. Prefix cache reuse is strongest when the beginning of the prompt is byte-for-byte identical between calls.</p>
+        <ol class="steps">
+          <li><span>System rules</span></li>
+          <li><span>Stable JSON contract</span></li>
+          <li><span>Stable DSL grammar and global action rules</span></li>
+          <li><span>Stable action format conventions</span></li>
+          <li><span>Selected action docs for this turn</span></li>
+          <li><span>Current game state and variables</span></li>
+          <li><span>Recent conversation</span></li>
+          <li><span>Latest player input</span></li>
+        </ol>
+      </article>
+
+      <article class="card">
+        <h2>Context and caching notes</h2>
+        <ul class="compact-list">
+          <li>12k tokens is roughly 8k-9.5k English words, and less for code/JSON/DSL-heavy text.</li>
+          <li>Cache reuse mainly speeds prompt processing, not token-by-token answer generation.</li>
+          <li>For this game, keep invariant grammar/schema static and append smart-selected action docs after it.</li>
+          <li>Multiple browser requests may arrive at once, but one consumer GPU is still a scarce generation resource. Queue NPC calls intentionally.</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Ollama vs TabbyAPI / ExLlama</h2>
+        <p>Ollama is easiest for users and GGUF models. TabbyAPI with ExLlama is faster on NVIDIA GPUs when using EXL2/EXL3 models, but setup is more specific.</p>
+        <p>For strict DSL-to-JSON, the model matters as much as the backend. Qwen coder models are a better first target than modified Gemma variants.</p>
+      </article>
+
+      <article class="card">
+        <h2>NVIDIA ACE SLMs</h2>
+        <p>ACE/Nemotron small models are promising for low-latency NPC dialogue and roleplay, but they are not the first recommendation for large DSL docs plus strict JSON action output.</p>
+        <p>Use them experimentally as a second-stage flavour/dialogue model after a coder model has produced validated action JSON.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

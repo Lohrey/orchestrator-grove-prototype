@@ -1,10 +1,10 @@
-import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, formatDslActionWiki } from './data.js?v=t_c4955ba2_player_storage';
+import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, ALLOWED_OPS, formatDslActionWiki, getActionStepChainRows } from './data.js?v=t_step_registry';
 import { createChatController } from './chat.js?v=20260613-player-tools';
 import { createAudioController } from './audio.js?v=t_cb4d09e8_audio';
 import { Game } from './world.js?v=t_f62dde4d_modes';
 import { createMultiplayerController } from './multiplayer.js?v=t_f62dde4d_modes';
 import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f';
-import { LOCAL_AI_PROVIDERS, buildOllamaRequestBody, buildOpenAiCompatibleRequestBody, defaultOllamaEndpoint, formatOllamaFinalPrompt, getDefaultProviderConfig, normalizeAssistantLoadout, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, summarizeAssistantLoadout, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_6481763f_use_held_item';
+import { LOCAL_AI_PROVIDERS, buildOllamaRequestBody, buildOpenAiCompatibleRequestBody, defaultOllamaEndpoint, formatOllamaFinalPrompt, getDefaultProviderConfig, normalizeAssistantLoadout, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, summarizeAssistantLoadout, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_step_registry';
 import { escapeHtml } from './utils.js?v=20260613-player-tools';
 
 export function startGame() {
@@ -21,7 +21,7 @@ export function startGame() {
     multiplayerDrawer: $('multiplayerDrawer'), multiplayerDrawerToggle: $('multiplayerDrawerToggle'), multiplayerHostBtn: $('multiplayerHostBtn'), multiplayerJoinCode: $('multiplayerJoinCode'), multiplayerJoinBtn: $('multiplayerJoinBtn'), multiplayerSaveBtn: $('multiplayerSaveBtn'), multiplayerStatus: $('multiplayerStatus'), multiplayerSessionLink: $('multiplayerSessionLink'),
     mainMenuOverlay: $('mainMenuOverlay'), mainMenuNewBtn: $('mainMenuNewBtn'), mainMenuLoadBtn: $('mainMenuLoadBtn'), mainMenuLocalAiBtn: $('mainMenuLocalAiBtn'), mainMenuHostBtn: $('mainMenuHostBtn'), mainMenuJoinCode: $('mainMenuJoinCode'), mainMenuJoinBtn: $('mainMenuJoinBtn'), mainMenuStatus: $('mainMenuStatus'),
     resumeGameBtn: $('resumeGameBtn'), pauseGameBtn: $('pauseGameBtn'), saveGameBtn: $('saveGameBtn'), loadGameBtn: $('loadGameBtn'), quitToMainMenuBtn: $('quitToMainMenuBtn'), quitSavePrompt: $('quitSavePrompt'), saveAndQuitBtn: $('saveAndQuitBtn'), quitWithoutSaveBtn: $('quitWithoutSaveBtn'), cancelQuitBtn: $('cancelQuitBtn'), saveGameStatus: $('saveGameStatus'),
-    knowledgePackList: $('knowledgePackList'), knowledgePackStatus: $('knowledgePackStatus'), assistantLoadoutView: $('assistantLoadoutView'), assistantBasePromptView: $('assistantBasePromptView'), assistantPromptPreview: $('assistantPromptPreview'), resetKnowledgePacks: $('resetKnowledgePacks'),
+    knowledgePackList: $('knowledgePackList'), knowledgePackStatus: $('knowledgePackStatus'), assistantLoadoutView: $('assistantLoadoutView'), assistantBasePromptView: $('assistantBasePromptView'), assistantPromptPreview: $('assistantPromptPreview'), resetKnowledgePacks: $('resetKnowledgePacks'), actionStepChainTable: $('actionStepChainTable'),
     audioSfxToggle: $('audioSfxToggle'), audioSfxVolume: $('audioSfxVolume'), audioSfxTest: $('audioSfxTest'), audioStation: $('audioStation'), audioMusicStart: $('audioMusicStart'), audioMusicStop: $('audioMusicStop'), audioMusicVolume: $('audioMusicVolume'), audioMusicStatus: $('audioMusicStatus')
   };
 
@@ -268,6 +268,45 @@ export function startGame() {
       </article>
     `).join('');
     return updateAssistantLoadoutDebug(message);
+  }
+  function inlineList(items = [], empty = 'none') {
+    const values = items.filter(Boolean);
+    return values.length ? values.map(value => `<code>${escapeHtml(value)}</code>`).join(' ') : `<span class="muted-cell">${escapeHtml(empty)}</span>`;
+  }
+  function renderActionStepChainTable() {
+    if (!dom.actionStepChainTable) return [];
+    const rows = getActionStepChainRows();
+    dom.actionStepChainTable.innerHTML = `
+      <table class="action-step-chain-table">
+        <thead>
+          <tr>
+            <th>Step</th>
+            <th>DSL args</th>
+            <th>Backend</th>
+            <th>Packs</th>
+            <th>Templates</th>
+            <th>Recorder</th>
+            <th>UI card</th>
+            <th>Prompt signature</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(row => `
+            <tr>
+              <td><b>${escapeHtml(row.label)}</b><code>${escapeHtml(row.op)}</code>${row.notes ? `<small>${escapeHtml(row.notes)}</small>` : ''}</td>
+              <td>${inlineList(row.args, 'none')}</td>
+              <td>${escapeHtml(row.backend)}</td>
+              <td>${inlineList(row.packs, 'not exposed')}</td>
+              <td>${inlineList(row.templates, 'none')}</td>
+              <td>${row.recordable ? '<span class="chain-ok">recordable</span>' : '<span class="muted-cell">not recorded</span>'}</td>
+              <td>${escapeHtml(row.uiCard || 'generic DSL card')}</td>
+              <td><code>${escapeHtml(row.promptSignature || 'not in prompt')}</code></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    return rows;
   }
   function persistAssistantLoadout(nextLoadout) {
     assistantLoadout = normalizeAssistantLoadout(nextLoadout);
@@ -659,6 +698,7 @@ export function startGame() {
   dom.programSelect.addEventListener('change', renderProgram); renderProgram();
   if (dom.dslWikiView) dom.dslWikiView.textContent = formatDslActionWiki();
   renderKnowledgePackSelector();
+  renderActionStepChainTable();
   initAudioUi();
 
   dom.buildPanel.addEventListener('click', e => {
@@ -813,7 +853,8 @@ export function startGame() {
   window.generateAssistantDsl = (text, options = {}) => parseAssistantRequest(text, game, { enableTemplates: options.enableTemplates ?? true, loadout: getAssistantLoadout() });
   window.dslActionWiki = DSL_ACTION_WIKI;
   window.dslActionWikiText = formatDslActionWiki();
-  window.allowedProgramOps = [...new Set(Object.values(PROGRAM_TEMPLATES).flatMap(t => t.steps.map(s => s.op)))];
+  window.actionStepChainRows = getActionStepChainRows();
+  window.allowedProgramOps = ALLOWED_OPS.slice();
   window.validateDslProgram = p => game.validateDslProgram(p);
   window.getGameState = () => game.getState();
   window.gameMenuDebug = { save: saveGameToCache, load: loadGameFromCache, startNew: startNewGameFromMenu, openMainMenu: () => setMainMenuOpen(true), closeMainMenu: () => setMainMenuOpen(false), quitToMainMenu, showQuitSavePrompt: () => setQuitSavePromptOpen(true), hideQuitSavePrompt: () => setQuitSavePromptOpen(false), hasSavedGame, wasSavedRecently, getLastSaveAgeMs, setLastSaveAgeSeconds: seconds => { lastSuccessfulSaveAt = Number.isFinite(Number(seconds)) ? Date.now() - (Number(seconds) * 1000) : 0; return getLastSaveAgeMs(); }, isPaused: () => !!game.paused };

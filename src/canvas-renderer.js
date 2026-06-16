@@ -1,4 +1,4 @@
-import { BUILDING_TYPES } from './data.js?v=t_c4955ba2_player_storage';
+import { BUILDING_TYPES } from './data.js?v=t_step_registry';
 import { clamp } from './utils.js?v=20260613-player-tools';
 import {
   drawBuildingAsset,

@@ -555,6 +555,60 @@
 .knowledge-pack-title { margin-top: 0; align-items: flex-start; }
 .assistant-loadout-view { max-height: 210px; white-space: pre-wrap; }
 .assistant-prompt-preview { max-height: 320px; white-space: pre-wrap; }
+.action-step-chain-wrap {
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid rgba(127,151,137,.22);
+  border-radius: 12px;
+  background: rgba(7, 12, 10, .72);
+}
+.action-step-chain-table {
+  width: 100%;
+  min-width: 1120px;
+  border-collapse: collapse;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.action-step-chain-table th,
+.action-step-chain-table td {
+  padding: 8px;
+  border-bottom: 1px solid rgba(127,151,137,.18);
+  vertical-align: top;
+  text-align: left;
+}
+.action-step-chain-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #101713;
+  color: #dce7e1;
+}
+.action-step-chain-table td:first-child {
+  width: 170px;
+}
+.action-step-chain-table td:first-child b,
+.action-step-chain-table td:first-child code,
+.action-step-chain-table td:first-child small {
+  display: block;
+}
+.action-step-chain-table td:first-child small {
+  margin-top: 4px;
+  color: #c7b683;
+}
+.action-step-chain-table code {
+  display: inline-block;
+  max-width: 260px;
+  margin: 1px 2px 1px 0;
+  padding: 2px 5px;
+  border: 1px solid rgba(127,151,137,.20);
+  border-radius: 6px;
+  background: rgba(9, 13, 12, .92);
+  color: #d7e8cf;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.muted-cell { color: var(--muted); }
+.chain-ok { color: #9abf8f; font-weight: 800; }
 .raw-llm-response { margin-top: 8px; }
 .raw-llm-response summary { cursor: pointer; font-weight: 700; }
 .raw-llm-response pre { max-height: 240px; overflow: auto; white-space: pre-wrap; }
@@ -790,6 +844,23 @@
 .endpoint-actions button {
   font-size: 12px;
   padding: 8px 10px;
+}
+.settings-help-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid rgba(130, 196, 126, .36);
+  border-radius: 10px;
+  background: rgba(16, 20, 19, .58);
+  color: #b9e3ad;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.settings-help-link:hover {
+  border-color: rgba(130, 196, 126, .72);
+  color: #e9ffe1;
 }
 .local-ollama-help {
   padding: 9px 10px;

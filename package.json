@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "smoke": "python3 tests/multiplayer-smoke.py"
+    "smoke": "python3 tests/multiplayer-smoke.py",
+    "test:steps": "node tests/action-step-chain-integrity.mjs"
   },
   "dependencies": {
     "@socket.io/admin-ui": "^0.5.1",
