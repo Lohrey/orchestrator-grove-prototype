@@ -1147,7 +1147,7 @@ function drawHud(game, c) {
   const zoom = Math.round((game.camera.zoom || 1) * 100);
   const mp = game.multiplayer?.enabled ? ` · Multiplayer ${game.multiplayer.sessionId || 'session'} · destroy enemy throne` : '';
   const clock = game.dayNight ? ` · ${game.dayNight.label} ${Math.round((game.dayNight.phase || 0) * 100)}%` : '';
-  const mobile = game.dom?.gameStage?.classList?.contains('is-mobile-device');
+  const mobile = !!game.mobile;
   const text = mobile
     ? `Tap move/select · Long-press action · Drag pan · Pinch/＋/－ zoom ${zoom}% · Menu/Build/Chat buttons${clock}${mp}`
     : `WASD / arrows pan · Hold Shift = fast pan · Mouse wheel zoom ${zoom}% · Right-click moves/attacks/deposits · E acts · B build${clock}${mp}`;

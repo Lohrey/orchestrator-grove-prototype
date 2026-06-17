@@ -27,6 +27,12 @@ export function createRenderState(game) {
     dayNight: typeof game.getDayNightState === 'function' ? game.getDayNightState() : game.dayNight,
     fogOfWar: game.fogOfWar,
     nightSpawns: game.nightSpawns,
-    floaters: game.floaters
+    floaters: game.floaters,
+    dynamicShadowsEnabled: !!game.dynamicShadowsEnabled,
+    lightingEffectsEnabled: game.lightingEffectsEnabled !== false,
+    showFpsOverlay: game.showFpsOverlay !== false,
+    fps: game.fps || 0,
+    targetFps: game.targetFps || 60,
+    mobile: !!game.dom?.gameStage?.classList?.contains('is-mobile-device')
   };
 }

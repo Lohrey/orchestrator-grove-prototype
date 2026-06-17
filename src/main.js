@@ -1,14 +1,16 @@
 import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, ALLOWED_OPS, formatDslActionWiki, getActionStepChainRows } from './data.js?v=t_action_chain_snippets';
 import { createChatController } from './chat.js?v=20260613-player-tools';
 import { createAudioController } from './audio.js?v=t_3ef6c5ab_menu_polish';
-import { Game } from './world.js?v=t_mobile_controls';
+import { Game } from './world.js?v=t_pixi_worker_wasm';
 import { createSaveGameManager, GAME_MODE_LABELS, normalizeGameMode } from './savegames.js?v=t_777178b3';
 import { createMultiplayerController } from './multiplayer.js?v=t_f62dde4d_modes';
 import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f';
+import { createRenderBackend } from './renderers/index.js?v=t_pixi_worker_wasm';
+import { createSimWorkerClient } from './sim/sim-worker-client.js?v=t_pixi_worker_wasm';
 import { LOCAL_AI_PROVIDERS, buildOllamaRequestBody, buildOpenAiCompatibleRequestBody, defaultOllamaEndpoint, formatOllamaFinalPrompt, getDefaultProviderConfig, normalizeAssistantLoadout, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, summarizeAssistantLoadout, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_step_registry';
 import { escapeHtml } from './utils.js?v=20260613-player-tools';
 
-export function startGame() {
+export async function startGame() {
   const $ = id => document.getElementById(id);
   const dom = {
     canvas: $('game'), gameStage: $('gameStage'), chatLog: $('chatLog'), chatForm: $('chatForm'), chatInput: $('chatInput'), micButton: $('micButton'), asrStatus: $('asrStatus'), quickCommands: $('quickCommands'), drawZoneButton: $('drawZoneButton'),
@@ -367,6 +369,7 @@ export function startGame() {
   }
 
   let game;
+  const params = new URLSearchParams(window.location.search);
   const storedSettings = readJson(SETTINGS_KEY, null);
   const storedPerformanceProfile = storedSettings?.performanceProfile || 'auto';
   const storedAsrMode = storedSettings?.asrMode || storageGet(ASR_MODE_KEY);
@@ -374,7 +377,11 @@ export function startGame() {
   if (dom.templateRouting) dom.templateRouting.checked = typeof storedSettings?.templateRouting === 'boolean' ? storedSettings.templateRouting : storageGet(TEMPLATE_ROUTING_KEY) === 'true';
   syncAsrModeUi();
   const chat = createChatController({ chatInput: dom.chatInput, chatForm: dom.chatForm, micButton: dom.micButton, asrStatus: dom.asrStatus, quickCommands: dom.quickCommands, getAsrMode, onSubmit: text => handleAssistant(text) });
-  game = new Game({ canvas: dom.canvas, chat, dom, isChatActive: () => isChatOpen() });
+  const rendererMode = params.get('renderer') || storedSettings?.rendererMode || 'pixi';
+  const renderBackend = await createRenderBackend({ canvas: dom.canvas, mode: rendererMode });
+  game = new Game({ canvas: dom.canvas, chat, dom, isChatActive: () => isChatOpen(), renderBackend });
+  game.renderer = { text: renderBackend.text || renderBackend.kind || 'Renderer ready', webgpu: false, reason: 'active backend', backend: renderBackend.kind };
+  const simWorker = createSimWorkerClient({ enabled: params.get('simWorker') !== '0' });
   const isMobileControlsDevice = () => {
     const coarse = window.matchMedia?.('(pointer: coarse)').matches;
     const narrow = window.matchMedia?.('(max-width: 780px)').matches;
@@ -397,14 +404,14 @@ export function startGame() {
   game.audio = audio;
   setPerformanceProfileValue(storedPerformanceProfile);
   probeRenderer().then(renderer => {
-    game.renderer = renderer;
+    game.renderer = { ...renderer, text: `${renderBackend.text || 'Renderer'} · ${renderer.text || ''}`.trim(), backend: renderBackend.kind };
     if (storedSettings?.targetFps || storedSettings?.maxBots) {
       syncPerformanceUi('Loaded performance settings from this browser.');
       return;
     }
     applyPerformancePreset(storedPerformanceProfile === 'custom' ? 'auto' : storedPerformanceProfile, { save: true });
   }).catch(err => {
-    game.renderer = { text: 'Canvas 2D fallback', webgpu: false, reason: err.message };
+    game.renderer = { text: `${renderBackend.text || 'Renderer'} · probe failed`, webgpu: false, reason: err.message, backend: renderBackend.kind };
     syncPerformanceUi('Renderer probe failed; using conservative fallback heuristics.');
   });
   const multiplayer = createMultiplayerController({ game, dom, addChat });
@@ -1304,11 +1311,39 @@ export function startGame() {
   window.voiceInputDebug = { applyStreamingTranscript: chat.applyTranscript, insertTextAtChatCursor: chat.insertAtCursor, defaultAsrWsUrl: chat.wsUrl, transcribeUrl: chat.transcribeUrl, getChatSelection: chat.getSelection, getAsrMode };
   window.audioDebug = { controller: audio, play: name => audio.play(name, { cooldownKey: `debug:${name}`, minGapMs: 0 }), startMusic: station => audio.startMusic(station), stopMusic: () => audio.stopMusic(), state: () => ({ enabled: audio.state.enabled, sfxVolume: audio.state.sfxVolume, musicVolume: audio.state.musicVolume, station: audio.state.station, musicPlaying: audio.isMusicPlaying(), stations: Object.keys(audio.stations) }) };
 
+  const simWorkerLabel = () => simWorker.ready ? 'Rust/WASM sim worker ready' : `sim worker ${simWorker.status || 'pending'}`;
+  const emitUiState = () => window.dispatchEvent(new CustomEvent('orchestrator:ui-state', { detail: { renderer: game.renderer?.text || 'renderer pending', simStatus: simWorkerLabel() } }));
+  const liveItems = () => game.getObjectRegistry().filter(entry => entry.kind === 'item');
+  window.simWorkerDebug = {
+    client: simWorker,
+    ping: () => simWorker.ping(),
+    nearestLiveItem: (type = 'log', x = game.player.x, y = game.player.y) => simWorker.nearestItem(liveItems(), { type, x, y }),
+    pathfind: (tx = game.player.x, ty = game.player.y, x = game.player.x, y = game.player.y) => simWorker.pathfind({ x, y, tx, ty }),
+    chunkForPoint: (x = game.player.x, y = game.player.y, chunkSize = 256) => simWorker.chunkForPoint({ x, y, chunkSize }),
+    botTick: (x = game.player.x, y = game.player.y, tx = game.player.x + 10, ty = game.player.y, dt = 0.1, speed = 100, close = 4) => simWorker.botTick({ x, y, tx, ty, dt, speed, close }),
+    status: () => ({ enabled: simWorker.enabled, ready: simWorker.ready, status: simWorker.status, version: simWorker.version })
+  };
+  simWorker.readyPromise?.then(() => {
+    syncPerformanceUi(`Simulation worker ${simWorker.ready ? 'ready' : 'fallback'}: ${simWorker.status}.`);
+    emitUiState();
+  });
+  window.orchestratorUiBridge = {
+    setSettingsOpen,
+    toggleSettings,
+    setSettingsTab,
+    setChatOpen,
+    toggleChat,
+    setRadioWidgetOpen,
+    getRendererLabel: () => game.renderer?.text || 'renderer pending',
+    getSimWorkerStatus: () => simWorkerLabel(),
+    getGameState: () => game.getState()
+  };
+  window.dispatchEvent(new CustomEvent('orchestrator:ui-ready', { detail: window.orchestratorUiBridge }));
+
   window.uiDebug = { toggleSettings, setSettingsOpen, toggleChat, setChatOpen, setSettingsTab, toggleBotDrawer, setBotDrawerOpen, toggleBuildDrawer, setBuildDrawerOpen, toggleZonesDrawer, setZonesDrawerOpen, toggleMultiplayerDrawer, setMultiplayerDrawerOpen, setRadioWidgetOpen, setBuildTab, setFogOfWar: value => { if (dom.fogOfWarToggle) dom.fogOfWarToggle.checked = !!value; game.fogOfWar.enabled = !!value; game._lastFogSignature = ''; saveBrowserSettings(); return game.fogOfWar.enabled; }, setLightingEffects: value => { if (dom.lightingEffects) dom.lightingEffects.checked = !!value; game.lightingEffectsEnabled = !!value; saveBrowserSettings(); return game.lightingEffectsEnabled; }, setDynamicShadows: value => { if (dom.dynamicShadows) dom.dynamicShadows.checked = !!value; game.dynamicShadowsEnabled = !!value; saveBrowserSettings(); return game.dynamicShadowsEnabled; }, setFpsOverlay: value => { if (dom.showFpsOverlay) dom.showFpsOverlay.checked = !!value; game.showFpsOverlay = !!value; saveBrowserSettings(); return game.showFpsOverlay; }, showAssignmentToast, hideAssignmentToast };
 
   addChat('assistant', 'Ready. Desktop: WASD/arrows pan, wheel zooms. Mobile: tap the map to move/select, long-press for context actions, drag-pan, pinch or ＋/－ zoom. Main menu offers Campaign mode, Test mode, Local vs AI, and Online Multiplayer.');
   game.syncBuildUi(); game.syncTeachUi(); game.syncZonesUi?.(); game.syncBotDrawerUi?.(); syncSaveUi();
-  const params = new URLSearchParams(window.location.search);
   if (!params.get('multiplayer')) setMainMenuOpen(true);
   startGameLoop(game);
 }

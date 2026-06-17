@@ -1,6 +1,6 @@
 import { BUILDING_TYPES, PROGRAMS, PROGRAM_TEMPLATES, ALLOWED_OPS, DEFAULT_WORLD_ZONES } from './data.js?v=t_bdae19d0';
-import { drawWorld } from './canvas-renderer.js?v=t_mobile_controls';
-import { createRenderState } from './render-state.js?v=t_1f53483a';
+import { createCanvas2dRenderer } from './renderers/canvas2d-renderer.js?v=t_pixi_worker_wasm';
+import { createRenderState } from './render-state.js?v=t_pixi_worker_wasm';
 import { FOG_CELL_SIZE, createFogOfWar, fogRevealSources as createFogRevealSources, getFogStats, isLightEmittingStructure as isFogLightEmittingStructure, normalizeFogOfWar, revealFogCircle, serializeFogOfWar, structureLightRadius as fogStructureLightRadius, updateFogOfWarState } from './fog-of-war.js?v=t_mobile_controls';
 import { clamp, rand, distXY, nearest, pointInRect, rectDistance, canvasPoint, escapeHtml } from './utils.js?v=20260613-player-tools';
 
@@ -193,8 +193,8 @@ function productionInputCount(s, type) {
 }
 
 export class Game {
-  constructor({ canvas, chat, dom, isChatActive = () => false }) {
-    this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.chat = chat; this.dom = dom; this.isChatActive = isChatActive;
+  constructor({ canvas, chat, dom, isChatActive = () => false, renderBackend = null }) {
+    this.canvas = canvas; this.renderBackend = renderBackend || createCanvas2dRenderer({ canvas }); this.ctx = this.renderBackend.ctx || null; this.chat = chat; this.dom = dom; this.isChatActive = isChatActive;
     this.W = canvas.width; this.H = canvas.height; this.keys = new Set();
     this.map = { ...WORLD_MAP_SIZE };
     this.gameMode = 'test';
@@ -252,6 +252,7 @@ export class Game {
       this.assistant.y = clamp(this.assistant.y, 20, Math.max(20, this.map.height - 20));
     }
     this.clampCamera();
+    this.renderBackend?.resize?.({ width: w, height: h, canvas: this.canvas });
   }
 
   clampCamera() {
@@ -3877,7 +3878,7 @@ export class Game {
   updateUI(dt) { this.dom.sawLogs.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0); this.dom.sawPlanks.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0); if (this.dom.sawPoles) this.dom.sawPoles.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0); this.dom.factoryPlanks.textContent = this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0); if (this.dom.factoryRecipe) this.dom.factoryRecipe.textContent = this.structures.filter(s=>s.type==='factory').map(s=>`L${s.logs||0} P${s.planks||0} Po${s.poles||0} S${s.tree_seeds||0}`).join(' · '); this.dom.looseLogs.textContent = this.countItems('log'); this.dom.loosePlanks.textContent = this.countItems('plank'); if (this.dom.looseBase) this.dom.looseBase.textContent = `sticks ${this.countItems('stick')} · stones ${this.countItems('stone')} · seeds ${this.countItems('tree_seed')} · poles ${this.countItems('pole')} · axes ${this.countItems('crude_axe')} · pickaxes ${this.countItems('crude_pickaxe')} · shovels ${this.countItems('crude_shovel')} · hammers ${this.countItems('crude_hammer')} · swords ${this.countItems('wooden_sword')} · shields ${this.countItems('wooden_shield')}`; if (this.dom.paletteItems) this.dom.paletteItems.textContent = this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0); this.dom.statline.innerHTML = `<span>FPS <b>${this.fps} / ${this.targetFps}</b></span><span>Bots <b>${this.bots.length} / ${this.maxBots}</b></span><span>Buildings <b>${this.structures.length}</b></span><span>Zones <b>${this.zones.length}</b></span>`; this.dom.rendererStatus.textContent = `Renderer: ${this.renderer.text}`; this.lastBotListUpdate += dt; if (this.lastBotListUpdate > .35) { this.lastBotListUpdate=0; this.syncBotDrawerUi(); } }
 
   getRenderState() { return createRenderState(this); }
-  draw() { drawWorld(this.getRenderState(), this.ctx); }
+  draw() { this.renderBackend?.draw?.(this.getRenderState()); }
 
   getHoverState(){ const item = this.mouse.hoverItem; const tree = this.mouse.hoverTree; const hole = this.mouse.hoverHole; return { item: item ? { id: item.id, ref: item.ref, type: item.type, name: itemLabel(item.type), x: Math.round(item.x), y: Math.round(item.y) } : null, tree: tree ? { id: tree.id, ref: tree.ref, name: this.treeDisplayName(tree), x: Math.round(tree.x), y: Math.round(tree.y), hp: tree.hp, maxHp: tree.maxHp, growthStage: tree.growthStage || 'grown_tree', stump: !!tree.stump } : null, hole: hole ? { id: hole.id, ref: hole.ref, name: hole.planted ? 'planted hole' : 'dug hole', x: Math.round(hole.x), y: Math.round(hole.y), planted: !!hole.planted, reservedBy: hole.reservedBy || null } : null, cursor: this.canvas.style.cursor }; }
 

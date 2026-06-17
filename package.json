@@ -6,12 +6,24 @@
   "scripts": {
     "start": "node server.mjs",
     "smoke": "python3 tests/multiplayer-smoke.py",
-    "test:steps": "node tests/action-step-chain-integrity.mjs"
+    "test:steps": "node tests/action-step-chain-integrity.mjs",
+    "build:ui": "vite build",
+    "build:wasm": "cargo build --manifest-path wasm/sim-core/Cargo.toml --release --target wasm32-unknown-unknown && mkdir -p src/sim/wasm && cp wasm/sim-core/target/wasm32-unknown-unknown/release/sim_core.wasm src/sim/wasm/sim_core.wasm",
+    "test:sim-worker": "python3 tests/sim-worker-smoke.py",
+    "test:architecture": "npm run test:steps && python3 tests/sim-worker-smoke.py && python3 tests/architecture-overlay-smoke.py",
+    "build:sim-worker": "esbuild src/sim/sim-worker.ts --bundle --format=esm --outfile=src/sim/sim-worker.js --target=es2022",
+    "build:architecture": "npm run build:wasm && npm run build:sim-worker && npm run build:ui"
   },
   "dependencies": {
     "@socket.io/admin-ui": "^0.5.1",
     "express": "^4.19.2",
     "socket.io": "^4.7.5"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "pixi.js": "^8.19.0",
+    "svelte": "^5.56.3",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  }
 }

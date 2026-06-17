@@ -7,6 +7,7 @@
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="styles.css?v=t_8ab80257" />
   <link rel="stylesheet" href="styles-interactions.css?v=t_mobile_controls" />
+  <link rel="stylesheet" href="ui-overlays/orchestrator-grove-prototype.css?v=t_pixi_worker_wasm" />
 </head>
 <body>
   <main class="shell" aria-label="Orchestrator Grove fullscreen game">
@@ -19,7 +20,8 @@
       </div>
 
       <div class="game-stage" id="gameStage">
-        <canvas id="game" width="960" height="640" aria-label="2D automation game canvas"></canvas>
+        <canvas id="game" width="960" height="640" aria-label="Orchestrator Grove game canvas"></canvas>
+        <div id="svelteOverlayRoot" class="svelte-overlay-root" aria-live="polite"></div>
         <section id="mainMenuOverlay" class="main-menu-overlay" aria-label="Main menu" hidden>
           <div class="main-menu-cinema" aria-hidden="true">
             <span class="menu-mote mote-a"></span>
@@ -617,6 +619,7 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
   <div id="botMenu" class="entity-menu" hidden></div>
   <div id="structureMenu" class="entity-menu" hidden></div>
 
-  <script src="game.js?v=t_mobile_controls"></script>
+  <script type="module" src="ui-overlays/ui-overlays.js?v=t_pixi_worker_wasm"></script>
+  <script src="game.js?v=t_pixi_worker_wasm"></script>
 </body>
 </html>
