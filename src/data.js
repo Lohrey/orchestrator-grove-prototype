@@ -4,7 +4,7 @@ import {
   actionStepChainRows,
   actionStepOpsForPack,
   actionStepWikiActions
-} from './action-steps.js?v=t_action_chain_snippets';
+} from './action-steps.js?v=t_building_kits_0618';
 
 export const PROGRAMS = ['chop_wood', 'mine_stone', 'dig_holes', 'pickup_item', 'plant_trees', 'haul_logs', 'make_planks', 'make_poles', 'haul_planks', 'craft_axes', 'build_bots', 'taught_loop', 'idle'];
 export const ACTION_STEPS = ACTION_STEP_REGISTRY;
@@ -14,14 +14,19 @@ export const ASSISTANT_KNOWLEDGE_PACKS = {
   starter_automation: {
     id: 'starter_automation',
     name: 'Starter Automation',
-    concepts: ['Bots repeat short JSON step loops.', 'Trust user-provided bot names/ids in requests; the game resolves them after JSON validation.', 'Players can save teach-by-doing recordings as named templates and assign them later with assign_template.', 'End repeating work with {"op":"loop"}.', 'The player can act like a one-slot storage building for automation: use deposit_to_player to bring an item to the player, and take_from_player to take one carried item from the player.'],
-    vocabulary: ['bot', 'loop', 'repeat', 'keep doing', 'idle', 'stop', 'player', 'me', 'bring', 'give', 'take from player'],
+    concepts: ['Bots repeat short JSON step loops.', 'Trust user-provided bot names/ids in requests; the game resolves them after JSON validation.', 'Use rename_bot to give the executing bot, or an explicitly targeted bot, a safe display name.', 'Use promote_to_manager to turn a bot into a manager with manager knowledge packs, and delegate_to_manager to send a short instruction to an existing manager bot.', 'Players can save teach-by-doing recordings as named templates and assign them later with assign_template.', 'Building kits are carried items such as sawbench_kit: pick_up a kit, deploy_building_kit to place it, or disassemble_building_to_kit to pack an existing building back into its matching kit.', 'End repeating work with {"op":"loop"}.', 'The player can act like a one-slot storage building for automation: use deposit_to_player to bring an item to the player, and take_from_player to take one carried item from the player.'],
+    vocabulary: ['bot', 'loop', 'repeat', 'keep doing', 'idle', 'stop', 'player', 'me', 'bring', 'give', 'take from player', 'building kit', 'kit', 'deploy', 'disassemble', 'pack up', 'rename', 'name', 'call', 'manager', 'promote', 'delegate'],
     optionalContext: ['availableBotNames', 'availableTemplateNames', 'availableItemTypes', 'currentPlayerInventory'],
     unlockedOps: actionStepOpsForPack('starter_automation'),
     examples: [
       { intent: 'bot 1 pick up logs forever', dsl: { steps: [{ op: 'pick_up', type: 'log' }, { op: 'loop' }] } },
       { intent: 'bot 1 bring log to me', dsl: { steps: [{ op: 'pick_up', type: 'log' }, { op: 'deposit_to_player', type: 'log' }, { op: 'loop' }] } },
       { intent: 'bot 1 take stone from me', dsl: { steps: [{ op: 'take_from_player', type: 'stone' }, { op: 'loop' }] } },
+      { intent: 'bot 1 rename to Lumberjack', dsl: { steps: [{ op: 'rename_bot', name: 'Lumberjack' }, { op: 'loop' }] } },
+      { intent: 'promote bot 1 to manager', dsl: { steps: [{ op: 'promote_to_manager', knowledgePacks: ['starter_automation'] }, { op: 'loop' }] } },
+      { intent: 'delegate to manager Guard: make bot 2 chop trees', dsl: { steps: [{ op: 'delegate_to_manager', recipient: 'Guard', message: 'make bot 2 chop trees' }, { op: 'loop' }] } },
+      { intent: 'bot 1 deploy a sawbench kit here', dsl: { steps: [{ op: 'pick_up', type: 'sawbench_kit' }, { op: 'deploy_building_kit', type: 'sawbench_kit' }, { op: 'loop' }] } },
+      { intent: 'bot 1 disassemble workbench 1 into a kit', dsl: { steps: [{ op: 'disassemble_building_to_kit', target: 'workbench 1' }, { op: 'drop_item', type: 'workbench_kit' }, { op: 'loop' }] } },
       { intent: 'bot 1 assign Bot 2 the Feed sawbench template', dsl: { steps: [{ op: 'assign_template', bot: 2, templateName: 'Feed sawbench' }, { op: 'loop' }] } }
     ]
   },
@@ -68,10 +73,27 @@ export const ASSISTANT_KNOWLEDGE_PACKS = {
     examples: [
       { intent: 'bot 1 mine stone', dsl: { steps: [{ op: 'mine_stone' }, { op: 'loop' }] } }
     ]
+  },
+  combat: {
+    id: 'combat',
+    name: 'Follow + Combat',
+    concepts: ['Bot names/refs can be used as variables for multi-bot follow or attack requests.', 'Use rename_bot for squad-friendly combat labels like Guard or Patrol.', 'Use follow to keep a bot near me/player or another bot.', 'Use guard_area to hold a zone/current post: bots attack hostiles in/near the guard area, then return to the guard center.', 'Use patrol_route with JSON points to cycle checkpoints and interrupt the route to attack nearby threats.', 'Use equip_item only for weaponry (sword, shield, bow); tools/resources are not valid equipment actions.', 'Use craft_smithery for wooden_sword/wooden_shield and craft_bowmaker for bow recipes that already exist in the game.', 'Use attack for hostile targets, monster types, or combat zones. zone:"nearby" creates a moving search radius around each assigned bot; set radius to override, e.g. 500.'],
+    vocabulary: ['rename', 'name', 'call', 'follow', 'escort', 'guard', 'patrol', 'checkpoint', 'route', 'equip', 'weapon', 'sword', 'shield', 'bow', 'smithery', 'bowmaker', 'attack', 'fight', 'kill', 'hunt', 'monster', 'enemy', 'nearby', 'radius'],
+    optionalContext: ['availableBotNames', 'availableMonsterTypes'],
+    unlockedOps: actionStepOpsForPack('combat'),
+    examples: [
+      { intent: 'Bot 1 and Bot 2 follow me', dsl: { steps: [{ op: 'follow', target: 'me' }, { op: 'loop' }] } },
+      { intent: 'Rename bot 2 to Guard', dsl: { steps: [{ op: 'rename_bot', name: 'Guard' }, { op: 'loop' }] } },
+      { intent: 'Bot 1 guard nearby radius 240', dsl: { steps: [{ op: 'guard_area', zone: 'nearby', radius: 240 }, { op: 'loop' }] } },
+      { intent: 'Bot 2 patrol between two checkpoints', dsl: { steps: [{ op: 'patrol_route', points: [{ x: 320, y: 320 }, { x: 480, y: 320 }], radius: 180 }, { op: 'loop' }] } },
+      { intent: 'Bot 3 equip sword', dsl: { steps: [{ op: 'equip_item', type: 'sword' }, { op: 'loop' }] } },
+      { intent: 'Bot 1 craft shield at smithery 1', dsl: { steps: [{ op: 'craft_smithery', recipe: 'shield', target: 'smithery 1' }, { op: 'loop' }] } },
+      { intent: 'Bot 1 attack nearby monsters within 500', dsl: { steps: [{ op: 'attack', type: 'monster', zone: 'nearby', radius: 500 }, { op: 'loop' }] } }
+    ]
   }
 };
 
-export const DEFAULT_ASSISTANT_LOADOUT = ['starter_automation', 'woodworking', 'logistics', 'farming', 'mining_tools'];
+export const DEFAULT_ASSISTANT_LOADOUT = ['starter_automation', 'woodworking', 'logistics', 'farming', 'mining_tools', 'combat'];
 
 export const PROGRAM_TEMPLATES = {
   chop_wood: {
@@ -257,13 +279,21 @@ export const DSL_ACTION_WIKI = {
     dslAssignment: { botId: 1, program: { id: 'custom_loop', name: 'Feed sawbench logs', steps: [{ op: 'pick_up', type: 'log' }, { op: 'deposit_to_structure', type: 'log', structureId: 1 }, { op: 'loop' }] } }
   },
   args: {
-    zone: 'Optional search area. Use {kind:"rect",x,y,w,h}, rect(x,y,w,h), radius(x,y,r), {kind:"radius",centerStructureId,radius}, a zone id/ref, or "$zone" inside templates.',
-    target: 'Structure target. Use numeric structure IDs from Game.objects for sawbench/workbench/factory/palette targets.',
-    type: 'Item/resource type: log, plank, pole, stick, stone, tree_seed, crude_axe, crude_pickaxe, crude_shovel, crude_hammer.',
+    zone: 'Optional search area. Use {kind:"rect",x,y,w,h}, rect(x,y,w,h), radius(x,y,r), {kind:"radius",centerStructureId,radius}, {kind:"nearby",radius}, "nearby"/"nearby 500" for a moving bot-centered radius, a zone id/ref, or "$zone" inside templates.',
+    target: 'Target for actions. Structures use numeric IDs/names. follow accepts me/player or bot name/ref/id. attack accepts hostile target refs/names or may be omitted when using type/zone. rename_bot accepts an optional bot name/ref/id target; omitted means the executing bot.',
+    type: 'Item/resource type for logistics actions: log, plank, pole, stick, stone, tree_seed, crude_axe, crude_pickaxe, crude_shovel, crude_hammer; or hostile target type for attack: monster, night_monster, passive_monster, enemy, throne.',
+    radius: 'Optional numeric radius for radius/nearby zones. For attack zone:"nearby", radius:500 means search 500px around each assigned bot as it moves. For guard_area it controls the guarded radius around the guard center; for patrol_route it controls threat interception range.',
+    points: 'Patrol checkpoints for patrol_route, preferably JSON array [{x,y},{x,y}] or semicolon-separated coordinate pairs like "320,320;480,320".',
+    recipe: 'Crafting recipe for production actions. craft_smithery supports sword/wooden_sword and shield/wooden_shield; craft_bowmaker supports bow.',
+    distance: 'Optional follow spacing in pixels; follow defaults to a small escort distance if omitted.',
     targetKind: 'Generic target for use_held_item: tree, hemp, stone_deposit, dig_spot, dug_hole, structure, or ground. Validation resolves this to the concrete op and keeps knowledge-pack locks.',
     source: 'Optional source structure, usually a sawbench for loose planks/poles near production or an item_palette for storage pickup.',
     goto: 'Zero-based step index used by if_inventory when the bot already holds the required item.',
-    bot: 'Bot id/ref/name to receive a named player-saved template, e.g. 2, bot:2, or Bot 2.',
+    bot: 'Bot id/ref/name to receive a named player-saved template, e.g. 2, bot:2, or Bot 2. For rename_bot/promote_to_manager, bot may also be used as the optional target bot.',
+    name: 'Safe bot display name for rename_bot. Trimmed, control characters stripped, and clamped to 2-32 visible characters.',
+    knowledgePacks: 'Optional manager pack ids for promote_to_manager, e.g. ["starter_automation","woodworking"]. Defaults to the current assistant loadout in UI or starter_automation in runtime.',
+    recipient: 'Manager bot id/ref/name for delegate_to_manager. The recipient must already have status manager.',
+    message: 'Short text instruction for delegate_to_manager. It is sanitized and routed through the manager LLM prompt with that manager’s known packs.',
     templateName: 'Exact name of a template saved in the Templates drawer from a teach-by-doing recording.'
   },
   actions: actionStepWikiActions(),
@@ -273,9 +303,14 @@ export const DSL_ACTION_WIKI = {
     { name: 'Pick up planks from a rectangle', steps: [{ op: 'if_inventory', type: 'plank', goto: 4 }, { op: 'find_item', type: 'plank', zone: { kind: 'rect', x: 100, y: 200, w: 80, h: 60 } }, { op: 'move_to_target' }, { op: 'pick_up_specific', type: 'plank' }, { op: 'loop' }] },
     { name: 'Bring item to player', steps: [{ op: 'pick_up', type: 'log' }, { op: 'deposit_to_player', type: 'log' }, { op: 'loop' }] },
     { name: 'Take item from player', steps: [{ op: 'take_from_player', type: 'stone' }, { op: 'loop' }] },
+    { name: 'Rename bot', steps: [{ op: 'rename_bot', name: 'Lumberjack' }, { op: 'loop' }] },
+    { name: 'Promote manager', steps: [{ op: 'promote_to_manager', knowledgePacks: ['starter_automation'] }, { op: 'loop' }] },
+    { name: 'Delegate to manager', steps: [{ op: 'delegate_to_manager', recipient: 'Guard', message: 'make bot 2 chop trees' }, { op: 'loop' }] },
     { name: 'Assign saved template to another bot', steps: [{ op: 'assign_template', bot: 2, templateName: 'Feed sawbench' }, { op: 'loop' }] },
     { name: 'Plant trees in holes', steps: PROGRAM_TEMPLATES.plant_trees.steps },
-    { name: 'Search hemp for seeds', steps: [{ op: 'find_hemp', zone: '$zone' }, { op: 'move_to_target' }, { op: 'search_hemp' }, { op: 'loop' }] }
+    { name: 'Search hemp for seeds', steps: [{ op: 'find_hemp', zone: '$zone' }, { op: 'move_to_target' }, { op: 'search_hemp' }, { op: 'loop' }] },
+    { name: 'Follow player', steps: [{ op: 'follow', target: 'me' }, { op: 'loop' }] },
+    { name: 'Attack nearby monsters', steps: [{ op: 'attack', type: 'monster', zone: 'nearby', radius: 500 }, { op: 'loop' }] }
   ]
 };
 

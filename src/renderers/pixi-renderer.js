@@ -1,4 +1,4 @@
-import { drawWorld } from '../canvas-renderer.js?v=t_pixi_worker_wasm';
+import { drawWorld } from '../canvas-renderer.js?v=t_building_kits_0618';
 
 export async function createPixiRenderer({ canvas }) {
   const PIXI = await import('../../vendor/pixi/pixi.mjs');

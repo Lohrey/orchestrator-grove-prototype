@@ -1,13 +1,13 @@
-import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, ALLOWED_OPS, formatDslActionWiki, getActionStepChainRows } from './data.js?v=t_action_chain_snippets';
+import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, ALLOWED_OPS, formatDslActionWiki, getActionStepChainRows } from './data.js?v=t_building_kits_0618';
 import { createChatController } from './chat.js?v=20260613-player-tools';
 import { createAudioController } from './audio.js?v=t_3ef6c5ab_menu_polish';
-import { Game } from './world.js?v=t_pixi_worker_wasm';
+import { Game } from './world.js?v=t_building_kits_0618';
 import { createSaveGameManager, GAME_MODE_LABELS, normalizeGameMode } from './savegames.js?v=t_777178b3';
 import { createMultiplayerController } from './multiplayer.js?v=t_f62dde4d_modes';
 import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f';
-import { createRenderBackend } from './renderers/index.js?v=t_pixi_worker_wasm';
-import { createSimWorkerClient } from './sim/sim-worker-client.js?v=t_pixi_worker_wasm';
-import { LOCAL_AI_PROVIDERS, buildOllamaRequestBody, buildOpenAiCompatibleRequestBody, defaultOllamaEndpoint, formatOllamaFinalPrompt, getDefaultProviderConfig, normalizeAssistantLoadout, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, summarizeAssistantLoadout, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_step_registry';
+import { createRenderBackend } from './renderers/index.js?v=t_building_kits_0618';
+import { createSimWorkerClient } from './sim/sim-worker-client.js?v=t_building_kits_0618';
+import { LOCAL_AI_PROVIDERS, buildOllamaRequestBody, buildOpenAiCompatibleRequestBody, defaultOllamaEndpoint, formatOllamaFinalPrompt, getDefaultProviderConfig, normalizeAssistantLoadout, normalizeAssistantKnowledgePack, normalizeAssistantPackCatalog, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, summarizeAssistantLoadout, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_building_kits_0618';
 import { escapeHtml } from './utils.js?v=20260613-player-tools';
 
 export async function startGame() {
@@ -25,9 +25,9 @@ export async function startGame() {
     mainMenuOverlay: $('mainMenuOverlay'), mainMenuCampaignBtn: $('mainMenuCampaignBtn'), mainMenuNewBtn: $('mainMenuNewBtn'), mainMenuModeChoices: $('mainMenuModeChoices'), mainMenuModeLayer: $('mainMenuModeLayer'), mainMenuOnlineLayer: $('mainMenuOnlineLayer'), mainMenuHostLayer: $('mainMenuHostLayer'), mainMenuStartSelectedBtn: $('mainMenuStartSelectedBtn'), mainMenuLoadBtn: $('mainMenuLoadBtn'), mainMenuBackBtn: $('mainMenuBackBtn'), mainMenuLocalAiBtn: $('mainMenuLocalAiBtn'), mainMenuHostBtn: $('mainMenuHostBtn'), mainMenuOnlineHostBtn: $('mainMenuOnlineHostBtn'), mainMenuOnlineBackBtn: $('mainMenuOnlineBackBtn'), mainMenuHostNewBtn: $('mainMenuHostNewBtn'), mainMenuHostLoadBtn: $('mainMenuHostLoadBtn'), mainMenuHostBackBtn: $('mainMenuHostBackBtn'), mainMenuJoinCode: $('mainMenuJoinCode'), mainMenuJoinBtn: $('mainMenuJoinBtn'), mainMenuStatus: $('mainMenuStatus'),
     campaignIntroOverlay: $('campaignIntroOverlay'), campaignIntroKicker: $('campaignIntroKicker'), campaignIntroTitle: $('campaignIntroTitle'), campaignIntroText: $('campaignIntroText'), campaignIntroSceneNo: $('campaignIntroSceneNo'), campaignIntroNextBtn: $('campaignIntroNextBtn'), campaignIntroSkipBtn: $('campaignIntroSkipBtn'),
     resumeGameBtn: $('resumeGameBtn'), pauseGameBtn: $('pauseGameBtn'), saveGameBtn: $('saveGameBtn'), loadGameBtn: $('loadGameBtn'), quitToMainMenuBtn: $('quitToMainMenuBtn'), quitSavePrompt: $('quitSavePrompt'), saveAndQuitBtn: $('saveAndQuitBtn'), quitWithoutSaveBtn: $('quitWithoutSaveBtn'), cancelQuitBtn: $('cancelQuitBtn'), saveGameStatus: $('saveGameStatus'), saveSlotSelect: $('saveSlotSelect'), saveSlotName: $('saveSlotName'), saveName: $('saveName'), saveEntrySelect: $('saveEntrySelect'), renameSlotBtn: $('renameSlotBtn'), deleteSlotBtn: $('deleteSlotBtn'), renameSaveBtn: $('renameSaveBtn'), deleteSaveBtn: $('deleteSaveBtn'), deleteKeepCount: $('deleteKeepCount'), deleteOldSavesBtn: $('deleteOldSavesBtn'),
-    knowledgePackList: $('knowledgePackList'), knowledgePackStatus: $('knowledgePackStatus'), assistantLoadoutView: $('assistantLoadoutView'), assistantBasePromptView: $('assistantBasePromptView'), assistantPromptPreview: $('assistantPromptPreview'), resetKnowledgePacks: $('resetKnowledgePacks'), actionStepChainTable: $('actionStepChainTable'),
+    knowledgePackList: $('knowledgePackList'), knowledgePackStatus: $('knowledgePackStatus'), assistantLoadoutView: $('assistantLoadoutView'), assistantBasePromptView: $('assistantBasePromptView'), assistantPromptPreview: $('assistantPromptPreview'), resetKnowledgePacks: $('resetKnowledgePacks'), actionStepChainTable: $('actionStepChainTable'), customPackId: $('customPackId'), customPackName: $('customPackName'), customPackContextVariables: $('customPackContextVariables'), customPackConcepts: $('customPackConcepts'), customPackVocabulary: $('customPackVocabulary'), customPackExamples: $('customPackExamples'), customPackActionList: $('customPackActionList'), saveCustomPack: $('saveCustomPack'), clearCustomPackForm: $('clearCustomPackForm'),
     audioSfxToggle: $('audioSfxToggle'), audioSfxVolume: $('audioSfxVolume'), audioSfxTest: $('audioSfxTest'),
-    widgetRoster: $('widgetRoster'), radioWidgetToggle: $('radioWidgetToggle'), radioWidgetPanel: $('radioWidgetPanel'), radioStationButtons: $('radioStationButtons'), audioMusicStart: $('radioMusicStart'), audioMusicStop: $('radioMusicStop'), audioMusicVolume: $('radioMusicVolume'), audioMusicStatus: $('radioMusicStatus'),
+    widgetRoster: $('widgetRoster'), widgetRosterHandle: $('widgetRosterHandle'), radioWidgetToggle: $('radioWidgetToggle'), radioWidgetPanel: $('radioWidgetPanel'), radioStationButtons: $('radioStationButtons'), audioMusicStart: $('radioMusicStart'), audioMusicStop: $('radioMusicStop'), audioMusicVolume: $('radioMusicVolume'), audioMusicStatus: $('radioMusicStatus'),
     mobileControls: $('mobileControls'), mobileSettingsBtn: $('mobileSettingsBtn'), mobileBuildBtn: $('mobileBuildBtn'), mobileChatBtn: $('mobileChatBtn'), mobileInteractBtn: $('mobileInteractBtn'), mobileDropBtn: $('mobileDropBtn'), mobileZoomInBtn: $('mobileZoomInBtn'), mobileZoomOutBtn: $('mobileZoomOutBtn')
   };
 
@@ -71,6 +71,7 @@ export async function startGame() {
   const ASR_MODE_KEY = 'orchestratorGrove.asrMode';
   const TEMPLATE_ROUTING_KEY = 'orchestratorGrove.templateRoutingEnabled';
   const ASSISTANT_LOADOUT_KEY = 'orchestratorGrove.assistantLoadout.v1';
+  const CUSTOM_ACTION_PACKS_KEY = 'orchestratorGrove.customActionPacks.v1';
   const SETTINGS_KEY = 'orchestratorGrove.settings.v1';
   const SAVE_KEY = 'orchestratorGrove.save.v1';
   const SAVE_LIBRARY_KEY = 'orchestratorGrove.saveLibrary.v2';
@@ -246,16 +247,50 @@ export async function startGame() {
     updateAssistantPromptPreview();
     saveBrowserSettings();
   }
+  function splitPackText(value) {
+    if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean);
+    return String(value || '').split(/[\n,]+/).map(item => item.trim()).filter(Boolean);
+  }
+  function packIdFromName(name = '') {
+    return `custom_${String(name || 'action_pack').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48) || 'action_pack'}`;
+  }
+  function readCustomActionPacks() {
+    const raw = storageGet(CUSTOM_ACTION_PACKS_KEY);
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      const entries = Array.isArray(parsed) ? parsed : Object.values(parsed || {});
+      return Object.fromEntries(entries
+        .map(pack => normalizeAssistantKnowledgePack({ ...pack, custom: true }))
+        .filter(pack => pack.id && !ASSISTANT_KNOWLEDGE_PACKS[pack.id])
+        .map(pack => [pack.id, pack]));
+    } catch {
+      return {};
+    }
+  }
+  let customActionPacks = readCustomActionPacks();
+  function getActionPackCatalog() {
+    return normalizeAssistantPackCatalog({ ...ASSISTANT_KNOWLEDGE_PACKS, ...customActionPacks });
+  }
+  function persistCustomActionPacks(message = 'Custom action packs saved to this browser.') {
+    const ok = storageSet(CUSTOM_ACTION_PACKS_KEY, JSON.stringify(Object.values(customActionPacks)));
+    assistantLoadout = normalizeAssistantLoadout(assistantLoadout, getActionPackCatalog());
+    storageSet(ASSISTANT_LOADOUT_KEY, JSON.stringify(assistantLoadout));
+    renderKnowledgePackSelector(ok ? message : 'Custom action pack changed, but browser storage is unavailable.');
+    game?.setManagerKnowledgePackCatalog?.(getActionPackCatalog());
+    return customActionPacks;
+  }
   function readAssistantLoadout() {
     const raw = storageGet(ASSISTANT_LOADOUT_KEY);
-    if (!raw) return normalizeAssistantLoadout(DEFAULT_ASSISTANT_LOADOUT);
-    try { return normalizeAssistantLoadout(JSON.parse(raw)); }
-    catch { return normalizeAssistantLoadout(DEFAULT_ASSISTANT_LOADOUT); }
+    if (!raw) return normalizeAssistantLoadout(DEFAULT_ASSISTANT_LOADOUT, getActionPackCatalog());
+    try { return normalizeAssistantLoadout(JSON.parse(raw), getActionPackCatalog()); }
+    catch { return normalizeAssistantLoadout(DEFAULT_ASSISTANT_LOADOUT, getActionPackCatalog()); }
   }
   let assistantLoadout = readAssistantLoadout();
   const getAssistantLoadout = () => assistantLoadout.slice();
   function getAssistantLoadoutDebug() {
-    const summary = summarizeAssistantLoadout(assistantLoadout);
+    const catalog = getActionPackCatalog();
+    const summary = summarizeAssistantLoadout(assistantLoadout, catalog);
     return {
       selectedPackIds: summary.ids,
       selectedPackNames: summary.names,
@@ -263,10 +298,7 @@ export async function startGame() {
       optionalContext: summary.optionalContext,
       vocabulary: summary.vocabulary,
       concepts: summary.concepts,
-      packs: summary.ids.map(id => {
-        const pack = ASSISTANT_KNOWLEDGE_PACKS[id];
-        return { id: pack.id, name: pack.name, concepts: pack.concepts, vocabulary: pack.vocabulary, optionalContext: pack.optionalContext || [], unlockedOps: pack.unlockedOps };
-      })
+      packs: summary.packs
     };
   }
   function updateAssistantPromptPreview() {
@@ -277,9 +309,10 @@ export async function startGame() {
     }
     const requestText = (dom.chatInput?.value || '').trim() || '[current user request will appear here]';
     const { provider, model } = getCurrentLocalAiConfig();
+    const knowledgePacks = getActionPackCatalog();
     const { prompt } = provider === 'tabbyapi'
-      ? buildOpenAiCompatibleRequestBody(requestText, game, { model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), temperature: 0.1 })
-      : buildOllamaRequestBody(requestText, game, { model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() });
+      ? buildOpenAiCompatibleRequestBody(requestText, game, { model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), knowledgePacks, temperature: 0.1 })
+      : buildOllamaRequestBody(requestText, game, { model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), knowledgePacks });
     if (dom.assistantBasePromptView) dom.assistantBasePromptView.textContent = prompt.systemPrompt;
     if (dom.assistantLoadoutView) dom.assistantLoadoutView.textContent = JSON.stringify(prompt.knowledge, null, 2);
     dom.assistantPromptPreview.textContent = prompt.finalPrompt;
@@ -289,22 +322,82 @@ export async function startGame() {
     const debug = getAssistantLoadoutDebug();
     if (dom.assistantLoadoutView && !game) dom.assistantLoadoutView.textContent = JSON.stringify(debug, null, 2);
     updateAssistantPromptPreview();
-    if (dom.knowledgePackStatus) dom.knowledgePackStatus.textContent = message || `${debug.selectedPackIds.length} knowledge pack(s) equipped · ${debug.unlockedOps.length} DSL op(s) unlocked.`;
+    if (dom.knowledgePackStatus) dom.knowledgePackStatus.textContent = message || `${debug.selectedPackIds.length} knowledge/action pack(s) equipped · ${debug.unlockedOps.length} DSL op(s) unlocked.`;
     return debug;
+  }
+  function renderCustomPackActionSelector(selectedOps = []) {
+    if (!dom.customPackActionList) return;
+    const selected = new Set(selectedOps);
+    const rows = getActionStepChainRows();
+    dom.customPackActionList.innerHTML = rows.map(row => `
+      <label class="checkline" title="${escapeHtml(row.description || row.promptSignature || row.op)}">
+        <input type="checkbox" data-action-pack-op="${escapeHtml(row.op)}" ${selected.has(row.op) ? 'checked' : ''} />
+        <span><b>${escapeHtml(row.label)}</b> <code>${escapeHtml(row.op)}</code><br><small>${escapeHtml((row.args || []).length ? `args: ${row.args.join(', ')}` : 'no args')}</small></span>
+      </label>
+    `).join('');
+  }
+  function clearCustomPackForm(pack = {}) {
+    if (dom.customPackId) dom.customPackId.value = pack.id || '';
+    if (dom.customPackName) dom.customPackName.value = pack.name || '';
+    if (dom.customPackContextVariables) dom.customPackContextVariables.value = (pack.contextVariables || pack.optionalContext || []).join('\n');
+    if (dom.customPackConcepts) dom.customPackConcepts.value = (pack.concepts || []).join('\n');
+    if (dom.customPackVocabulary) dom.customPackVocabulary.value = (pack.vocabulary || []).join('\n');
+    if (dom.customPackExamples) dom.customPackExamples.value = Array.isArray(pack.examples) ? pack.examples.map(example => typeof example === 'string' ? example : JSON.stringify(example)).join('\n') : '';
+    renderCustomPackActionSelector(pack.unlockedOps || []);
+  }
+  function readCustomPackForm() {
+    const name = String(dom.customPackName?.value || '').trim();
+    const rawId = String(dom.customPackId?.value || '').trim();
+    const id = (rawId || packIdFromName(name)).toLowerCase().replace(/[^a-z0-9_:-]/g, '_');
+    const unlockedOps = [...(dom.customPackActionList?.querySelectorAll('[data-action-pack-op]:checked') || [])].map(input => input.dataset.actionPackOp);
+    return normalizeAssistantKnowledgePack({
+      id,
+      name: name || id,
+      custom: true,
+      unlockedOps,
+      contextVariables: splitPackText(dom.customPackContextVariables?.value || ''),
+      concepts: splitPackText(dom.customPackConcepts?.value || ''),
+      vocabulary: splitPackText(dom.customPackVocabulary?.value || ''),
+      examples: splitPackText(dom.customPackExamples?.value || '')
+    });
+  }
+  function upsertCustomActionPack(input) {
+    const rawId = input.id || packIdFromName(input.name);
+    const id = String(rawId || '').toLowerCase().replace(/[^a-z0-9_:-]/g, '_');
+    const pack = normalizeAssistantKnowledgePack({ ...input, custom: true, id });
+    if (!pack.id) throw new Error('Custom action pack needs an id or name.');
+    if (ASSISTANT_KNOWLEDGE_PACKS[pack.id]) throw new Error(`Custom action pack id ${pack.id} conflicts with a built-in pack.`);
+    if (!pack.unlockedOps.length) throw new Error('Select at least one valid action step for the custom pack.');
+    customActionPacks = { ...customActionPacks, [pack.id]: pack };
+    persistCustomActionPacks(`Saved custom action pack ${pack.name}.`);
+    return pack;
+  }
+  function deleteCustomActionPack(id) {
+    if (!customActionPacks[id]) return false;
+    const { [id]: _removed, ...rest } = customActionPacks;
+    customActionPacks = rest;
+    assistantLoadout = assistantLoadout.filter(packId => packId !== id);
+    persistCustomActionPacks(`Deleted custom action pack ${id}.`);
+    clearCustomPackForm();
+    return true;
   }
   function renderKnowledgePackSelector(message = '') {
     if (!dom.knowledgePackList) return updateAssistantLoadoutDebug(message);
+    if (dom.customPackActionList && !dom.customPackActionList.children.length) renderCustomPackActionSelector();
     const selected = new Set(assistantLoadout);
-    dom.knowledgePackList.innerHTML = Object.values(ASSISTANT_KNOWLEDGE_PACKS).map(pack => `
-      <article class="knowledge-pack-card">
+    const catalog = getActionPackCatalog();
+    dom.knowledgePackList.innerHTML = Object.values(catalog).map(pack => `
+      <article class="knowledge-pack-card" data-knowledge-card="${escapeHtml(pack.id)}">
         <label class="checkline knowledge-pack-title">
           <input type="checkbox" data-knowledge-pack="${escapeHtml(pack.id)}" ${selected.has(pack.id) ? 'checked' : ''} />
-          <span><b>${escapeHtml(pack.name)}</b> <code>${escapeHtml(pack.id)}</code></span>
+          <span><b>${escapeHtml(pack.name)}</b> <code>${escapeHtml(pack.id)}</code> <span class="knowledge-pack-kind">${pack.custom ? 'custom action pack' : 'built-in'}</span></span>
         </label>
-        <p class="small"><b>Concepts:</b> ${escapeHtml(pack.concepts.join(' · '))}</p>
-        <p class="small"><b>Vocabulary:</b> ${escapeHtml(pack.vocabulary.join(', '))}</p>
-        <p class="small"><b>Optional runtime context:</b> ${escapeHtml((pack.optionalContext || []).join(', ') || 'none')}</p>
+        <p class="small"><b>Concepts:</b> ${escapeHtml((pack.concepts || []).join(' · '))}</p>
+        <p class="small"><b>Vocabulary:</b> ${escapeHtml((pack.vocabulary || []).join(', '))}</p>
+        <p class="small"><b>Context variables:</b> ${escapeHtml((pack.contextVariables || pack.optionalContext || []).join(', ') || 'none')}</p>
         <p class="small"><b>Ops:</b> ${pack.unlockedOps.map(op => `<code>${escapeHtml(op)}</code>`).join(' ')}</p>
+        <p class="small"><b>Injected action details:</b> ${(pack.actions || []).map(action => `<code>${escapeHtml(`${action.op} ${action.dslSnippet}`)}</code>`).join(' ')}</p>
+        ${pack.custom ? `<div class="knowledge-pack-actions"><button type="button" data-edit-custom-pack="${escapeHtml(pack.id)}">Edit</button><button type="button" data-delete-custom-pack="${escapeHtml(pack.id)}">Delete</button></div>` : ''}
       </article>
     `).join('');
     return updateAssistantLoadoutDebug(message);
@@ -351,9 +444,10 @@ export async function startGame() {
     return rows;
   }
   function persistAssistantLoadout(nextLoadout) {
-    assistantLoadout = normalizeAssistantLoadout(nextLoadout);
+    assistantLoadout = normalizeAssistantLoadout(nextLoadout, getActionPackCatalog());
     const ok = storageSet(ASSISTANT_LOADOUT_KEY, JSON.stringify(assistantLoadout));
     renderKnowledgePackSelector(ok ? 'Knowledge pack loadout saved to this browser.' : 'Knowledge pack loadout changed, but browser storage is unavailable.');
+    game?.setManagerKnowledgePackCatalog?.(getActionPackCatalog());
     return assistantLoadout;
   }
   const getAsrMode = () => (ASR_MODES[dom.asrMode?.value] ? dom.asrMode.value : 'zipformer_whisper');
@@ -380,6 +474,9 @@ export async function startGame() {
   const rendererMode = params.get('renderer') || storedSettings?.rendererMode || 'pixi';
   const renderBackend = await createRenderBackend({ canvas: dom.canvas, mode: rendererMode });
   game = new Game({ canvas: dom.canvas, chat, dom, isChatActive: () => isChatOpen(), renderBackend });
+  game.setManagerKnowledgePackCatalog(getActionPackCatalog());
+  game.getDefaultManagerKnowledgePacks = () => getAssistantLoadout();
+  game.managerMessageHandler = ({ manager, sender, message }) => handleManagerMessage(manager, message, { source: 'delegate_to_manager', sender });
   game.renderer = { text: renderBackend.text || renderBackend.kind || 'Renderer ready', webgpu: false, reason: 'active backend', backend: renderBackend.kind };
   const simWorker = createSimWorkerClient({ enabled: params.get('simWorker') !== '0' });
   const isMobileControlsDevice = () => {
@@ -873,10 +970,12 @@ export async function startGame() {
     return `<details class="raw-llm-response"><summary>Raw model response</summary><pre><code>${escapeHtml(rawText)}</code></pre></details>`;
   }
   function handleParsed(parsed) {
+    const results = [];
     if (parsed.meta) dom.ollamaStatus.textContent = parsed.meta;
-    if (parsed.help) return addChat('assistant', `${parsed.meta ? escapeHtml(parsed.meta) : `Available: ${PROGRAMS.map(p => `<code>${p}</code>`).join(', ')}. Click bots to inspect DSL. Right-click buildings to add their name to chat.`}${rawModelResponseDetailsHtml(parsed)}`);
+    if (parsed.help) { addChat('assistant', `${parsed.meta ? escapeHtml(parsed.meta) : `Available: ${PROGRAMS.map(p => `<code>${p}</code>`).join(', ')}. Click bots to inspect DSL. Right-click buildings to add their name to chat.`}${rawModelResponseDetailsHtml(parsed)}`); return results; }
     for (const assignment of parsed.dslAssignments || []) {
       const res = game.assignCustomDslProgram(assignment);
+      results.push({ type: 'dsl', assignment, result: res });
       if (!res.ok) {
         addChat('error', escapeHtml(res.error));
         continue;
@@ -887,6 +986,7 @@ export async function startGame() {
     }
     for (const assignment of parsed.templateAssignments || []) {
       const res = game.assignTemplateToBot(assignment.arguments.botId, assignment.arguments.templateName, assignment.arguments);
+      results.push({ type: 'template', assignment, result: res });
       if (!res.ok) {
         addChat('error', escapeHtml(res.error));
         continue;
@@ -897,6 +997,7 @@ export async function startGame() {
     }
     for (const call of parsed.calls || []) {
       const res = game.assignBotProgram(call.arguments);
+      results.push({ type: 'tool_call', call, result: res });
       if (!res.ok) {
         addChat('error', escapeHtml(res.error));
         continue;
@@ -909,6 +1010,7 @@ export async function startGame() {
       addChat('assistant', message);
       showAssignmentToast(message);
     }
+    return results;
   }
 
   async function handleAssistant(text) {
@@ -916,16 +1018,42 @@ export async function startGame() {
     if (dom.llmMode.value === 'ollama' || dom.llmMode.value === 'tabbyapi') {
       const { provider, endpoint, model } = getCurrentLocalAiConfig();
       const parsed = provider === 'tabbyapi'
-        ? await parseWithOpenAiCompatible(text, game, { endpoint, model, providerLabel: LOCAL_AI_PROVIDERS.tabbyapi.backendLabel, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() })
-        : await parseWithOllama(text, game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() });
+        ? await parseWithOpenAiCompatible(text, game, { endpoint, model, providerLabel: LOCAL_AI_PROVIDERS.tabbyapi.backendLabel, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() })
+        : await parseWithOllama(text, game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
       const { debug, ...parsedForLog } = parsed;
       logChatAi({ mode: provider === 'tabbyapi' ? LOCAL_AI_PROVIDERS.tabbyapi.backendLabel : 'ollama', sent: debug?.sent || { endpoint, model, text, loadout: getAssistantLoadout() }, returned: debug?.returned || parsedForLog });
-      handleParsed(parsed);
+      return handleParsed(parsed);
     } else {
-      const parsed = parseAssistantRequest(text, game, { enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() });
+      const parsed = parseAssistantRequest(text, game, { enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
       logChatAi({ mode: 'mock parser', sent: { text, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() }, returned: parsed });
-      handleParsed(parsed);
+      return handleParsed(parsed);
     }
+  }
+
+  async function handleManagerMessage(managerRef, message, { source = 'manual', sender = null } = {}) {
+    const manager = typeof managerRef === 'object' ? managerRef : game.resolveBotReference(managerRef);
+    if (!manager) return { ok: false, error: `Manager ${managerRef} not found` };
+    if (!game.isManagerBot?.(manager)) return { ok: false, error: `${game.botDisplayName(manager)} is not a manager` };
+    const clean = game.sanitizeManagerMessage?.(message) || String(message || '').trim();
+    if (!clean) return { ok: false, error: 'Manager message is empty' };
+    const loadout = game.normalizeManagerKnowledgePacks(manager.managerKnowledgePacks || manager.knowledgePacks || [], ['starter_automation']);
+    const managerText = `Manager ${game.botDisplayName(manager)} (${manager.ref}, status manager) received a delegation from ${sender ? game.botDisplayName(sender) : source}: ${clean}`;
+    addChat('user', `<b>${escapeHtml(game.botDisplayName(manager))} manager:</b> ${escapeHtml(clean)}`);
+    let parsed;
+    if (dom.llmMode.value === 'ollama' || dom.llmMode.value === 'tabbyapi') {
+      const { provider, endpoint, model } = getCurrentLocalAiConfig();
+      parsed = provider === 'tabbyapi'
+        ? await parseWithOpenAiCompatible(managerText, game, { endpoint, model, providerLabel: `${LOCAL_AI_PROVIDERS.tabbyapi.backendLabel} manager`, enableTemplates: getTemplateRoutingEnabled(), loadout, knowledgePacks: getActionPackCatalog() })
+        : await parseWithOllama(managerText, game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout, knowledgePacks: getActionPackCatalog() });
+      const { debug, ...parsedForLog } = parsed;
+      logChatAi({ mode: provider === 'tabbyapi' ? `${LOCAL_AI_PROVIDERS.tabbyapi.backendLabel} manager` : 'ollama manager', sent: debug?.sent || { endpoint, model, text: managerText, loadout }, returned: debug?.returned || parsedForLog });
+    } else {
+      parsed = parseAssistantRequest(managerText, game, { enableTemplates: getTemplateRoutingEnabled(), loadout, knowledgePacks: getActionPackCatalog() });
+      logChatAi({ mode: 'mock manager parser', sent: { text: managerText, loadout, managerBotId: manager.id }, returned: parsed });
+    }
+    const results = handleParsed(parsed);
+    manager.lastManagerMessage = { text: clean, source, at: Date.now(), loadout };
+    return { ok: true, managerId: manager.id, loadout, parsed, results };
   }
 
   function setRadioWidgetOpen(open) {
@@ -933,6 +1061,13 @@ export async function startGame() {
     dom.radioWidgetPanel.hidden = !open;
     dom.radioWidgetToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     dom.widgetRoster?.classList.toggle('has-open-widget', open);
+    dom.widgetRosterHandle?.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) setWidgetRosterOpen(true);
+  }
+
+  function setWidgetRosterOpen(open) {
+    dom.widgetRoster?.classList.toggle('is-roster-open', !!open);
+    dom.widgetRosterHandle?.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
   function syncAudioUi(message = '') {
@@ -966,9 +1101,17 @@ export async function startGame() {
     dom.audioSfxToggle?.addEventListener('change', () => syncAudioUi(audio.setSfxEnabled(dom.audioSfxToggle.checked) ? 'Sound effects enabled.' : 'Sound effects muted.'));
     dom.audioSfxVolume?.addEventListener('input', () => { audio.setSfxVolume(dom.audioSfxVolume.value); syncAudioUi(); });
     dom.audioSfxTest?.addEventListener('click', () => { audio.play('craft_done', { cooldownKey: 'ui_test', minGapMs: 0 }); syncAudioUi('Played generated test chime.'); });
+    const openWidgetRoster = event => {
+      event?.preventDefault?.();
+      setWidgetRosterOpen(true);
+    };
+    dom.widgetRosterHandle?.addEventListener('pointerenter', openWidgetRoster);
+    dom.widgetRosterHandle?.addEventListener('pointerdown', openWidgetRoster);
+    dom.widgetRosterHandle?.addEventListener('click', openWidgetRoster);
+    dom.widgetRoster?.addEventListener('pointerenter', () => setWidgetRosterOpen(true));
     dom.radioWidgetToggle?.addEventListener('mouseenter', () => audio.play('ui_hover', { cooldownKey: 'radio:hover-toggle', minGapMs: 140 }));
     dom.radioWidgetToggle?.addEventListener('click', () => { audio.play('ui_click', { cooldownKey: 'radio:toggle', minGapMs: 0 }); setRadioWidgetOpen(dom.radioWidgetPanel?.hidden !== false); });
-    dom.widgetRoster?.addEventListener('mouseleave', () => { if (dom.radioWidgetPanel?.hidden) audio.play('ui_hover', { cooldownKey: 'radio:hover-roster', minGapMs: 260 }); });
+    dom.widgetRoster?.addEventListener('mouseleave', () => { if (dom.radioWidgetPanel?.hidden) { setWidgetRosterOpen(false); audio.play('ui_hover', { cooldownKey: 'radio:hover-roster', minGapMs: 260 }); } });
     dom.radioStationButtons?.addEventListener('mouseover', e => { if (e.target.closest('[data-radio-station]')) audio.play('ui_hover', { cooldownKey: 'radio:hover-station', minGapMs: 120 }); });
     dom.radioStationButtons?.addEventListener('click', async e => {
       const button = e.target.closest('[data-radio-station]');
@@ -1121,6 +1264,26 @@ export async function startGame() {
     const ids = [...dom.knowledgePackList.querySelectorAll('[data-knowledge-pack]:checked')].map(input => input.dataset.knowledgePack);
     persistAssistantLoadout(ids);
   });
+  dom.knowledgePackList?.addEventListener('click', e => {
+    const edit = e.target.closest('[data-edit-custom-pack]');
+    if (edit) {
+      const pack = customActionPacks[edit.dataset.editCustomPack];
+      if (pack) clearCustomPackForm(pack);
+      return;
+    }
+    const del = e.target.closest('[data-delete-custom-pack]');
+    if (del) deleteCustomActionPack(del.dataset.deleteCustomPack);
+  });
+  dom.saveCustomPack?.addEventListener('click', () => {
+    try {
+      const pack = upsertCustomActionPack(readCustomPackForm());
+      if (!assistantLoadout.includes(pack.id)) persistAssistantLoadout([...assistantLoadout, pack.id]);
+      clearCustomPackForm(pack);
+    } catch (err) {
+      if (dom.knowledgePackStatus) dom.knowledgePackStatus.textContent = err.message;
+    }
+  });
+  dom.clearCustomPackForm?.addEventListener('click', () => clearCustomPackForm());
   dom.resetKnowledgePacks?.addEventListener('click', () => persistAssistantLoadout(DEFAULT_ASSISTANT_LOADOUT));
   dom.serverOllamaBtn?.addEventListener('click', () => {
     const serverProxy = location.hostname === 'docs.pau1.cloud' ? '/ollama-proxy' : 'https://docs.pau1.cloud/ollama-proxy';
@@ -1137,8 +1300,8 @@ export async function startGame() {
     const started = performance.now();
     try {
       const parsed = provider === 'tabbyapi'
-        ? await parseWithOpenAiCompatible('Bot 1 chop wood', game, { endpoint, model, providerLabel: LOCAL_AI_PROVIDERS.tabbyapi.backendLabel, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() })
-        : await parseWithOllama('Bot 1 chop wood', game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() });
+        ? await parseWithOpenAiCompatible('Bot 1 chop wood', game, { endpoint, model, providerLabel: LOCAL_AI_PROVIDERS.tabbyapi.backendLabel, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() })
+        : await parseWithOllama('Bot 1 chop wood', game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
       dom.ollamaStatus.textContent = `${parsed.meta || 'Benchmark'} valid calls=${parsed.calls?.length || 0}, total=${Math.round(performance.now()-started)}ms`;
     } catch (e) {
       dom.ollamaStatus.textContent = `Benchmark failed: ${e.message}`;
@@ -1238,19 +1401,35 @@ export async function startGame() {
   window.assignBotProgram = args => game.assignBotProgram(args);
   window.assignCustomDslProgram = args => game.assignCustomDslProgram(args);
   window.programTemplates = PROGRAM_TEMPLATES;
-  window.assistantKnowledgePacks = ASSISTANT_KNOWLEDGE_PACKS;
+  Object.defineProperty(window, 'assistantKnowledgePacks', { get: () => getActionPackCatalog(), configurable: true });
+  Object.defineProperty(window, 'actionPackCatalog', { get: () => getActionPackCatalog(), configurable: true });
   Object.defineProperty(window, 'assistantLoadout', { get: () => getAssistantLoadout(), configurable: true });
   window.getAssistantLoadout = getAssistantLoadout;
   window.getAssistantLoadoutDebug = getAssistantLoadoutDebug;
   window.getAssistantLoadoutText = () => JSON.stringify(getAssistantLoadoutDebug(), null, 2);
   window.getAssistantPromptPreview = updateAssistantPromptPreview;
   window.setAssistantLoadout = ids => persistAssistantLoadout(ids);
-  window.generateAssistantDsl = (text, options = {}) => parseAssistantRequest(text, game, { enableTemplates: options.enableTemplates ?? true, loadout: getAssistantLoadout() });
+  window.getCustomActionPacks = () => JSON.parse(JSON.stringify(customActionPacks));
+  window.createCustomActionPack = pack => upsertCustomActionPack(pack);
+  window.updateCustomActionPack = (id, patch = {}) => upsertCustomActionPack({ ...(customActionPacks[id] || {}), ...patch, id });
+  window.deleteCustomActionPack = deleteCustomActionPack;
+  window.clearCustomActionPacks = () => { customActionPacks = {}; persistCustomActionPacks('Cleared custom action packs.'); return {}; };
+  window.getActionPackCatalog = getActionPackCatalog;
+  window.renderKnowledgePackSelector = renderKnowledgePackSelector;
+  window.generateAssistantDsl = (text, options = {}) => parseAssistantRequest(text, game, { enableTemplates: options.enableTemplates ?? true, loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
   window.dslActionWiki = DSL_ACTION_WIKI;
   window.dslActionWikiText = formatDslActionWiki();
   window.actionStepChainRows = getActionStepChainRows();
   window.allowedProgramOps = ALLOWED_OPS.slice();
   window.validateDslProgram = p => game.validateDslProgram(p);
+  window.sendManagerMessage = (botId, message, options = {}) => handleManagerMessage(botId, message, options);
+  window.managerDebug = {
+    promote: (botId, packs = getAssistantLoadout()) => game.promoteBotToManager(botId, packs),
+    getPacks: botId => (game.resolveBotReference(botId)?.managerKnowledgePacks || []).slice(),
+    setPacks: (botId, packs) => game.setManagerKnowledgePacks(botId, packs),
+    sendMessage: (botId, message, options = {}) => handleManagerMessage(botId, message, options),
+    log: () => JSON.parse(JSON.stringify(game.managerMessageLog || []))
+  };
   window.getGameState = () => game.getState();
   window.gameMenuDebug = { save: saveGameToCache, load: loadGameFromCache, saveLibrary: () => saveGames.snapshot(), selectMenuMode: mode => setMainMenuLayer(normalizeGameMode(mode) === 'online_lakes' ? 'online-actions' : 'mode-actions', mode), startCampaign: startCampaignFromMenu, startTest: () => startNewGameFromMenu('test'), startNew: startNewGameFromMenu, openMainMenu: () => setMainMenuOpen(true), closeMainMenu: () => setMainMenuOpen(false), quitToMainMenu, showQuitSavePrompt: () => setQuitSavePromptOpen(true), hideQuitSavePrompt: () => setQuitSavePromptOpen(false), hasSavedGame, wasSavedRecently, getLastSaveAgeMs, setLastSaveAgeSeconds: seconds => { lastSuccessfulSaveAt = Number.isFinite(Number(seconds)) ? Date.now() - (Number(seconds) * 1000) : 0; return getLastSaveAgeMs(); }, isPaused: () => !!game.paused, campaignIntroActive: () => campaignIntroActive, campaignIntroScene: () => ({ active: campaignIntroActive, index: campaignIntroSceneIndex, total: CAMPAIGN_INTRO_SCENES.length }), advanceCampaignIntro, skipCampaignIntro: () => finishCampaignIntro('skip') };
   window.getCameraState = () => ({ camera: { ...game.camera }, player: { x: game.player.x, y: game.player.y, target: game.player.target ? { ...game.player.target } : null }, map: { ...game.map } });
@@ -1274,7 +1453,11 @@ export async function startGame() {
     deleteTemplate: nameOrId => game.deleteCustomTemplate(nameOrId),
     pauseBot: botId => { const bot = game.findBot(botId); if (!bot) return null; bot.paused = true; return window.getGameState(); },
     openBotMenu: botId => { const bot = game.findBot(botId); if (!bot) return null; game.showBotMenu(bot, 320, 240, { refreshEdit: true }); return window.getGameState(); },
+    openStructureMenu: structureId => { const s = game.structures.find(entry => entry.id === Number(structureId) || entry.ref === structureId); if (!s) return null; game.showStructureMenu(s, 320, 240); return window.getGameState(); },
     setBotName: (botId, name) => { game.setBotName(botId, name); return window.getGameState(); },
+    promoteManager: (botId, packs = getAssistantLoadout()) => { game.promoteBotToManager(botId, packs); return window.getGameState(); },
+    setManagerPacks: (botId, packs) => { game.setManagerKnowledgePacks(botId, packs); return window.getGameState(); },
+    sendManagerMessage: (botId, message) => handleManagerMessage(botId, message),
     createBotTeam: (name, color) => game.createBotTeam(name, color),
     assignBotTeam: (botId, teamId) => { game.assignBotToTeam(botId, teamId); return window.getGameState(); },
     setBotInventory: (botId, type) => { const bot = game.findBot(botId); if (!bot) return null; bot.inventory = type ? { type, count: 1 } : null; return window.getGameState(); },
@@ -1306,8 +1489,8 @@ export async function startGame() {
     tickCombat: seconds => { game.updatePlayer(Number(seconds) || 0); game.updateRangedAttackStructures(Number(seconds) || 0); game.updateProjectiles(Number(seconds) || 0); return window.getGameState(); },
     tickWorld: seconds => { game.update(Number(seconds) || 0); return window.getGameState(); }
   };
-  window.validateAssistantToolCalls = raw => validateToolCalls(raw, game, { loadout: getAssistantLoadout() });
-  window.validateAssistantDslAssignments = raw => validateDslAssignments(raw, game, { loadout: getAssistantLoadout() });
+  window.validateAssistantToolCalls = raw => validateToolCalls(raw, game, { loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
+  window.validateAssistantDslAssignments = raw => validateDslAssignments(raw, game, { loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
   window.voiceInputDebug = { applyStreamingTranscript: chat.applyTranscript, insertTextAtChatCursor: chat.insertAtCursor, defaultAsrWsUrl: chat.wsUrl, transcribeUrl: chat.transcribeUrl, getChatSelection: chat.getSelection, getAsrMode };
   window.audioDebug = { controller: audio, play: name => audio.play(name, { cooldownKey: `debug:${name}`, minGapMs: 0 }), startMusic: station => audio.startMusic(station), stopMusic: () => audio.stopMusic(), state: () => ({ enabled: audio.state.enabled, sfxVolume: audio.state.sfxVolume, musicVolume: audio.state.musicVolume, station: audio.state.station, musicPlaying: audio.isMusicPlaying(), stations: Object.keys(audio.stations) }) };
 

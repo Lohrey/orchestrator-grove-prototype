@@ -1,13 +1,30 @@
-import { BUILDING_TYPES, PROGRAMS, PROGRAM_TEMPLATES, ALLOWED_OPS, DEFAULT_WORLD_ZONES } from './data.js?v=t_bdae19d0';
-import { createCanvas2dRenderer } from './renderers/canvas2d-renderer.js?v=t_pixi_worker_wasm';
-import { createRenderState } from './render-state.js?v=t_pixi_worker_wasm';
-import { FOG_CELL_SIZE, createFogOfWar, fogRevealSources as createFogRevealSources, getFogStats, isLightEmittingStructure as isFogLightEmittingStructure, normalizeFogOfWar, revealFogCircle, serializeFogOfWar, structureLightRadius as fogStructureLightRadius, updateFogOfWarState } from './fog-of-war.js?v=t_mobile_controls';
+import { BUILDING_TYPES, PROGRAMS, PROGRAM_TEMPLATES, ALLOWED_OPS, DEFAULT_WORLD_ZONES } from './data.js?v=t_building_kits_0618';
+import { createCanvas2dRenderer } from './renderers/canvas2d-renderer.js?v=t_building_kits_0618';
+import { createRenderState } from './render-state.js?v=t_building_kits_0618';
+import { FOG_CELL_SIZE, createFogOfWar, fogRevealSources as createFogRevealSources, getFogStats, isLightEmittingStructure as isFogLightEmittingStructure, normalizeFogOfWar, revealFogCircle, serializeFogOfWar, structureLightRadius as fogStructureLightRadius, updateFogOfWarState } from './fog-of-war.js?v=t_building_kits_0618';
 import { clamp, rand, distXY, nearest, pointInRect, rectDistance, canvasPoint, escapeHtml } from './utils.js?v=20260613-player-tools';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 const rectCenter = z => ({ x: z.x + z.w / 2, y: z.y + z.h / 2 });
 const FACTORY_BOT_RECIPE = { log: 1, plank: 3, pole: 1, tree_seed: 1 };
 const BOW_RECIPE = { stick: 2, hemp: 3 };
+const BUILDING_KIT_EXCLUDED_TYPES = ['throne', 'assembler'];
+const BUILDING_KIT_BUILDING_TYPES = Object.freeze(Object.keys(BUILDING_TYPES).filter(type => !BUILDING_KIT_EXCLUDED_TYPES.includes(type)));
+const BUILDING_KIT_ITEM_TYPES = Object.freeze(BUILDING_KIT_BUILDING_TYPES.map(type => `${type}_kit`));
+const ASSEMBLER_KIT_RECIPE = Object.freeze({ plank: 2, pole: 1 });
+const DEFAULT_ASSEMBLER_RECIPE = 'sawbench_kit';
+function buildingTypeFromKitItem(type) {
+  const text = String(type || '').trim();
+  const match = text.match(/^(.+)_kit$/);
+  return match && BUILDING_KIT_BUILDING_TYPES.includes(match[1]) ? match[1] : null;
+}
+function buildingKitItemTypeFor(type) { return BUILDING_KIT_BUILDING_TYPES.includes(type) ? `${type}_kit` : null; }
+function isBuildingKitItemType(type) { return !!buildingTypeFromKitItem(type); }
+function buildingKitLabel(type) {
+  const buildingType = buildingTypeFromKitItem(type) || type;
+  const label = BUILDING_TYPES[buildingType]?.label || String(buildingType || '').replace(/_/g, ' ');
+  return `${label.toLowerCase()} kit`;
+}
 const AXE_DURABILITY = 100;
 const PICKAXE_DURABILITY = 80;
 const SHOVEL_DURABILITY = 80;
@@ -24,11 +41,15 @@ const CAMPAIGN_MAP_FEATURES = [
   { id: 'campaign_glow_lake', type: 'lake', label: 'glowing lake', x: 650, y: CAMPAIGN_MAP_SIZE.height - 530, rx: 560, ry: 360, rotation: -0.14, glow: 'green', glowRadius: 460, glowAlpha: 0.76 },
   { id: 'campaign_camper', type: 'camper_van', label: 'campaign camper van', x: 1160, y: CAMPAIGN_MAP_SIZE.height - 646, w: 126, h: 62, rotation: -0.06 }
 ];
-const CAMERA_MIN_ZOOM = 0.55;
+export const CAMERA_MIN_ZOOM = 0.05;
 const CAMERA_MAX_ZOOM = 2.35;
 const CAMERA_WHEEL_SENSITIVITY = 0.00135;
+const CAMERA_EDGE_VIEWPORT_PADDING_RATIO = 0.5;
 const MIN_DRAWN_ZONE_SIZE = 6;
 const DEFAULT_RESOURCE_RADIUS = 150;
+const DEFAULT_NEARBY_RADIUS = DEFAULT_RESOURCE_RADIUS;
+const MAX_NEARBY_RADIUS = 1200;
+const DEFAULT_FOLLOW_DISTANCE = 54;
 const DIG_ZONE_RADIUS = 96;
 const HOLE_VISUAL_RADIUS = 16;
 const HOLE_BLOCK_RADIUS = 42;
@@ -74,6 +95,8 @@ const MULTIPLAYER_LANE_TOWERS = {
   ]
 };
 const BOT_STORAGE_RETRY_SECONDS = 10;
+const DEFAULT_MANAGER_KNOWLEDGE_PACKS = ['starter_automation'];
+const MANAGER_DELEGATE_THROTTLE_SECONDS = 3;
 const EQUIPMENT_WEAPONS = ['wooden_sword', 'bow'];
 const EQUIPMENT_SHIELDS = ['wooden_shield'];
 const MAX_WEAPON_SETS = 2;
@@ -118,9 +141,9 @@ const TREE_GROWTH = {
   grown_tree: { radius: 20, maxHp: 4, next: null, growSeconds: 0 }
 };
 const STORY_ITEM_TYPES = ['camper_van', 'hammock', 'ultrabook', 'solar_panel', 'power_station', 'portable_3d_printer', 'assembler', 'robotics_parts'];
-const ITEM_TYPES = ['log', 'plank', 'pole', 'stick', 'stone', 'tree_seed', 'crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer', 'wooden_sword', 'wooden_shield', 'hemp', 'hemp_seed', 'bow', ...STORY_ITEM_TYPES];
+const ITEM_TYPES = ['log', 'plank', 'pole', 'stick', 'stone', 'tree_seed', 'crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer', 'wooden_sword', 'wooden_shield', 'hemp', 'hemp_seed', 'bow', ...STORY_ITEM_TYPES, ...BUILDING_KIT_ITEM_TYPES];
 const ITEM_LABELS = { log: 'log', plank: 'plank', pole: 'pole', stick: 'stick', stone: 'stone', tree_seed: 'tree seed', crude_axe: 'crude axe', crude_pickaxe: 'crude pickaxe', crude_shovel: 'crude shovel', crude_hammer: 'crude hammer', wooden_sword: 'wooden sword', wooden_shield: 'wooden shield', hemp: 'hemp', hemp_seed: 'hemp seed', bow: 'bow', camper_van: 'white camper van', hammock: 'hammock', ultrabook: 'ultrabook laptop', solar_panel: 'solar panel', power_station: 'power station', portable_3d_printer: 'portable 3d printer', assembler: 'portable assembler', robotics_parts: 'DIY robotics parts' };
-const itemLabel = type => ITEM_LABELS[type] || type;
+const itemLabel = type => isBuildingKitItemType(type) ? buildingKitLabel(type) : (ITEM_LABELS[type] || type);
 const STORAGE_STRUCTURE_TYPES = ['item_palette', 'power_station', 'robotics_parts_bin'];
 const WORKBENCH_TOOL_RECIPES = ['crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer'];
 const DEFAULT_WORKBENCH_RECIPE = 'crude_axe';
@@ -131,7 +154,8 @@ const PRODUCTION_DEFAULTS = {
   workbench: { crude_axe: 1.1, crude_pickaxe: 1.1, crude_shovel: 1.1, crude_hammer: 1.1 },
   smithery: { wooden_sword: 1.0, wooden_shield: 1.0 },
   bowmaker: { bow: 5.5 },
-  factory: { basic_bot: 1.5 }
+  factory: { basic_bot: 1.5 },
+  assembler: Object.fromEntries(BUILDING_KIT_ITEM_TYPES.map(type => [type, 1.4]))
 };
 const STRUCTURE_INFO = {
   sawbench: 'Processes wood into construction parts.',
@@ -158,6 +182,7 @@ function structureRecipeText(s) {
   if (s.type === 'bowmaker') return '2 sticks + 3 hemp → 1 bow. Last depositor works the long build.';
   if (s.type === 'defensetower') return 'No recipe: auto-fires arrows at enemies in range; 1 HP damage, 1 arrow per second.';
   if (s.type === 'factory') return `${Object.entries(FACTORY_BOT_RECIPE).map(([type, cost]) => `${cost} ${itemLabel(type)}${cost === 1 ? '' : 's'}`).join(' + ')} → 1 Basic Bot. Last depositor assembles it.`;
+  if (s.type === 'assembler') return `${Object.entries(ASSEMBLER_KIT_RECIPE).map(([type, cost]) => `${cost} ${itemLabel(type)}${cost === 1 ? '' : 's'}`).join(' + ')} → 1 ${itemLabel(assemblerRecipe(s))}. Current: ${itemLabel(assemblerRecipe(s))}.`;
   if (s.type === 'item_palette') return `No crafting recipe; stores up to ${s.capacity || BUILDING_TYPES.item_palette.capacity || 0} of one item type.`;
   if (s.type === 'power_station') return `No crafting recipe; stores up to ${s.capacity || BUILDING_TYPES.power_station.capacity || 0} power-kit items.`;
   if (s.type === 'robotics_parts_bin') return `No crafting recipe; stores up to ${s.capacity || BUILDING_TYPES.robotics_parts_bin.capacity || 0} robotics parts.`;
@@ -170,6 +195,9 @@ function workbenchRecipe(s) {
 function smitheryRecipe(s) {
   return SMITHERY_RECIPES.includes(s?.smitheryRecipe) ? s.smitheryRecipe : DEFAULT_SMITHERY_RECIPE;
 }
+function assemblerRecipe(s) {
+  return BUILDING_KIT_ITEM_TYPES.includes(s?.assemblerRecipe) ? s.assemblerRecipe : DEFAULT_ASSEMBLER_RECIPE;
+}
 function smitheryInputFor(recipe) {
   return recipe === 'wooden_shield' ? 'plank' : 'stick';
 }
@@ -180,6 +208,7 @@ function productionInputNeeds(s) {
   if (s.type === 'smithery') return { [smitheryInputFor(smitheryRecipe(s))]: 1 };
   if (s.type === 'bowmaker') return { ...BOW_RECIPE };
   if (s.type === 'factory') return { ...FACTORY_BOT_RECIPE };
+  if (s.type === 'assembler') return { ...ASSEMBLER_KIT_RECIPE };
   return null;
 }
 function productionInputCount(s, type) {
@@ -189,6 +218,7 @@ function productionInputCount(s, type) {
   if (s.type === 'smithery') return type === smitheryInputFor(smitheryRecipe(s)) ? ((s[`${type}s`] ?? s[type] ?? 0)) : 0;
   if (s.type === 'bowmaker') return (s[`${type}s`] ?? s[type] ?? 0);
   if (s.type === 'factory') return (s[`${type}s`] ?? s[type] ?? 0);
+  if (s.type === 'assembler') return (s[`${type}s`] ?? s[type] ?? 0);
   return 0;
 }
 
@@ -219,6 +249,10 @@ export class Game {
     this.nextBotTeamId = 1;
     this.customTemplates = [];
     this.nextCustomTemplateId = 1;
+    this.managerKnowledgePackCatalog = null;
+    this.managerMessageHandler = null;
+    this.getDefaultManagerKnowledgePacks = null;
+    this.managerMessageLog = [];
     this.recordedLoop = [];
     this.zones = clone(DEFAULT_WORLD_ZONES); this.nextZoneId = 1;
     this.idleDepot = { x: 115, y: 245, label: 'idle depot' };
@@ -258,10 +292,14 @@ export class Game {
   clampCamera() {
     const zoom = clamp(this.camera.zoom || 1, CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM);
     this.camera.zoom = zoom;
-    const maxX = Math.max(0, this.map.width - this.W / zoom);
-    const maxY = Math.max(0, this.map.height - this.H / zoom);
-    this.camera.x = clamp(this.camera.x, 0, maxX);
-    this.camera.y = clamp(this.camera.y, 0, maxY);
+    const viewW = this.W / zoom;
+    const viewH = this.H / zoom;
+    const edgePadX = Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2);
+    const edgePadY = Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2);
+    const maxX = Math.max(0, this.map.width - viewW) + edgePadX;
+    const maxY = Math.max(0, this.map.height - viewH) + edgePadY;
+    this.camera.x = clamp(this.camera.x, -edgePadX, maxX);
+    this.camera.y = clamp(this.camera.y, -edgePadY, maxY);
   }
 
   screenToWorld(screenX, screenY) {
@@ -320,6 +358,9 @@ export class Game {
     if (this.player.target.action === 'pickup_item' && this.player.target.itemId) {
       const item = this.items.find(i => i.id === this.player.target.itemId);
       if (item) item.reservedBy = 'player';
+    } else if (this.player.target.action === 'deploy_loose_building_kit' && this.player.target.itemId) {
+      const item = this.items.find(i => i.id === this.player.target.itemId);
+      if (item) item.reservedBy = 'player';
     } else if (this.player.target.action === 'search_tree' && this.player.target.resourceId) {
       const tree = this.trees.find(t => t.id === this.player.target.resourceId);
       if (tree) tree.searchReservedBy = 'player';
@@ -330,6 +371,10 @@ export class Game {
   releasePlayerTargetReservation() {
     const target = this.player?.target;
     if (target?.action === 'pickup_item' && target.itemId) {
+      const item = this.items.find(i => i.id === target.itemId && i.reservedBy === 'player');
+      if (item) item.reservedBy = null;
+    }
+    if (target?.action === 'deploy_loose_building_kit' && target.itemId) {
       const item = this.items.find(i => i.id === target.itemId && i.reservedBy === 'player');
       if (item) item.reservedBy = null;
     }
@@ -359,6 +404,14 @@ export class Game {
       if (!picked && item?.reservedBy === 'player') item.reservedBy = null;
       return;
     }
+    if (target?.action === 'deploy_loose_building_kit' && target.itemId) {
+      this.finishPlayerDeployLooseKit(target);
+      return;
+    }
+    if (target?.action === 'deploy_building_kit') {
+      this.finishPlayerDeployHeldKit(target);
+      return;
+    }
     if (target?.action === 'plant_seed' && target.holeId) {
       const hole = this.holes.find(h => h.id === target.holeId && !h.planted);
       if (hole) this.manualPlantSeedAtHole(hole);
@@ -369,6 +422,7 @@ export class Game {
     if (target?.action === 'attack_target') { this.playerAttackTargetByRef(target.targetRef); return; }
     if (target?.action === 'attack_throne' && target.structureId) { const throne = this.structures.find(st => st.id === target.structureId); this.damageThrone(throne, this.playerMeleeDamage()); return; }
     if (target?.action === 'demolish_structure' && target.structureId) { this.finishPlayerDemolishStructure(target); return; }
+    if (target?.action === 'disassemble_building_to_kit' && target.structureId) { this.finishPlayerDisassembleStructure(target); return; }
     if (target?.action === 'take_from_storage' && target.structureId) {
       const s = this.structures.find(st => st.id === target.structureId);
       this.manualTakeFromPalette(s);
@@ -551,7 +605,8 @@ export class Game {
     if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return true; }
     const friendlyBot = this.botAt(p.x, p.y); if (friendlyBot && !this.isHostileTarget(friendlyBot)) { this.showBotMenu(friendlyBot, p.clientX, p.clientY, { refreshEdit: true }); return true; }
     const attackTarget = this.attackTargetAt(p.x, p.y); if (attackTarget && this.queuePlayerAttackTarget(attackTarget)) return true;
-    const item = this.itemAt(p.x, p.y); if (item) return this.queuePlayerItemPickup(item);
+    const item = this.itemAt(p.x, p.y);
+    if (item) return isBuildingKitItemType(item.type) ? (this.showBuildingKitItemMenu(item, p.clientX, p.clientY), true) : this.queuePlayerItemPickup(item);
     const s = this.structureAt(p.x, p.y);
     if (s) {
       if (this.queuePlayerDemolishStructure(s)) return true;
@@ -563,6 +618,7 @@ export class Game {
     const hemp = this.hempAt(p.x, p.y); if (hemp && this.queuePlayerHempAction(hemp)) return true;
     const tree = this.treeAt(p.x, p.y); if (tree) { this.showTreeMenu(tree, p.clientX, p.clientY); return true; }
     const rock = this.rockAt(p.x, p.y); if (rock && this.queuePlayerResourceAction(rock, 'mine_stone')) return true;
+    if (this.queuePlayerDeployHeldKit(p.x, p.y)) return true;
     this.setPlayerDestination(p.x, p.y);
     return true;
   }
@@ -729,8 +785,8 @@ export class Game {
       if (entry.moved && !longPressFired && !this.zoneDraft?.active && !this.placementType) {
         activeTouchGesture = { pinching: false, panning: true };
         entry.panned = true;
-        this.camera.x += dx / (this.camera.zoom || 1);
-        this.camera.y += dy / (this.camera.zoom || 1);
+        this.camera.x -= dx / (this.camera.zoom || 1);
+        this.camera.y -= dy / (this.camera.zoom || 1);
         this.clampCamera();
         this.refreshMouseWorld();
         this.updateHover();
@@ -832,6 +888,7 @@ export class Game {
     const s = { id, ref: `structure:${id}`, type, name: `${baseName} ${countSame}`, label: def.label, x, y, w: def.w, h: def.h, placed: !!options.placed, logs: 0, planks: 0, poles: 0, sticks: 0, stones: 0, tree_seeds: 0, axes: 0, pickaxes: 0, shovels: 0, hammers: 0, swords: 0, shields: 0, hemps: 0, bows: 0, timer: 0, processing: null };
     if (type === 'throne') Object.assign(s, { hp: def.maxHp || THRONE_HP, maxHp: def.maxHp || THRONE_HP, ownerId: null, ownerLabel: 'unclaimed' });
     if (type === 'workbench') s.workbenchRecipe = DEFAULT_WORKBENCH_RECIPE;
+    if (type === 'assembler') s.assemblerRecipe = DEFAULT_ASSEMBLER_RECIPE;
     if (type === 'player_storage') Object.assign(s, { storageType: this.player.inventory?.type || null, stored: this.player.inventory ? 1 : 0, capacity: 1 });
     if (type === 'smithery') s.smitheryRecipe = DEFAULT_SMITHERY_RECIPE;
     if (type === 'defensetower') Object.assign(s, { hp: 20, maxHp: 20, ownerId: null, ownerLabel: 'neutral', rangedAttack: createRangedAttackComponent({ range: def.attackRange, damage: def.attackDamage, cooldown: def.attackCooldown }) });
@@ -867,7 +924,7 @@ export class Game {
   createBot(x, y, program = 'idle', force = false) {
     if (!force && this.bots.length >= this.maxBots) { this.addFloat(`Max bots ${this.maxBots}`, x, y - 18, '#c86b5f'); return null; }
     const id = this.nextBotId++;
-    const bot = { id, ref: `bot:${id}`, name: `Bot ${id}`, teamId: null, x, y, r: 11, speed: 118, program, state: program, message: 'Waiting for assistant.', inventory: null, equipment: createEquipment(), tool: null, hp: 10, maxHp: 10, hostile: false, target: null, targetItemId: null, targetItemPurpose: null, targetHoleId: null, targetStructureId: null, sourceStructureId: null, sourcePaletteId: null, targetFactoryId: null, targetWorkbenchId: null, zoneId: null, zoneSpec: null, pickupItemType: 'log', timer: 0, runtime: { pc: 0, memory: {}, wait: 0 }, color: ['#80a9c9','#9abf8f','#d3a95f','#c7b683','#8fb9b5'][id % 5] };
+    const bot = { id, ref: `bot:${id}`, name: `Bot ${id}`, status: 'worker', managerKnowledgePacks: [], teamId: null, x, y, r: 11, speed: 118, program, state: program, message: 'Waiting for assistant.', inventory: null, equipment: createEquipment(), tool: null, hp: 10, maxHp: 10, hostile: false, target: null, targetItemId: null, targetItemPurpose: null, targetHoleId: null, targetStructureId: null, sourceStructureId: null, sourcePaletteId: null, targetFactoryId: null, targetWorkbenchId: null, zoneId: null, zoneSpec: null, pickupItemType: 'log', timer: 0, runtime: { pc: 0, memory: {}, wait: 0 }, color: ['#80a9c9','#9abf8f','#d3a95f','#c7b683','#8fb9b5'][id % 5] };
     this.bots.push(bot); this.addFloat(`Bot ${id} online`, x, y - 18, '#80a9c9'); this.emitSound('bot_online', { cooldownKey: 'bot_online', minGapMs: 120 }); return bot;
   }
   spawnTree(x, y, options = {}) {
@@ -1217,9 +1274,9 @@ export class Game {
     this.holes.push(hole);
     return hole;
   }
-  openHoleInZone(hole, zone) { return hole && !hole.planted && this.objectInZone(hole, zone); }
-  nearestOpenHole(x, y, zone = null, maxDistance = Infinity, reservedBy = null) {
-    return nearest(this.holes, x, y, h => this.openHoleInZone(h, zone) && (!h.reservedBy || h.reservedBy === reservedBy) && distXY(x, y, h.x, h.y) <= maxDistance);
+  openHoleInZone(hole, zone, anchor = null) { return hole && !hole.planted && this.objectInZone(hole, zone, anchor); }
+  nearestOpenHole(x, y, zone = null, maxDistance = Infinity, reservedBy = null, anchor = null) {
+    return nearest(this.holes, x, y, h => this.openHoleInZone(h, zone, anchor) && (!h.reservedBy || h.reservedBy === reservedBy) && distXY(x, y, h.x, h.y) <= maxDistance);
   }
   plantSeedInHole(hole, actor = null) {
     if (!hole || hole.planted) return false;
@@ -1257,6 +1314,12 @@ export class Game {
     const zoneSpec = { kind: 'radius', x: Math.round(x), y: Math.round(y), radius: 64, name: `drop zone for ${label}` };
     return { op: 'drop_item', type, zoneSpec, zoneLabel: zoneSpec.name };
   }
+  deployBuildingKitStep(type, x = this.player.x, y = this.player.y) {
+    const kitType = this.normalizeBuildingKitItemType(type);
+    const label = itemLabel(kitType || type);
+    const zoneSpec = { kind: 'radius', x: Math.round(x), y: Math.round(y), radius: 64, name: `deployment zone for ${label}` };
+    return { op: 'deploy_building_kit', type: kitType || type, zoneSpec, zoneLabel: zoneSpec.name };
+  }
   stepText(step) {
     const where = step.zoneLabel ? ` in ${step.zoneLabel}` : '';
     if (step.op === 'pick_up') return `pick up nearest ${itemLabel(step.type)}${where}`;
@@ -1266,6 +1329,8 @@ export class Game {
     if (step.op === 'deposit_to_player') return `bring ${itemLabel(step.type)} to player`;
     if (step.op === 'take_from_player') return `take ${itemLabel(step.type)} from player`;
     if (step.op === 'drop_item') return `drop ${itemLabel(step.type)} on ground${where}`;
+    if (step.op === 'deploy_building_kit') return `deploy ${itemLabel(step.type)}${where}`;
+    if (step.op === 'disassemble_building_to_kit') return `disassemble ${step.structureName || step.target || 'building'} into kit`;
     if (step.op === 'plant_seed') return step.holeName ? `plant tree seed in ${step.holeName}` : `plant tree seed in dug hole${where}`;
     if (step.op === 'dig_hole') return `dig hole${where}`;
     if (step.op === 'chop_tree') return step.treeName ? `chop ${step.treeName}` : `chop nearest tree${where}`;
@@ -1274,6 +1339,11 @@ export class Game {
     if (step.op === 'search_hemp') return step.hempName ? `move to ${step.hempName} and search for hemp seed` : `search hemp${where} for seeds`;
     if (step.op === 'mine_stone') return step.rockName ? `mine ${step.rockName}` : `mine nearest stone deposit${where}`;
     if (step.op === 'assign_template') return `assign ${step.botName || (step.botId ? `Bot ${step.botId}` : 'bot')} template ${step.templateName || 'template'}`;
+    if (step.op === 'rename_bot') return `rename ${step.targetName || step.botName || (step.botId ? `Bot ${step.botId}` : 'this bot')} to ${step.name || 'name'}`;
+    if (step.op === 'promote_to_manager') return `promote ${step.targetName || (step.botId ? `Bot ${step.botId}` : 'this bot')} to manager`;
+    if (step.op === 'delegate_to_manager') return `delegate to ${step.recipientName || step.recipient || 'manager'}: ${step.message || 'message'}`;
+    if (step.op === 'follow') return `follow ${step.targetName || step.target || step.targetRef || 'player'}${step.distance ? ` at ${step.distance}px` : ''}`;
+    if (step.op === 'attack') return `attack ${step.targetName || step.target || step.type || 'hostiles'}${where}${step.radius ? ` within ${step.radius}px` : ''}`;
     return step.op;
   }
   activeTeachSteps() { return this.recorder.steps.length ? this.recorder.steps : this.recordedLoop; }
@@ -1311,7 +1381,15 @@ export class Game {
     const locationControls = this.renderStepLocationControls(index, prefix, step);
     const opOptions = botEdit ? ALLOWED_OPS.map(op => `<option value="${escapeHtml(op)}"${op === step.op ? ' selected' : ''}>${escapeHtml(op)}</option>`).join('') : '';
     const type = botEdit ? (step.type || step.itemType || step.item || step.resource || '') : '';
-    const editFields = botEdit ? `<label>op <select data-bot-step-op="${index}">${opOptions}</select></label><label>type <input data-bot-step-type="${index}" value="${escapeHtml(type)}" placeholder="optional"></label>` : '';
+    const renameFields = botEdit && step.op === 'rename_bot'
+      ? `<label>name <input data-bot-step-name="${index}" value="${escapeHtml(step.name || '')}" placeholder="2-32 chars"></label><label>target <input data-bot-step-target="${index}" value="${escapeHtml(step.target || step.botId || '')}" placeholder="optional bot"></label>`
+      : '';
+    const managerFields = botEdit && step.op === 'promote_to_manager'
+      ? `<label>packs <input data-bot-step-packs="${index}" value="${escapeHtml((step.knowledgePacks || []).join(', '))}" placeholder="starter_automation"></label><label>target <input data-bot-step-target="${index}" value="${escapeHtml(step.target || step.botId || '')}" placeholder="optional bot"></label>`
+      : botEdit && step.op === 'delegate_to_manager'
+        ? `<label>recipient <input data-bot-step-recipient="${index}" value="${escapeHtml(step.recipient || step.recipientBotId || '')}" placeholder="manager bot"></label><label>message <input data-bot-step-message="${index}" value="${escapeHtml(step.message || '')}" placeholder="instruction"></label>`
+        : '';
+    const editFields = botEdit ? `<label>op <select data-bot-step-op="${index}">${opOptions}</select></label><label>type <input data-bot-step-type="${index}" value="${escapeHtml(type)}" placeholder="optional"></label>${renameFields}${managerFields}` : '';
     const up = botEdit ? `data-bot-step-up="${index}" aria-label="Move DSL step up"` : `data-step-up="${index}" aria-label="Move step up"`;
     const down = botEdit ? `data-bot-step-down="${index}" aria-label="Move DSL step down"` : `data-step-down="${index}" aria-label="Move step down"`;
     const del = botEdit ? `data-bot-step-delete="${index}" aria-label="Delete DSL step"` : `data-delete-step="${index}" aria-label="Delete step"`;
@@ -1464,6 +1542,113 @@ export class Game {
     const lower = raw.toLowerCase();
     return this.bots.find(bot => String(bot.ref || '').toLowerCase() === lower || this.botDisplayName(bot).toLowerCase() === lower || String(bot.name || '').toLowerCase() === lower) || null;
   }
+  managerPackCatalogIds() {
+    return this.managerKnowledgePackCatalog ? Object.keys(this.managerKnowledgePackCatalog) : DEFAULT_MANAGER_KNOWLEDGE_PACKS;
+  }
+  normalizeManagerKnowledgePacks(value, fallback = DEFAULT_MANAGER_KNOWLEDGE_PACKS) {
+    const raw = Array.isArray(value) ? value : String(value || '').split(/[\s,;]+/);
+    const catalogIds = new Set(this.managerPackCatalogIds());
+    const ids = [...new Set(raw.map(id => String(id || '').trim()).filter(Boolean))]
+      .filter(id => /^[a-z0-9_:-]{2,64}$/i.test(id))
+      .filter(id => !catalogIds.size || catalogIds.has(id));
+    const fallbackIds = Array.isArray(fallback) ? fallback : DEFAULT_MANAGER_KNOWLEDGE_PACKS;
+    return ids.length ? ids : fallbackIds.filter(id => !catalogIds.size || catalogIds.has(id));
+  }
+  sanitizeManagerMessage(message) {
+    return String(message || '').replace(/[\x00-\x1F\x7F]/g, ' ').replace(/[<>`{}]/g, '').replace(/\s+/g, ' ').trim().slice(0, 500);
+  }
+  isManagerBot(bot) { return !!bot && bot.status === 'manager'; }
+  setManagerKnowledgePackCatalog(catalog = null) { this.managerKnowledgePackCatalog = catalog && typeof catalog === 'object' ? catalog : null; return this.managerPackCatalogIds(); }
+  setManagerKnowledgePacks(botRef, packs = DEFAULT_MANAGER_KNOWLEDGE_PACKS) {
+    const bot = botRef && typeof botRef === 'object' ? botRef : this.resolveBotReference(botRef);
+    if (!bot) return { ok: false, error: `Bot ${botRef} not found` };
+    if (!this.isManagerBot(bot)) return { ok: false, error: `${this.botDisplayName(bot)} is not a manager` };
+    bot.managerKnowledgePacks = this.normalizeManagerKnowledgePacks(packs, bot.managerKnowledgePacks?.length ? bot.managerKnowledgePacks : DEFAULT_MANAGER_KNOWLEDGE_PACKS);
+    bot.knowledgePacks = bot.managerKnowledgePacks;
+    this.syncBotDrawerUi?.(true);
+    return { ok: true, bot, knowledgePacks: bot.managerKnowledgePacks.slice() };
+  }
+  promoteBotToManager(botRef, knowledgePacks = DEFAULT_MANAGER_KNOWLEDGE_PACKS) {
+    const bot = botRef && typeof botRef === 'object' ? botRef : this.resolveBotReference(botRef);
+    if (!bot) return { ok: false, error: `Bot ${botRef} not found` };
+    bot.status = 'manager';
+    bot.managerKnowledgePacks = this.normalizeManagerKnowledgePacks(knowledgePacks, bot.managerKnowledgePacks?.length ? bot.managerKnowledgePacks : DEFAULT_MANAGER_KNOWLEDGE_PACKS);
+    bot.knowledgePacks = bot.managerKnowledgePacks;
+    bot.message = `Manager online with packs: ${bot.managerKnowledgePacks.join(', ') || 'none'}.`;
+    this.addFloat(`${this.botDisplayName(bot)} promoted to manager`, bot.x, bot.y - 34, '#9abf8f');
+    this.syncBotDrawerUi?.(true);
+    return { ok: true, bot, knowledgePacks: bot.managerKnowledgePacks.slice() };
+  }
+  delegateMessageToManager(senderBot, recipientRef, message, { throttleKey = '' } = {}) {
+    const manager = recipientRef && typeof recipientRef === 'object' ? recipientRef : this.resolveBotReference(recipientRef);
+    const clean = this.sanitizeManagerMessage(message);
+    if (!manager) return { ok: false, error: `Manager ${recipientRef} not found` };
+    if (!this.isManagerBot(manager)) return { ok: false, error: `${this.botDisplayName(manager)} is not a manager` };
+    if (!clean) return { ok: false, error: 'delegate_to_manager requires message' };
+    const key = throttleKey || `${senderBot?.id || 'manual'}:${manager.id}:${clean}`;
+    const throttleActor = senderBot || manager;
+    throttleActor.runtime ||= { pc: 0, memory: {}, wait: 0 };
+    throttleActor.runtime.managerDelegations ||= {};
+    const now = this.worldTime || 0;
+    const last = throttleActor.runtime.managerDelegations[key] || -Infinity;
+    if (now - last < MANAGER_DELEGATE_THROTTLE_SECONDS) return { ok: true, throttled: true, manager, message: clean };
+    throttleActor.runtime.managerDelegations[key] = now;
+    const entry = { at: now, senderBotId: senderBot?.id || null, managerBotId: manager.id, message: clean, packs: (manager.managerKnowledgePacks || []).slice() };
+    this.managerMessageLog.push(entry);
+    if (this.managerMessageLog.length > 50) this.managerMessageLog.shift();
+    manager.message = `Manager received: ${clean}`;
+    const handled = this.managerMessageHandler?.({ manager, sender: senderBot, message: clean, entry, game: this });
+    return { ok: true, manager, message: clean, handled, entry };
+  }
+  localPlayerActor() { Object.assign(this.player, { ref: 'player:local', id: this.multiplayer?.playerId || 'p1' }); return this.player; }
+  resolveActorReference(value, actor = null) {
+    if (value == null || value === '') return null;
+    const raw = String(value).trim();
+    const lower = raw.toLowerCase();
+    if (['me', 'player', 'my character', 'spieler', 'mir', 'mich'].includes(lower)) return this.localPlayerActor();
+    if (['self', 'itself', 'this bot'].includes(lower)) return actor || null;
+    const byRef = this.findTargetByRef(raw);
+    if (byRef) return byRef;
+    const bot = this.resolveBotReference(raw);
+    if (bot) return bot;
+    const monsterNumber = raw.match(/^monster[:#\s-]*(\d+)$/i)?.[1];
+    if (monsterNumber) {
+      const monster = this.monsters.find(m => m.id === Number(monsterNumber) && (m.hp || 0) > 0);
+      if (monster) return monster;
+    }
+    const monster = this.monsters.find(m => (m.hp || 0) > 0 && (String(m.ref || '').toLowerCase() === lower || String(m.name || '').toLowerCase() === lower));
+    if (monster) return monster;
+    const remote = Object.values(this.multiplayer?.players || {}).find(p => p && (`player:${p.id}` === lower || String(p.name || '').toLowerCase() === lower));
+    if (remote) return { ...remote, ref: `player:${remote.id}`, radius: 15, hostile: this.multiplayer?.enabled && remote.id !== this.multiplayer.playerId };
+    return null;
+  }
+  actorLabel(actor) { return actor ? (actor === this.player || actor.ref === 'player:local' ? 'player' : actor.name || actor.ref || `Bot ${actor.id}`) : 'target'; }
+  normalizeAttackType(value) {
+    const raw = String(value || 'monster').toLowerCase().replace(/[\s-]+/g, '_').trim();
+    const aliases = { enemy: 'monster', enemies: 'monster', hostile: 'monster', hostiles: 'monster', monsters: 'monster', night: 'night_monster', night_monsters: 'night_monster', passive_monsters: 'passive_monster', tower: 'structure', towers: 'structure', throne: 'structure' };
+    return aliases[raw] || raw || 'monster';
+  }
+  attackTargetMatchesType(target, type = 'monster') {
+    const t = this.normalizeAttackType(type);
+    if (!target) return false;
+    if (t === 'monster') return target.ref?.startsWith('monster:');
+    if (t === 'structure') return target.ref?.startsWith('structure:');
+    if (t === 'bot') return target.ref?.startsWith('bot:');
+    const values = [target.type, target.kind, target.name, target.ref].map(v => String(v || '').toLowerCase().replace(/[\s-]+/g, '_'));
+    return values.some(v => v === t || v.includes(t));
+  }
+  attackZoneForStep(step) { return step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null); }
+  attackTargetsForStep(bot, step) {
+    const zone = this.attackZoneForStep(step);
+    const type = this.normalizeAttackType(step.type || step.monsterType || 'monster');
+    const targetRaw = step.targetRef || step.target || step.targetName || null;
+    if (targetRaw) {
+      const explicit = this.resolveActorReference(targetRaw, bot) || this.findTargetByRef(targetRaw);
+      if (explicit && this.isHostileTarget(explicit) && this.objectInZone(explicit, zone, bot) && this.attackTargetMatchesType(explicit, type)) return [explicit];
+    }
+    return this.hostileTargetsForActor(bot, Infinity).filter(target => this.objectInZone(target, zone, bot) && this.attackTargetMatchesType(target, type));
+  }
+  nearestAttackTargetForStep(bot, step) { return nearest(this.attackTargetsForStep(bot, step), bot.x, bot.y); }
   normalizeTemplateName(name) { return String(name || '').trim().replace(/\s+/g, ' '); }
   findCustomTemplate(nameOrId) {
     const raw = this.normalizeTemplateName(nameOrId).toLowerCase();
@@ -1607,6 +1792,13 @@ export class Game {
     const radius = /(large|groß|gross|big|weiter|weiten)/.test(lower) ? 220 : /(small|klein|kleinen|tiny)/.test(lower) ? 95 : 150;
     return { kind: 'radius', centerStructureId: structure.id, radius, name: `${radius <= 100 ? 'small' : radius >= 200 ? 'large' : 'radius'} area around ${structure.name}` };
   }
+  parseNearbyZoneMention(text) {
+    const raw = String(text || '').toLowerCase();
+    if (!/\bnearby\b/.test(raw)) return null;
+    const radiusMatch = raw.match(/\bnearby\D{0,16}(\d+(?:\.\d+)?)\b/) || raw.match(/\b(\d+(?:\.\d+)?)\D{0,16}\bnearby\b/) || raw.match(/\b(?:radius|range|within)\D{0,16}(\d+(?:\.\d+)?)\b/);
+    const radius = clamp(Number(radiusMatch?.[1] || DEFAULT_NEARBY_RADIUS), 40, MAX_NEARBY_RADIUS);
+    return { kind: 'nearby', radius, name: `${Math.round(radius)}px nearby around bot` };
+  }
   parseRectangleZoneMention(text) {
     const raw = String(text || '');
     const patterns = [
@@ -1621,9 +1813,14 @@ export class Game {
   }
   rectangleText(zone) { return `rect(x:${Math.round(zone.x)},y:${Math.round(zone.y)},w:${Math.round(zone.w)},h:${Math.round(zone.h)})`; }
   radiusText(zone) { return `radius(x:${Math.round(zone.x)},y:${Math.round(zone.y)},r:${Math.round(zone.radius || DEFAULT_RESOURCE_RADIUS)})`; }
-  zoneText(zone) { return zone?.kind === 'radius' ? this.radiusText(zone) : this.rectangleText(zone); }
+  zoneText(zone) { return zone?.kind === 'nearby' ? `nearby ${Math.round(zone.radius || DEFAULT_NEARBY_RADIUS)}` : zone?.kind === 'radius' ? this.radiusText(zone) : this.rectangleText(zone); }
   zoneBounds(zone) {
     if (!zone) return { x: 0, y: 0, w: 0, h: 0 };
+    if (zone.kind === 'nearby') {
+      const r = clamp(Number(zone.radius || DEFAULT_NEARBY_RADIUS), 40, MAX_NEARBY_RADIUS);
+      const c = this.player || { x: r, y: r };
+      return { x: c.x - r, y: c.y - r, w: r * 2, h: r * 2 };
+    }
     if (zone.kind === 'radius') {
       const r = clamp(Number(zone.radius || DEFAULT_RESOURCE_RADIUS), 40, 420);
       return { x: zone.x - r, y: zone.y - r, w: r * 2, h: r * 2 };
@@ -1632,6 +1829,7 @@ export class Game {
   }
   zoneAnchorPoint(zone) {
     if (!zone) return { x: this.player.x, y: this.player.y };
+    if (zone.kind === 'nearby') return { x: this.player.x, y: this.player.y - (zone.radius || DEFAULT_NEARBY_RADIUS) };
     if (zone.kind === 'radius') return { x: zone.x, y: zone.y - (zone.radius || DEFAULT_RESOURCE_RADIUS) };
     return { x: zone.x + (zone.w || 0) / 2, y: zone.y };
   }
@@ -1681,12 +1879,70 @@ export class Game {
   normalizeItemType(value, fallback = 'log') {
     const t = String(value || '').toLowerCase().replace(/[_-]/g, ' ').trim();
     if (!t) return fallback;
+    const kitType = this.normalizeBuildingKitItemType(value, null);
+    if (kitType) return kitType;
     const aliases = { logs: 'log', log: 'log', planks: 'plank', boards: 'plank', board: 'plank', plank: 'plank', poles: 'pole', pole: 'pole', sticks: 'stick', stick: 'stick', rocks: 'stone', rock: 'stone', stones: 'stone', stone: 'stone', seeds: 'tree_seed', seed: 'tree_seed', 'tree seed': 'tree_seed', 'tree seeds': 'tree_seed', axes: 'crude_axe', axe: 'crude_axe', 'crude axe': 'crude_axe', pickaxes: 'crude_pickaxe', pickaxe: 'crude_pickaxe', 'crude pickaxe': 'crude_pickaxe', shovels: 'crude_shovel', shovel: 'crude_shovel', 'crude shovel': 'crude_shovel', hammers: 'crude_hammer', hammer: 'crude_hammer', 'crude hammer': 'crude_hammer', swords: 'wooden_sword', sword: 'wooden_sword', 'wooden sword': 'wooden_sword', shields: 'wooden_shield', shield: 'wooden_shield', 'wooden shield': 'wooden_shield', hemp: 'hemp', 'hemp fibre': 'hemp', 'hemp fiber': 'hemp', 'hemp seed': 'hemp_seed', 'hemp seeds': 'hemp_seed', bow: 'bow', bows: 'bow', camper: 'camper_van', van: 'camper_van', 'camper van': 'camper_van', 'white camper': 'camper_van', 'white camper van': 'camper_van', hammock: 'hammock', laptop: 'ultrabook', ultrabook: 'ultrabook', 'ultrabook laptop': 'ultrabook', 'solar panel': 'solar_panel', 'solar panels': 'solar_panel', battery: 'power_station', 'power station': 'power_station', printer: 'portable_3d_printer', '3d printer': 'portable_3d_printer', 'portable 3d printer': 'portable_3d_printer', assembler: 'assembler', 'portable assembler': 'assembler', parts: 'robotics_parts', 'robotics parts': 'robotics_parts', 'diy robotics parts': 'robotics_parts' };
     return aliases[t] || ITEM_TYPES.find(type => t === type || t === itemLabel(type)) || fallback;
+  }
+  normalizeBuildingKitItemType(value, fallback = null) {
+    const raw = String(value || '').toLowerCase().replace(/[_-]/g, ' ').trim();
+    if (!raw) return fallback;
+    for (const kitType of BUILDING_KIT_ITEM_TYPES) {
+      const buildingType = buildingTypeFromKitItem(kitType);
+      const buildingLabel = String(BUILDING_TYPES[buildingType]?.label || buildingType).toLowerCase().replace(/[_-]/g, ' ').trim();
+      const forms = new Set([
+        kitType,
+        kitType.replace(/_/g, ' '),
+        `${buildingType}_kit`,
+        `${buildingType.replace(/_/g, ' ')} kit`,
+        `${buildingLabel} kit`,
+        buildingType,
+        buildingType.replace(/_/g, ' '),
+        buildingLabel,
+        itemLabel(kitType)
+      ].map(v => String(v || '').toLowerCase().replace(/[_-]/g, ' ').trim()));
+      if (forms.has(raw)) return kitType;
+    }
+    return fallback;
+  }
+  normalizeWeaponItemType(value, fallback = null) {
+    const type = this.normalizeItemType(value, fallback || String(value || '').trim());
+    return this.isEquipmentItem(type) ? type : null;
+  }
+  normalizeSmitheryRecipe(value, fallback = DEFAULT_SMITHERY_RECIPE) {
+    const raw = String(value || fallback || '').toLowerCase().replace(/[_-]/g, ' ').trim();
+    const aliases = { sword: 'wooden_sword', swords: 'wooden_sword', 'wooden sword': 'wooden_sword', wooden_sword: 'wooden_sword', shield: 'wooden_shield', shields: 'wooden_shield', 'wooden shield': 'wooden_shield', wooden_shield: 'wooden_shield' };
+    return SMITHERY_RECIPES.includes(aliases[raw] || raw) ? (aliases[raw] || raw) : null;
+  }
+  normalizeBowmakerRecipe(value, fallback = 'bow') {
+    const raw = String(value || fallback || '').toLowerCase().replace(/[_-]/g, ' ').trim();
+    return ['bow', 'bows'].includes(raw) ? 'bow' : null;
+  }
+  normalizePatrolPoints(input) {
+    let raw = input;
+    if (typeof raw === 'string') {
+      try { raw = JSON.parse(raw); }
+      catch {
+        raw = raw.split(/;|\n/).map(part => part.trim()).filter(Boolean).map(part => {
+          const m = part.match(/(-?\d+(?:\.\d+)?)\D+(-?\d+(?:\.\d+)?)/);
+          return m ? { x: Number(m[1]), y: Number(m[2]) } : null;
+        }).filter(Boolean);
+      }
+    }
+    if (!Array.isArray(raw)) return [];
+    return raw.map((point, index) => {
+      if (Array.isArray(point)) point = { x: point[0], y: point[1], name: point[2] };
+      const x = Number(point?.x ?? point?.centerX);
+      const y = Number(point?.y ?? point?.centerY);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      return { x: clamp(x, 20, this.map.width - 20), y: clamp(y, 20, this.map.height - 20), name: String(point?.name || point?.label || `checkpoint ${index + 1}`) };
+    }).filter(Boolean);
   }
   normalizeZoneSpec(input) {
     if (!input) return { zoneId: null, zoneSpec: null };
     if (typeof input === 'string') {
+      const nearby = this.parseNearbyZoneMention(input);
+      if (nearby) return { zoneId: null, zoneSpec: nearby };
       const rect = this.parseRectangleZoneMention(input);
       if (rect) return { zoneId: null, zoneSpec: rect };
       const radius = this.parseRadiusZoneMention(input);
@@ -1699,6 +1955,10 @@ export class Game {
         const x = clamp(Number(input.x || 0), 0, this.map.width), y = clamp(Number(input.y || 0), 0, this.map.height);
         const w = clamp(Number(input.w ?? input.width ?? 0), 1, this.map.width - x), h = clamp(Number(input.h ?? input.height ?? 0), 1, this.map.height - y);
         return { zoneId: null, zoneSpec: { kind: 'rect', x, y, w, h, name: input.name || this.rectangleText({ x, y, w, h }) } };
+      }
+      if (input.kind === 'nearby') {
+        const radius = clamp(Number(input.radius ?? input.r ?? DEFAULT_NEARBY_RADIUS), 40, MAX_NEARBY_RADIUS);
+        return { zoneId: null, zoneSpec: { kind: 'nearby', radius, name: input.name || `${Math.round(radius)}px nearby around bot` } };
       }
       if (input.kind === 'radius') {
         const centerStructureId = this.normalizeStructureId(input.centerStructureId || input.targetStructureId || input.structureId || input.center, null);
@@ -1717,15 +1977,17 @@ export class Game {
     return { zoneId: null, zoneSpec: null };
   }
   getBotZone(bot) { return bot.zoneSpec || (bot.zoneId ? this.zones.find(z => z.id === bot.zoneId) : null); }
-  zoneLabel(zone) { if (!zone) return 'anywhere'; if (zone.kind === 'radius') { const s = zone.centerStructureId ? this.structures.find(st => st.id === zone.centerStructureId) : null; return zone.name || `${zone.radius || DEFAULT_RESOURCE_RADIUS}px around ${s?.name || 'point'}`; } return zone.name || zone.id; }
-  pointInZone(x, y, zone) {
+  zoneLabel(zone) { if (!zone) return 'anywhere'; if (zone.kind === 'nearby') return zone.name || `${zone.radius || DEFAULT_NEARBY_RADIUS}px nearby around bot`; if (zone.kind === 'radius') { const s = zone.centerStructureId ? this.structures.find(st => st.id === zone.centerStructureId) : null; return zone.name || `${zone.radius || DEFAULT_RESOURCE_RADIUS}px around ${s?.name || 'point'}`; } return zone.name || zone.id; }
+  pointInZone(x, y, zone, anchor = null) {
     if (!zone) return true;
+    if (zone.kind === 'nearby') { const c = anchor || this.player; return !!c && distXY(x, y, c.x, c.y) <= (zone.radius || DEFAULT_NEARBY_RADIUS); }
     if (zone.kind === 'radius') { const s = zone.centerStructureId ? this.structures.find(st => st.id === zone.centerStructureId) : null; const cx = s?.x ?? zone.x, cy = s?.y ?? zone.y; return Number.isFinite(cx) && Number.isFinite(cy) && distXY(x, y, cx, cy) <= (zone.radius || DEFAULT_RESOURCE_RADIUS); }
     return x >= zone.x && x <= zone.x + zone.w && y >= zone.y && y <= zone.y + zone.h;
   }
-  objectInZone(obj, zone) { return this.pointInZone(obj.x, obj.y, zone); }
+  objectInZone(obj, zone, anchor = null) { return this.pointInZone(obj.x, obj.y, zone, anchor); }
   zoneCenter(zone, fallback = null) {
     if (!zone) return fallback;
+    if (zone.kind === 'nearby') return fallback;
     if (zone.kind === 'radius') {
       const s = zone.centerStructureId ? this.structures.find(st => st.id === zone.centerStructureId) : null;
       const x = s?.x ?? zone.x, y = s?.y ?? zone.y;
@@ -1807,8 +2069,8 @@ export class Game {
     if (!steps.length) errors.push('DSL program needs at least one step');
     if (steps.length > 24) errors.push('DSL program exceeds 24 step limit');
     const normalizedSteps = [];
-    const requireItemType = new Set(['pick_up', 'pick_up_from_storage', 'pick_up_specific', 'deposit_to_structure', 'deposit_to_player', 'take_from_player', 'drop_item', 'find_item', 'deliver_to_sawbench', 'deliver_to_workbench', 'deliver_to_factory', 'if_inventory']);
-    const zoneOps = new Set(['pick_up', 'drop_item', 'find_item', 'find_nearest_tree', 'find_stone_deposit', 'find_hemp', 'find_dig_spot', 'find_dug_hole', 'chop_tree', 'search_tree', 'chop_hemp', 'search_hemp', 'mine_stone', 'dig_hole', 'plant_seed']);
+    const requireItemType = new Set(['pick_up', 'pick_up_from_storage', 'pick_up_specific', 'deposit_to_structure', 'deposit_to_player', 'take_from_player', 'drop_item', 'deploy_building_kit', 'find_item', 'deliver_to_sawbench', 'deliver_to_workbench', 'deliver_to_factory', 'if_inventory']);
+    const zoneOps = new Set(['pick_up', 'drop_item', 'deploy_building_kit', 'find_item', 'find_nearest_tree', 'find_stone_deposit', 'find_hemp', 'find_dig_spot', 'find_dug_hole', 'chop_tree', 'search_tree', 'chop_hemp', 'search_hemp', 'mine_stone', 'dig_hole', 'plant_seed', 'guard_area']);
     for (let index = 0; index < steps.length; index++) {
       let raw = steps[index] || {};
       let op = String(raw.op || '').trim();
@@ -1824,7 +2086,11 @@ export class Game {
       const step = { op };
       if (requireItemType.has(op)) {
         if (!raw.type && !raw.itemType && !raw.item && !raw.resource) errors.push(`Step ${index + 1}: ${op} requires type`);
-        else step.type = this.normalizeItemType(raw.type || raw.itemType || raw.item || raw.resource, raw.type || raw.itemType || raw.item || raw.resource);
+        else if (op === 'deploy_building_kit') {
+          const kitType = this.normalizeBuildingKitItemType(raw.type || raw.itemType || raw.item || raw.resource);
+          if (!kitType) errors.push(`Step ${index + 1}: deploy_building_kit requires a deployable building kit type`);
+          else step.type = kitType;
+        } else step.type = this.normalizeItemType(raw.type || raw.itemType || raw.item || raw.resource, raw.type || raw.itemType || raw.item || raw.resource);
       }
       if (zoneOps.has(op) && (raw.zone || raw.zoneId || raw.zoneSpec || raw.area)) {
         const normalizedZone = this.normalizeZoneSpec(raw.zone || raw.zoneId || raw.zoneSpec || raw.area);
@@ -1839,6 +2105,35 @@ export class Game {
         }
       }
       if (op === 'wait') step.seconds = clamp(Number(raw.seconds ?? raw.duration ?? 1), 0.1, 30);
+      if (op === 'equip_item') {
+        const type = this.normalizeWeaponItemType(raw.type || raw.itemType || raw.item || raw.weapon);
+        if (!type) errors.push(`Step ${index + 1}: equip_item supports only sword, shield, or bow weaponry`);
+        else step.type = type;
+      }
+      if (op === 'guard_area') {
+        const radiusValue = Number(raw.radius ?? raw.range ?? raw.distance);
+        if (Number.isFinite(radiusValue)) step.radius = clamp(radiusValue, 40, MAX_NEARBY_RADIUS);
+        if (!step.zoneSpec && !step.zoneId && Number.isFinite(radiusValue)) {
+          step.zoneSpec = { kind: 'nearby', radius: step.radius, name: `${Math.round(step.radius)}px nearby around bot` };
+          step.zoneLabel = this.zoneLabel(step.zoneSpec);
+        }
+      }
+      if (op === 'patrol_route') {
+        const points = this.normalizePatrolPoints(raw.points ?? raw.route ?? raw.checkpoints);
+        if (points.length < 2) errors.push(`Step ${index + 1}: patrol_route requires at least two points`);
+        else step.points = points;
+        step.radius = clamp(Number(raw.radius ?? raw.range ?? raw.distance ?? DEFAULT_NEARBY_RADIUS), 40, MAX_NEARBY_RADIUS);
+      }
+      if (op === 'craft_smithery') {
+        const recipe = this.normalizeSmitheryRecipe(raw.recipe || raw.type || raw.item || raw.itemType);
+        if (!recipe) errors.push(`Step ${index + 1}: craft_smithery supports sword/wooden_sword or shield/wooden_shield`);
+        else step.recipe = recipe;
+      }
+      if (op === 'craft_bowmaker') {
+        const recipe = this.normalizeBowmakerRecipe(raw.recipe || raw.type || raw.item || raw.itemType);
+        if (!recipe) errors.push(`Step ${index + 1}: craft_bowmaker supports only bow`);
+        else step.recipe = recipe;
+      }
       if (op === 'if_inventory') {
         const goto = Number(raw.goto);
         if (!Number.isInteger(goto) || goto < 0 || goto >= steps.length) errors.push(`Step ${index + 1}: if_inventory goto must be a valid zero-based step index`);
@@ -1857,15 +2152,89 @@ export class Game {
           if (!template) errors.push(`Step ${index + 1}: template ${templateName} not found`);
         }
       }
-      if (op === 'pick_up_from_storage' || op === 'move_to_structure' || op === 'deposit_to_structure') {
+      if (op === 'rename_bot') {
+        const normalizedName = this.normalizeBotDisplayName(raw.name ?? raw.newName ?? raw.displayName ?? raw.label, { minLength: 2, maxLength: 32 });
+        if (!normalizedName) errors.push(`Step ${index + 1}: rename_bot requires a 2-32 character name`);
+        else step.name = normalizedName;
+        const targetRaw = raw.target ?? raw.bot ?? raw.botId ?? raw.targetBotId;
+        const selfTarget = targetRaw == null || targetRaw === '' || ['self', 'itself', 'this bot'].includes(String(targetRaw).trim().toLowerCase());
+        if (!selfTarget) {
+          const targetBot = this.resolveBotReference(targetRaw);
+          if (!targetBot) errors.push(`Step ${index + 1}: rename_bot target must be an existing bot`);
+          else Object.assign(step, { botId: targetBot.id, target: targetBot.name || `Bot ${targetBot.id}`, targetName: this.botDisplayName?.(targetBot) || targetBot.name || `Bot ${targetBot.id}` });
+        }
+      }
+      if (op === 'promote_to_manager') {
+        const targetRaw = raw.target ?? raw.bot ?? raw.botId ?? raw.targetBotId;
+        const selfTarget = targetRaw == null || targetRaw === '' || ['self', 'itself', 'this bot'].includes(String(targetRaw).trim().toLowerCase());
+        if (!selfTarget) {
+          const targetBot = this.resolveBotReference(targetRaw);
+          if (!targetBot) errors.push(`Step ${index + 1}: promote_to_manager target must be an existing bot`);
+          else Object.assign(step, { botId: targetBot.id, target: targetBot.name || `Bot ${targetBot.id}`, targetName: this.botDisplayName?.(targetBot) || targetBot.name || `Bot ${targetBot.id}` });
+        }
+        step.knowledgePacks = this.normalizeManagerKnowledgePacks(raw.knowledgePacks ?? raw.packs ?? raw.loadout, DEFAULT_MANAGER_KNOWLEDGE_PACKS);
+      }
+      if (op === 'delegate_to_manager') {
+        const message = this.sanitizeManagerMessage(raw.message ?? raw.text ?? raw.prompt ?? raw.instruction);
+        if (!message) errors.push(`Step ${index + 1}: delegate_to_manager requires message`);
+        else step.message = message;
+        const recipientRaw = raw.recipient ?? raw.manager ?? raw.target ?? raw.bot ?? raw.botId;
+        const managerBot = this.resolveBotReference(recipientRaw);
+        if (!managerBot) errors.push(`Step ${index + 1}: delegate_to_manager recipient must be an existing manager bot`);
+        else if (!this.isManagerBot(managerBot)) errors.push(`Step ${index + 1}: delegate_to_manager recipient must be a manager bot`);
+        else Object.assign(step, { recipient: managerBot.name || `Bot ${managerBot.id}`, recipientBotId: managerBot.id, recipientName: this.botDisplayName?.(managerBot) || managerBot.name || `Bot ${managerBot.id}` });
+      }
+      if (op === 'follow') {
+        const targetRaw = raw.targetRef ?? raw.target ?? raw.follow ?? raw.player ?? raw.bot ?? 'me';
+        const placeholder = typeof targetRaw === 'string' && targetRaw.startsWith('$');
+        const target = placeholder ? null : this.resolveActorReference(targetRaw);
+        if (!placeholder && !target) errors.push(`Step ${index + 1}: follow requires an existing target actor`);
+        step.target = String(targetRaw || 'me');
+        step.distance = clamp(Number(raw.distance ?? raw.spacing ?? DEFAULT_FOLLOW_DISTANCE), 18, 220);
+        if (target) Object.assign(step, { targetRef: target.ref || (target === this.player ? 'player:local' : null), targetName: this.actorLabel(target) });
+      }
+      if (op === 'attack') {
+        const rawType = raw.type ?? raw.monsterType ?? raw.kind ?? null;
+        const targetRaw = raw.targetRef ?? raw.target ?? raw.enemy ?? raw.monster ?? raw.targetName ?? null;
+        const genericTargetTypes = new Set(['monster', 'monsters', 'enemy', 'enemies', 'hostile', 'hostiles', 'night monster', 'night monsters', 'passive monster', 'passive monsters']);
+        const targetText = String(targetRaw || '').toLowerCase().replace(/[_-]+/g, ' ').trim();
+        step.type = this.normalizeAttackType(rawType || (genericTargetTypes.has(targetText) ? targetText : 'monster'));
+        const radiusValue = Number(raw.radius ?? raw.range ?? raw.distance);
+        const zoneInput = raw.zone ?? raw.zoneId ?? raw.zoneSpec ?? raw.area ?? raw.location ?? (Number.isFinite(radiusValue) ? { kind: 'nearby', radius: radiusValue } : null);
+        if (zoneInput) {
+          const normalizedZone = this.normalizeZoneSpec((typeof zoneInput === 'string' && /\bnearby\b/i.test(zoneInput) && Number.isFinite(radiusValue)) ? { kind: 'nearby', radius: radiusValue } : zoneInput);
+          if (normalizedZone.zoneId) {
+            step.zoneId = normalizedZone.zoneId;
+            const zone = this.zones.find(z => z.id === normalizedZone.zoneId);
+            if (zone) step.zoneLabel = this.zoneLabel(zone);
+          }
+          if (normalizedZone.zoneSpec) {
+            step.zoneSpec = normalizedZone.zoneSpec;
+            if (step.zoneSpec.kind === 'nearby' && Number.isFinite(radiusValue)) {
+              step.zoneSpec.radius = clamp(radiusValue, 40, MAX_NEARBY_RADIUS);
+              step.zoneSpec.name = `${Math.round(step.zoneSpec.radius)}px nearby around bot`;
+            }
+            step.zoneLabel = this.zoneLabel(step.zoneSpec);
+          }
+        }
+        if (Number.isFinite(radiusValue)) step.radius = clamp(radiusValue, 40, MAX_NEARBY_RADIUS);
+        if (targetRaw && !genericTargetTypes.has(targetText)) {
+          const placeholder = typeof targetRaw === 'string' && targetRaw.startsWith('$');
+          const target = placeholder ? null : this.resolveActorReference(targetRaw);
+          if (target && this.isHostileTarget(target)) Object.assign(step, { target: String(targetRaw), targetRef: target.ref, targetName: this.actorLabel(target) });
+          else if (!placeholder) step.target = String(targetRaw);
+        }
+      }
+      if (op === 'pick_up_from_storage' || op === 'move_to_structure' || op === 'deposit_to_structure' || op === 'craft_smithery' || op === 'craft_bowmaker' || op === 'disassemble_building_to_kit') {
         const sourceRaw = raw.sourceStructureId ?? raw.sourceId ?? raw.source;
         const targetRaw = raw.structureId ?? raw.targetStructureId ?? raw.targetId ?? raw.target ?? raw.structureName;
-        const wantedType = op === 'pick_up_from_storage' ? 'item_palette' : (raw.structureType || null);
+        const wantedType = op === 'pick_up_from_storage' ? 'item_palette' : op === 'craft_smithery' ? 'smithery' : op === 'craft_bowmaker' ? 'bowmaker' : (raw.structureType || null);
         const lookup = op === 'pick_up_from_storage' ? (sourceRaw ?? targetRaw) : targetRaw;
         const placeholder = typeof lookup === 'string' && lookup.startsWith('$');
-        const structureId = placeholder ? null : this.normalizeStructureId(lookup, wantedType) || this.normalizeStructureId(lookup, null);
+        const structureId = placeholder ? null : this.normalizeStructureId(lookup, wantedType) || ((op === 'craft_smithery' || op === 'craft_bowmaker') ? null : this.normalizeStructureId(lookup, null));
         const structure = structureId ? this.structures.find(s => s.id === structureId) : null;
-        if (!placeholder && !structure) errors.push(`Step ${index + 1}: ${op} requires an existing ${wantedType || 'structure'} target/source`);
+        if (!placeholder && lookup != null && lookup !== '' && !structure) errors.push(`Step ${index + 1}: ${op} requires an existing ${wantedType || 'structure'} target/source`);
+        if (!placeholder && op === 'disassemble_building_to_kit' && !this.canDisassembleStructure(structure)) errors.push(`Step ${index + 1}: disassemble_building_to_kit requires a disassemblable building`);
         if (structure) Object.assign(step, { structureId: structure.id, structureName: structure.name, structureType: structure.type, target: structure.name });
         else if (placeholder) Object.assign(step, { target: lookup, structureType: wantedType || raw.structureType || null });
       }
@@ -1879,10 +2248,15 @@ export class Game {
         if (held && held !== step.type) errors.push(`Step ${index + 1}: cannot pick up ${itemLabel(step.type)} while already holding ${itemLabel(held)}`);
         held = step.type;
       }
-      if (step.op === 'deposit_to_structure' || step.op === 'deposit_to_player' || step.op === 'drop_item') {
+      if (step.op === 'deposit_to_structure' || step.op === 'deposit_to_player' || step.op === 'drop_item' || step.op === 'deploy_building_kit') {
         if (!held) errors.push(`Step ${index + 1}: ${step.op} requires a prior pick_up step for ${itemLabel(step.type)}`);
         else if (held !== step.type) errors.push(`Step ${index + 1}: holds ${itemLabel(held)} but ${step.op} needs ${itemLabel(step.type)}`);
         held = null;
+      }
+      if (step.op === 'disassemble_building_to_kit') {
+        if (held) errors.push(`Step ${index + 1}: disassemble_building_to_kit needs empty hands, but holds ${itemLabel(held)}`);
+        const kitType = buildingKitItemTypeFor(step.structureType);
+        if (kitType) held = kitType;
       }
       if (step.op === 'plant_seed') {
         if (held && held !== 'tree_seed') errors.push(`Step ${index + 1}: plant_seed requires tree_seed, not ${itemLabel(held)}`);
@@ -2117,7 +2491,7 @@ export class Game {
     this.zones = clone(payload.zones || DEFAULT_WORLD_ZONES);
     this.idleDepot = { x: 115, y: 245, label: 'idle depot', ...(payload.idleDepot || {}) };
     this.trees = clone(payload.trees || []); this.hempPlants = clone(payload.hempPlants || []); this.rocks = clone(payload.rocks || []); this.holes = clone(payload.holes || []); this.items = clone(payload.items || []); this.bots = clone(payload.bots || []); this.structures = clone(payload.structures || []); this.monsters = clone(payload.monsters || []); this.projectiles = clone(payload.projectiles || []); this.floaters = [];
-    for (const bot of this.bots) { ensureEquipment(bot); bot.name = bot.name || `Bot ${bot.id}`; if (bot.teamId && !this.findBotTeam(bot.teamId)) bot.teamId = null; }
+    for (const bot of this.bots) { ensureEquipment(bot); bot.name = bot.name || `Bot ${bot.id}`; bot.status = bot.status === 'manager' ? 'manager' : 'worker'; bot.managerKnowledgePacks = this.normalizeManagerKnowledgePacks(bot.managerKnowledgePacks || bot.knowledgePacks || [], bot.status === 'manager' ? DEFAULT_MANAGER_KNOWLEDGE_PACKS : []); bot.knowledgePacks = bot.managerKnowledgePacks; if (bot.teamId && !this.findBotTeam(bot.teamId)) bot.teamId = null; }
     const counters = payload.counters || {};
     this.nextItemId = Number(counters.nextItemId || 1); this.nextRockId = Number(counters.nextRockId || 1); this.nextHoleId = Number(counters.nextHoleId || 1); this.nextTreeId = Number(counters.nextTreeId || 1); this.nextHempId = Number(counters.nextHempId || 1); this.nextMonsterId = Number(counters.nextMonsterId || 1); this.nextProjectileId = Number(counters.nextProjectileId || 1); this.nextBotId = Number(counters.nextBotId || 1); this.nextStructureId = Number(counters.nextStructureId || 1); this.nextZoneId = Number(counters.nextZoneId || 1); this.nextBotTeamId = Number(counters.nextBotTeamId || this.nextBotTeamId || 1); this.nextCustomTemplateId = Number(counters.nextCustomTemplateId || this.nextCustomTemplateId || 1);
     if (payload.settings?.maxBots) this.maxBots = Number(payload.settings.maxBots);
@@ -2136,8 +2510,8 @@ export class Game {
     this.map = { ...WORLD_MAP_SIZE };
       this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.hp = this.player.maxHp || 10; this.player.facingX = 1; this.player.facingY = 0;
       this.assistant.x = localStart.x - 30; this.assistant.y = localStart.y + 24; this.assistant.facingX = 1; this.assistant.facingY = 0;
-    this.camera.x = clamp(localStart.x - this.W / 2, 0, Math.max(0, this.map.width - this.W / (this.camera.zoom || 1)));
-    this.camera.y = clamp(localStart.y - this.H / 2, 0, Math.max(0, this.map.height - this.H / (this.camera.zoom || 1)));
+    this.camera.x = localStart.x - (this.W / (this.camera.zoom || 1)) / 2;
+    this.camera.y = localStart.y - (this.H / (this.camera.zoom || 1)) / 2;
     this.clampCamera();
 
     const p1 = { ...MULTIPLAYER_STARTS.p1, label: 'Player' };
@@ -2174,8 +2548,8 @@ export class Game {
     this.mapFeatures = clone(ONLINE_MULTIPLAYER_FEATURES);
       this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.hp = this.player.maxHp || 10; this.player.facingX = 1; this.player.facingY = 0;
       this.assistant.x = localStart.x - 30; this.assistant.y = localStart.y + 24; this.assistant.facingX = 1; this.assistant.facingY = 0;
-    this.camera.x = clamp(localStart.x - this.W / 2, 0, Math.max(0, this.map.width - this.W / (this.camera.zoom || 1)));
-    this.camera.y = clamp(localStart.y - this.H / 2, 0, Math.max(0, this.map.height - this.H / (this.camera.zoom || 1)));
+    this.camera.x = localStart.x - (this.W / (this.camera.zoom || 1)) / 2;
+    this.camera.y = localStart.y - (this.H / (this.camera.zoom || 1)) / 2;
     this.clampCamera();
 
     const p1 = { ...MULTIPLAYER_STARTS.p1, label: 'Player 1', ...(players?.p1 || {}) };
@@ -2440,8 +2814,8 @@ export class Game {
   programChopWood(bot, dt) {
     if (!this.ensureChopTool(bot, dt)) return;
     const zone = this.getBotZone(bot);
-    let tree = this.isChoppableTree(bot.target) && this.objectInZone(bot.target, zone) ? bot.target : null;
-    if (!tree) { tree = nearest(this.trees, bot.x, bot.y, t => this.isChoppableTree(t) && this.objectInZone(t, zone)); bot.target = tree; }
+    let tree = this.isChoppableTree(bot.target) && this.objectInZone(bot.target, zone, bot) ? bot.target : null;
+    if (!tree) { tree = nearest(this.trees, bot.x, bot.y, t => this.isChoppableTree(t) && this.objectInZone(t, zone, bot)); bot.target = tree; }
     if (!tree) return bot.message=`No living trees in ${this.zoneLabel(zone)}.`;
     if (!this.moveBotTo(bot, tree, dt, tree.radius + 14)) return bot.message=`Walking to tree in ${this.zoneLabel(zone)} with ${itemLabel(bot.tool.type)}.`;
     bot.timer += dt; bot.message = `Chopping with ${itemLabel(bot.tool.type)} (${Math.min(RESOURCE_HIT_SECONDS, Math.ceil(bot.timer))}/${RESOURCE_HIT_SECONDS}).`;
@@ -2487,8 +2861,8 @@ export class Game {
   programMineStone(bot, dt) {
     if (!this.ensureMineTool(bot, dt)) return;
     const zone = this.getBotZone(bot);
-    let rock = bot.target?.type === 'stone_deposit' && !bot.target.depleted && this.objectInZone(bot.target, zone) ? bot.target : null;
-    if (!rock) { rock = nearest(this.rocks, bot.x, bot.y, r => !r.depleted && this.objectInZone(r, zone)); bot.target = rock; }
+    let rock = bot.target?.type === 'stone_deposit' && !bot.target.depleted && this.objectInZone(bot.target, zone, bot) ? bot.target : null;
+    if (!rock) { rock = nearest(this.rocks, bot.x, bot.y, r => !r.depleted && this.objectInZone(r, zone, bot)); bot.target = rock; }
     if (!rock) return bot.message = `No stone deposits in ${this.zoneLabel(zone)}.`;
     if (!this.moveBotTo(bot, rock, dt, rock.radius + 14)) return bot.message = `Walking to stone deposit in ${this.zoneLabel(zone)} with ${itemLabel(bot.tool.type)}.`;
     bot.timer += dt; bot.message = `Mining stone with ${itemLabel(bot.tool.type)} (${Math.min(RESOURCE_HIT_SECONDS, Math.ceil(bot.timer))}/${RESOURCE_HIT_SECONDS}).`;
@@ -2537,7 +2911,7 @@ export class Game {
     const spots = [];
     for (let y = b.y + step / 2; y <= b.y + b.h - step / 2; y += step) {
       for (let x = b.x + step / 2; x <= b.x + b.w - step / 2; x += step) {
-        if (this.pointInZone(x, y, zone) && this.isDiggable(x, y)) spots.push({ kind: 'dig_spot', x, y });
+        if (this.pointInZone(x, y, zone, bot) && this.isDiggable(x, y)) spots.push({ kind: 'dig_spot', x, y });
       }
     }
     return nearest(spots, bot.x, bot.y);
@@ -2548,7 +2922,7 @@ export class Game {
   programDigHoles(bot, dt) {
     if (!this.ensureDigTool(bot, dt)) return;
     const zone = this.getBotZone(bot);
-    let spot = bot.target?.kind === 'dig_spot' && this.pointInZone(bot.target.x, bot.target.y, zone) && this.isDiggable(bot.target.x, bot.target.y) ? bot.target : null;
+    let spot = bot.target?.kind === 'dig_spot' && this.pointInZone(bot.target.x, bot.target.y, zone, bot) && this.isDiggable(bot.target.x, bot.target.y) ? bot.target : null;
     if (!spot) { spot = this.findDigSpot(bot); bot.target = spot; bot.timer = 0; }
     if (!spot) return bot.message = `No open dirt to dig in ${this.zoneLabel(zone)}.`;
     if (!this.moveBotTo(bot, spot, dt, 12)) return bot.message = `Walking to dig spot in ${this.zoneLabel(zone)} with ${itemLabel(bot.tool.type)}.`;
@@ -2571,9 +2945,9 @@ export class Game {
     const zone = this.getBotZone(bot);
     if (!bot.inventory) { this.takeLooseItem(bot, 'tree_seed', dt); return; }
     if (bot.inventory.type !== 'tree_seed') { bot.message = `Holding ${itemLabel(bot.inventory.type)}; needs tree seed for planting.`; return; }
-    let hole = bot.targetHoleId ? this.holes.find(h => h.id === bot.targetHoleId && this.openHoleInZone(h, zone) && (!h.reservedBy || h.reservedBy === bot.id)) : null;
+    let hole = bot.targetHoleId ? this.holes.find(h => h.id === bot.targetHoleId && this.openHoleInZone(h, zone, bot) && (!h.reservedBy || h.reservedBy === bot.id)) : null;
     if (!hole) {
-      hole = this.nearestOpenHole(bot.x, bot.y, zone, Infinity, bot.id);
+      hole = this.nearestOpenHole(bot.x, bot.y, zone, Infinity, bot.id, bot);
       if (hole) { hole.reservedBy = bot.id; bot.targetHoleId = hole.id; bot.target = hole; }
     }
     if (!hole) return bot.message = `No open dug holes in ${this.zoneLabel(zone)}.`;
@@ -2593,11 +2967,11 @@ export class Game {
   }
   findItemFor(bot, type) {
     const zone = this.getBotZone(bot);
-    return nearest(this.items, bot.x, bot.y, i => i.type === type && (!i.reservedBy || i.reservedBy === bot.id) && this.objectInZone(i, zone));
+    return nearest(this.items, bot.x, bot.y, i => i.type === type && (!i.reservedBy || i.reservedBy === bot.id) && this.objectInZone(i, zone, bot));
   }
   findItemNearStructureFor(bot, type, structure, radius = PRODUCTION_SOURCE_RADIUS) {
     const zone = this.getBotZone(bot);
-    return nearest(this.items, bot.x, bot.y, i => i.type === type && (!i.reservedBy || i.reservedBy === bot.id) && rectDistance(i.x, i.y, structure) <= radius && this.objectInZone(i, zone));
+    return nearest(this.items, bot.x, bot.y, i => i.type === type && (!i.reservedBy || i.reservedBy === bot.id) && rectDistance(i.x, i.y, structure) <= radius && this.objectInZone(i, zone, bot));
   }
   pickItem(bot, item) {
     if (!bot || !item) return false;
@@ -2630,6 +3004,15 @@ export class Game {
     if (this.isStructureProcessing(s)) { this.addFloat(`${s.name} is processing; output stays ${itemLabel(smitheryRecipe(s))}`, s.x, s.y - 35, '#c7b683'); return false; }
     s.smitheryRecipe = recipe;
     this.addFloat(`${s.name}: produce ${itemLabel(recipe)}`, s.x, s.y - 35, '#d3a95f');
+    this.emitSound('switch', { cooldownKey: `recipe:${s.id}`, minGapMs: 100 });
+    return true;
+  }
+  setAssemblerRecipe(s, recipe) {
+    const kitType = this.normalizeBuildingKitItemType(recipe);
+    if (!s || s.type !== 'assembler' || !kitType) return false;
+    if (this.isStructureProcessing(s)) { this.addFloat(`${s.name} is processing; output stays ${itemLabel(assemblerRecipe(s))}`, s.x, s.y - 35, '#c7b683'); return false; }
+    s.assemblerRecipe = kitType;
+    this.addFloat(`${s.name}: assemble ${itemLabel(kitType)}`, s.x, s.y - 35, '#d3a95f');
     this.emitSound('switch', { cooldownKey: `recipe:${s.id}`, minGapMs: 100 });
     return true;
   }
@@ -2732,6 +3115,13 @@ export class Game {
         this.maybeStartStructureProcessing(s, worker);
         return true;
       }
+      if (s.type === 'assembler') {
+        const key = `${type}s` in s ? `${type}s` : type;
+        s[key]++;
+        this.addFloat(`${s.name}: ${s.planks || 0}/2 planks, ${s.poles || 0}/1 pole`, s.x, s.y - 35, '#d3a95f');
+        this.maybeStartStructureProcessing(s, worker);
+        return true;
+      }
     return false;
   }
   depositToSawbench(s, type, options = {}) { return this.depositHeldItemToStructure(s, type, options); }
@@ -2748,6 +3138,7 @@ export class Game {
     }
     if (s.type === 'bowmaker' && Object.entries(BOW_RECIPE).every(([type, cost]) => (s[`${type}s`] ?? s[type] ?? 0) >= cost)) return { recipe: 'bow', label: 'binding bow' };
     if (s.type === 'factory' && Object.entries(FACTORY_BOT_RECIPE).every(([type, cost]) => (s[`${type}s`] ?? s[type] ?? 0) >= cost)) return { recipe: 'basic_bot', label: 'assembling bot' };
+    if (s.type === 'assembler' && Object.entries(ASSEMBLER_KIT_RECIPE).every(([type, cost]) => (s[`${type}s`] ?? s[type] ?? 0) >= cost)) { const recipe = assemblerRecipe(s); return { recipe, label: `assembling ${itemLabel(recipe)}` }; }
     return null;
   }
   consumeStructureInputs(s, recipe) {
@@ -2757,6 +3148,7 @@ export class Game {
     if (s.type === 'smithery' && SMITHERY_RECIPES.includes(recipe)) { const input = smitheryInputFor(recipe), key = input === 'stick' ? 'sticks' : 'planks'; s[key]--; return true; }
     if (s.type === 'bowmaker' && recipe === 'bow') { for (const [type, cost] of Object.entries(BOW_RECIPE)) { const key = `${type}s` in s ? `${type}s` : type; s[key] -= cost; } return true; }
     if (s.type === 'factory' && recipe === 'basic_bot') { for (const [type, cost] of Object.entries(FACTORY_BOT_RECIPE)) { const key = `${type}s` in s ? `${type}s` : type; s[key] -= cost; } return true; }
+    if (s.type === 'assembler' && BUILDING_KIT_ITEM_TYPES.includes(recipe)) { for (const [type, cost] of Object.entries(ASSEMBLER_KIT_RECIPE)) { const key = `${type}s` in s ? `${type}s` : type; s[key] -= cost; } return true; }
     return false;
   }
   occupyProductionWorker(worker, s) {
@@ -2807,11 +3199,12 @@ export class Game {
       return;
     }
     if (s.type === 'bowmaker' && job.recipe === 'bow') { s.bows++; this.dropProducedItem(s, 'bow', 1); this.addFloat('+ bow dropped', s.x, s.y - 35, '#d3a95f'); return; }
-    if (s.type === 'factory' && job.recipe === 'basic_bot') { const nb = this.createBot(s.x + rand(-30, 30), s.y + 72, 'idle'); if (nb) this.addChat?.('assistant', `Factory created Basic Bot ${nb.id}.`); }
+    if (s.type === 'factory' && job.recipe === 'basic_bot') { const nb = this.createBot(s.x + rand(-30, 30), s.y + 72, 'idle'); if (nb) this.addChat?.('assistant', `Factory created Basic Bot ${nb.id}.`); return; }
+    if (s.type === 'assembler' && BUILDING_KIT_ITEM_TYPES.includes(job.recipe)) { this.dropProducedItem(s, job.recipe, 1); this.addFloat(`+ ${itemLabel(job.recipe)} dropped`, s.x, s.y - 35, '#d3a95f'); return; }
   }
     updateProductionStructures(dt) {
       for (const s of this.structures) {
-        if (!['sawbench', 'workbench', 'factory', 'smithery', 'bowmaker'].includes(s.type)) continue;
+        if (!['sawbench', 'workbench', 'factory', 'smithery', 'bowmaker', 'assembler'].includes(s.type)) continue;
         if (this.isStructureProcessing(s)) {
           s.processing.remaining -= dt;
           if (s.processing.remaining <= 0) { const job = s.processing; s.processing = null; this.finishStructureProcessing(s, job); }
@@ -2823,11 +3216,165 @@ export class Game {
   programHaulLogs(bot, dt) {
     const zone = this.getBotZone(bot);
     if (bot.inventory?.type === 'log') { const s = this.nearestStructure('sawbench', bot.x, bot.y, bot.targetStructureId); if (!s) return bot.message='No sawbench.'; if (!this.moveBotTo(bot, s, dt, 32)) return bot.message=`Delivering log to ${s.name}.`; this.depositToSawbench(s, 'log', { worker: { bot } }); bot.inventory=null; bot.message=this.isStructureProcessing(s) ? `Delivered log and started ${s.processing.label} at ${s.name}.` : `Delivered log to ${s.name}.`; return; }
-    let item = bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && this.objectInZone(i, zone)) : null;
+    let item = bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && this.objectInZone(i, zone, bot)) : null;
     if (!item) { item = this.findItemFor(bot,'log'); if (item) { item.reservedBy=bot.id; bot.targetItemId=item.id; } }
     if (!item) return bot.message=`Waiting for loose logs in ${this.zoneLabel(zone)}.`;
     if (!this.moveBotTo(bot,item,dt,12)) return bot.message=`Picking up log in ${this.zoneLabel(zone)}.`;
     this.pickItem(bot,item);
+  }
+  executeFollowStep(bot, step, dt) {
+    const target = this.resolveActorReference(step.targetRef || step.target || 'me', bot);
+    if (!target || target === bot || (target.hp ?? 1) <= 0) { bot.message = `Follow target ${step.targetName || step.target || 'target'} unavailable.`; return false; }
+    const spacing = clamp(Number(step.distance || DEFAULT_FOLLOW_DISTANCE), 18, 220);
+    const reached = this.moveToward(bot, target.x, target.y, dt, bot.speed, spacing);
+    bot.message = reached ? `Following ${this.actorLabel(target)}.` : `Moving to follow ${this.actorLabel(target)}.`;
+    return reached;
+  }
+  executeAttackTarget(bot, target, dt, label = 'area') {
+    if (!bot || !this.isHostileTarget(target)) return false;
+    const eq = ensureEquipment(bot);
+    const weapon = eq.weapon;
+    const ranged = weapon === 'bow';
+    const attack = ranged ? eq.rangedAttack : (eq.autoAttack ||= createAutoAttackComponent());
+    if (!ranged) {
+      attack.range = MELEE_ATTACK_RANGE + (target.radius || target.r || 16);
+      attack.damage = this.actorMeleeDamage(bot);
+      attack.cooldown = MELEE_AUTO_ATTACK.cooldown;
+    }
+    attack.cooldownRemaining = Math.max(0, (attack.cooldownRemaining || 0) - dt);
+    const range = ranged ? (attack.range || BOW_ATTACK.range) : (attack.range || MELEE_AUTO_ATTACK.range);
+    if (this.targetDistance(bot, target) > range) {
+      this.moveToward(bot, target.x, target.y, dt, bot.speed, Math.max(18, range * 0.8));
+      bot.message = `Closing to attack ${target.name || target.ref || 'target'} in ${label}.`;
+      return false;
+    }
+    attack.targetRef = target.ref;
+    if (attack.cooldownRemaining > 0) { bot.message = `Attacking ${target.name || target.ref || 'target'}…`; return true; }
+    if (ranged) this.fireActorBow(bot, target, attack);
+    else {
+      this.damageAttackTarget(target, attack.damage || 1);
+      attack.cooldownRemaining = attack.cooldown || MELEE_AUTO_ATTACK.cooldown;
+      this.emitSound('hit', { cooldownKey: `bot:attack:${bot.id}`, minGapMs: 160 });
+    }
+    bot.message = `Attacked ${target.name || target.ref || 'target'}.`;
+    return (target.hp ?? 1) <= 0;
+  }
+  executeAttackStep(bot, step, dt) {
+    const zone = this.attackZoneForStep(step);
+    let target = this.nearestAttackTargetForStep(bot, step);
+    if (!target) {
+      const patrol = this.zoneCenter(zone, bot);
+      if (zone && patrol && distXY(bot.x, bot.y, patrol.x, patrol.y) > 24 && zone.kind !== 'nearby') {
+        this.moveToward(bot, patrol.x, patrol.y, dt, bot.speed, 20);
+        bot.message = `Moving to attack zone ${this.zoneLabel(zone)}.`;
+        return false;
+      }
+      bot.message = `No ${step.type || 'hostile target'} in ${this.zoneLabel(zone)}.`;
+      return false;
+    }
+    return this.executeAttackTarget(bot, target, dt, this.zoneLabel(zone));
+  }
+  guardCenterForStep(bot, step) {
+    if (!bot.runtime) bot.runtime = { pc: 0, memory: {}, wait: 0 };
+    if (!bot.runtime.memory) bot.runtime.memory = {};
+    const zone = this.attackZoneForStep(step);
+    const zoneCenter = zone && zone.kind !== 'nearby' ? this.zoneCenter(zone, bot) : null;
+    if (zoneCenter) return zoneCenter;
+    const key = `guard:${step.zoneLabel || step.radius || 'current'}`;
+    if (!bot.runtime.memory[key]) bot.runtime.memory[key] = { x: bot.x, y: bot.y };
+    return bot.runtime.memory[key];
+  }
+  guardZoneForStep(bot, step) {
+    const zone = this.attackZoneForStep(step);
+    const radius = clamp(Number(step.radius || zone?.radius || DEFAULT_NEARBY_RADIUS), 40, MAX_NEARBY_RADIUS);
+    if (zone && zone.kind !== 'nearby') return zone;
+    const center = this.guardCenterForStep(bot, step);
+    return { kind: 'radius', x: center.x, y: center.y, radius, name: step.zoneLabel || `${Math.round(radius)}px guard area` };
+  }
+  nearestGuardTargetForStep(bot, step) {
+    const zone = this.guardZoneForStep(bot, step);
+    const type = this.normalizeAttackType(step.type || 'monster');
+    return nearest(this.hostileTargetsForActor(bot, Infinity), bot.x, bot.y, target => this.objectInZone(target, zone, null) && this.attackTargetMatchesType(target, type));
+  }
+  executeGuardAreaStep(bot, step, dt) {
+    const zone = this.guardZoneForStep(bot, step);
+    const target = this.nearestGuardTargetForStep(bot, step);
+    if (target) return this.executeAttackTarget(bot, target, dt, this.zoneLabel(zone));
+    const center = this.guardCenterForStep(bot, step);
+    if (center && distXY(bot.x, bot.y, center.x, center.y) > 22) {
+      this.moveToward(bot, center.x, center.y, dt, bot.speed, 14);
+      bot.message = `Returning to guard center in ${this.zoneLabel(zone)}.`;
+      return false;
+    }
+    bot.message = `Guarding ${this.zoneLabel(zone)}.`;
+    return false;
+  }
+  executePatrolRouteStep(bot, step, dt) {
+    if (!bot.runtime) bot.runtime = { pc: 0, memory: {}, wait: 0 };
+    if (!bot.runtime.memory) bot.runtime.memory = {};
+    const points = Array.isArray(step.points) ? step.points : [];
+    if (points.length < 2) { bot.message = 'Patrol route needs at least two points.'; return false; }
+    const radius = clamp(Number(step.radius || DEFAULT_NEARBY_RADIUS), 40, MAX_NEARBY_RADIUS);
+    const currentIndex = clamp(Number(bot.runtime.memory.patrolIndex || 0), 0, points.length - 1);
+    const checkpoint = points[currentIndex] || points[0];
+    const target = nearest(this.hostileTargetsForActor(bot, Infinity), bot.x, bot.y, t => this.attackTargetMatchesType(t, step.type || 'monster') && (distXY(bot.x, bot.y, t.x, t.y) <= radius || distXY(checkpoint.x, checkpoint.y, t.x, t.y) <= radius));
+    if (target) return this.executeAttackTarget(bot, target, dt, `patrol radius ${Math.round(radius)}`);
+    if (this.moveToward(bot, checkpoint.x, checkpoint.y, dt, bot.speed, 18)) {
+      bot.runtime.memory.patrolIndex = (currentIndex + 1) % points.length;
+      bot.message = `Reached ${checkpoint.name || `checkpoint ${currentIndex + 1}`}; patrolling.`;
+    } else {
+      bot.message = `Patrolling to ${checkpoint.name || `checkpoint ${currentIndex + 1}`}.`;
+    }
+    return false;
+  }
+  executeEquipItemStep(bot, step, dt) {
+    const type = this.normalizeWeaponItemType(step.type);
+    if (!type) { bot.message = 'equip_item supports only sword, shield, or bow.'; return false; }
+    if (this.actorAlreadyHasPickupType(bot, type)) { bot.message = `Already has ${itemLabel(type)} equipped.`; return true; }
+    let item = bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && i.type === type) : null;
+    if (!item) {
+      item = nearest(this.items, bot.x, bot.y, i => i.type === type && (!i.reservedBy || i.reservedBy === bot.id));
+      if (item) { item.reservedBy = bot.id; bot.targetItemId = item.id; bot.targetItemPurpose = 'equip_item'; }
+    }
+    if (!item) { bot.message = `Waiting for loose ${itemLabel(type)} to equip.`; return false; }
+    if (!this.moveBotTo(bot, item, dt, 12)) { bot.message = `Moving to equip ${itemLabel(type)}.`; return false; }
+    const beforeInventory = bot.inventory?.type || null;
+    if (!this.pickItem(bot, item)) return false;
+    bot.message = beforeInventory ? `Carrying ${itemLabel(type)} as extra weaponry.` : `Equipped ${itemLabel(type)}.`;
+    return true;
+  }
+  executeCraftSmitheryStep(bot, step, dt) {
+    const recipe = this.normalizeSmitheryRecipe(step.recipe);
+    const s = this.nearestStructure('smithery', bot.x, bot.y, step.structureId);
+    return this.executeCraftAtProduction(bot, step, dt, s, recipe, 'smithery');
+  }
+  executeCraftBowmakerStep(bot, step, dt) {
+    const recipe = this.normalizeBowmakerRecipe(step.recipe);
+    const s = this.nearestStructure('bowmaker', bot.x, bot.y, step.structureId);
+    return this.executeCraftAtProduction(bot, step, dt, s, recipe, 'bowmaker');
+  }
+  executeCraftAtProduction(bot, step, dt, s, recipe, structureType) {
+    if (!s || !recipe) { bot.message = `No ${structureType} recipe target available.`; return false; }
+    if (s.type === 'smithery' && smitheryRecipe(s) !== recipe && !this.setSmitheryRecipe(s, recipe)) { bot.message = `${s.name} is busy with ${itemLabel(smitheryRecipe(s))}.`; return false; }
+    const ready = this.structureReadyJob(s)?.recipe === recipe || this.isStructureProcessing(s);
+    if (ready) {
+      if (!this.moveBotTo(bot, s, dt, 34)) { bot.message = `Going to craft ${itemLabel(recipe)} at ${s.name}.`; return false; }
+      this.maybeStartStructureProcessing(s, { bot });
+      bot.message = this.isStructureProcessing(s) ? `${s.name} is ${s.processing.label}.` : `${s.name} completed ${itemLabel(recipe)}.`;
+      return true;
+    }
+    const needs = productionInputNeeds(s) || {};
+    if (bot.inventory) {
+      if (!needs[bot.inventory.type]) { bot.message = `Holding ${itemLabel(bot.inventory.type)}; ${s.name} needs ${Object.keys(needs).map(itemLabel).join(' + ')}.`; return false; }
+      if (!this.moveBotTo(bot, s, dt, 34)) { bot.message = `Supplying ${itemLabel(bot.inventory.type)} to ${s.name}.`; return false; }
+      if (!this.depositHeldItemToStructure(s, bot.inventory.type, { worker: { bot } })) { bot.message = this.isStructureProcessing(s) ? `${s.name} is processing; waiting.` : `${s.name} cannot take ${itemLabel(bot.inventory.type)}.`; return false; }
+      bot.inventory = null;
+      bot.message = this.isStructureProcessing(s) ? `Delivered material and started ${s.processing.label}.` : `Delivered material to ${s.name}.`;
+      return this.isStructureProcessing(s);
+    }
+    const missing = Object.entries(needs).find(([type, cost]) => productionInputCount(s, type) < cost)?.[0];
+    if (!missing) { bot.message = `${s.name} is ready for ${itemLabel(recipe)}.`; return false; }
+    return this.takeLooseItem(bot, missing, dt);
   }
   programTaughtLoop(bot, dt) {
     const steps = bot.taughtLoop || [];
@@ -2842,14 +3389,76 @@ export class Game {
       if (res.ok) advance();
       return;
     }
+    if (step.op === 'rename_bot') {
+      const targetBot = step.botId ? this.findBot(step.botId) : bot;
+      const res = this.setBotName(targetBot, step.name);
+      bot.message = res.ok
+        ? `Renamed ${res.bot.id === bot.id ? 'this bot' : `Bot ${res.bot.id}`} to ${this.botDisplayName(res.bot)}.`
+        : res.error;
+      if (res.ok) advance();
+      return;
+    }
+    if (step.op === 'promote_to_manager') {
+      const targetBot = step.botId ? this.findBot(step.botId) : bot;
+      const res = this.promoteBotToManager(targetBot, step.knowledgePacks);
+      bot.message = res.ok
+        ? `Promoted ${res.bot.id === bot.id ? 'this bot' : this.botDisplayName(res.bot)} to manager.`
+        : res.error;
+      if (res.ok) advance();
+      return;
+    }
+    if (step.op === 'delegate_to_manager') {
+      const res = this.delegateMessageToManager(bot, step.recipientBotId || step.recipient, step.message, { throttleKey: `${bot.id}:${bot.runtime.pc}:${step.recipientBotId || step.recipient}:${step.message}` });
+      bot.message = res.ok
+        ? (res.throttled ? `Delegate to ${step.recipientName || step.recipient} throttled briefly.` : `Delegated to ${this.botDisplayName(res.manager)}.`)
+        : res.error;
+      if (res.ok) advance();
+      return;
+    }
+    if (step.op === 'follow') {
+      if (this.executeFollowStep(bot, step, dt)) advance();
+      return;
+    }
+    if (step.op === 'attack') {
+      this.executeAttackStep(bot, step, dt);
+      return;
+    }
+    if (step.op === 'guard_area') {
+      this.executeGuardAreaStep(bot, step, dt);
+      return;
+    }
+    if (step.op === 'patrol_route') {
+      this.executePatrolRouteStep(bot, step, dt);
+      return;
+    }
+    if (step.op === 'equip_item') {
+      if (this.executeEquipItemStep(bot, step, dt)) advance();
+      return;
+    }
+    if (step.op === 'craft_smithery') {
+      if (this.executeCraftSmitheryStep(bot, step, dt)) advance();
+      return;
+    }
+    if (step.op === 'craft_bowmaker') {
+      if (this.executeCraftBowmakerStep(bot, step, dt)) advance();
+      return;
+    }
+    if (step.op === 'deploy_building_kit') {
+      if (this.executeDeployBuildingKitStep(bot, step, dt)) advance();
+      return;
+    }
+    if (step.op === 'disassemble_building_to_kit') {
+      if (this.executeDisassembleBuildingToKitStep(bot, step, dt)) advance();
+      return;
+    }
     if (step.op === 'pick_up' || step.op === 'pick_up_from_storage') {
       if (this.actorAlreadyHasPickupType(bot, step.type)) { bot.message = `Taught loop already has ${itemLabel(step.type)}; pick_up skipped.`; advance(); return; }
       const heldType = this.pickupBlockedByHeldTool(bot, step.type);
       if (heldType) { bot.message = `Taught loop needs empty hands for ${itemLabel(step.type)}; already holding ${itemLabel(heldType)}.`; return; }
       if (step.op === 'pick_up_from_storage') { const s = this.resolveRecordedStructure(step, bot); if (s && this.takeStoredItemFromStructure(bot, s, step.type, dt)) { advance(); return; } if (s) { bot.message = `Taught loop waiting for ${itemLabel(step.type)} in ${s.name}.`; return; } }
       const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
-      let item = bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && i.type === step.type && this.objectInZone(i, zone)) : null;
-      if (!item) { item = nearest(this.items, bot.x, bot.y, i => i.type === step.type && this.objectInZone(i, zone) && (!i.reservedBy || i.reservedBy === bot.id)); if (item) { item.reservedBy = bot.id; bot.targetItemId = item.id; bot.targetItemPurpose = 'taught_loop'; } }
+      let item = bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && i.type === step.type && this.objectInZone(i, zone, bot)) : null;
+      if (!item) { item = nearest(this.items, bot.x, bot.y, i => i.type === step.type && this.objectInZone(i, zone, bot) && (!i.reservedBy || i.reservedBy === bot.id)); if (item) { item.reservedBy = bot.id; bot.targetItemId = item.id; bot.targetItemPurpose = 'taught_loop'; } }
       if (!item) { bot.message = `Taught loop waiting for loose ${itemLabel(step.type)}.`; return; }
       if (!this.moveBotTo(bot, item, dt, 12)) { bot.message = `Taught loop: pick_up ${itemLabel(step.type)}.`; return; }
       if (!this.pickItem(bot, item)) return;
@@ -2901,7 +3510,7 @@ export class Game {
     if (step.op === 'dig_hole') {
       if (!this.ensureDigTool(bot, dt)) return;
       const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
-      let spot = bot.target?.kind === 'dig_spot' && this.pointInZone(bot.target.x, bot.target.y, zone) && this.isDiggable(bot.target.x, bot.target.y) ? bot.target : null;
+      let spot = bot.target?.kind === 'dig_spot' && this.pointInZone(bot.target.x, bot.target.y, zone, bot) && this.isDiggable(bot.target.x, bot.target.y) ? bot.target : null;
       if (!spot) { spot = this.findDigSpotInZone(bot, zone); bot.target = spot; bot.timer = 0; }
       if (!spot) { bot.message = `Taught loop waiting for open dirt in ${this.zoneLabel(zone)}.`; return; }
       if (!this.moveBotTo(bot, spot, dt, 12)) { bot.message = `Taught loop: dig hole in ${this.zoneLabel(zone)}.`; return; }
@@ -2921,8 +3530,8 @@ export class Game {
     if (step.op === 'plant_seed') {
       if (!bot.inventory || bot.inventory.type !== 'tree_seed') { bot.message = 'Taught loop needs tree seed before planting.'; bot.runtime.pc = 0; return; }
       const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
-      let hole = step.holeId ? this.holes.find(h => h.id === step.holeId && !h.planted && this.objectInZone(h, zone)) : null;
-      if (!hole) hole = this.nearestOpenHole(bot.x, bot.y, zone, Infinity, bot.id);
+      let hole = step.holeId ? this.holes.find(h => h.id === step.holeId && !h.planted && this.objectInZone(h, zone, bot)) : null;
+      if (!hole) hole = this.nearestOpenHole(bot.x, bot.y, zone, Infinity, bot.id, bot);
       if (!hole) { bot.message = `Taught loop waiting for an open dug hole in ${this.zoneLabel(zone)}.`; return; }
       if (!this.moveBotTo(bot, hole, dt, 12)) { bot.message = `Taught loop: plant tree seed in ${this.zoneLabel(zone)}.`; return; }
       this.plantSeedInHole(hole, bot); bot.inventory = null; bot.message = `Taught loop planted tree seed in ${this.zoneLabel(zone)}.`; advance(); return;
@@ -2930,9 +3539,9 @@ export class Game {
     if (step.op === 'chop_tree') {
       if (!this.ensureChopTool(bot, dt)) return;
       const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
-      let tree = bot.target && this.isChoppableTree(bot.target) && this.objectInZone(bot.target, zone) ? bot.target : null;
-      if (!tree && step.treeId) tree = this.trees.find(t => t.id === step.treeId && this.isChoppableTree(t) && this.objectInZone(t, zone)) || null;
-      if (!tree) tree = nearest(this.trees, bot.x, bot.y, t => this.isChoppableTree(t) && this.objectInZone(t, zone));
+      let tree = bot.target && this.isChoppableTree(bot.target) && this.objectInZone(bot.target, zone, bot) ? bot.target : null;
+      if (!tree && step.treeId) tree = this.trees.find(t => t.id === step.treeId && this.isChoppableTree(t) && this.objectInZone(t, zone, bot)) || null;
+      if (!tree) tree = nearest(this.trees, bot.x, bot.y, t => this.isChoppableTree(t) && this.objectInZone(t, zone, bot));
       if (!tree) { bot.message = `Taught loop waiting for a grown tree in ${this.zoneLabel(zone)}.`; return; }
       bot.target = tree;
       if (!this.moveBotTo(bot, tree, dt, tree.radius + 14)) { bot.message = `Taught loop: move to tree in ${this.zoneLabel(zone)}.`; return; }
@@ -2943,9 +3552,9 @@ export class Game {
     }
     if (step.op === 'search_tree') {
       const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
-      let tree = bot.target && this.treeSearchAvailable(bot.target, bot.id) && this.objectInZone(bot.target, zone) ? bot.target : null;
-      if (!tree && step.treeId) tree = this.trees.find(t => t.id === step.treeId && this.treeSearchAvailable(t, bot.id) && this.objectInZone(t, zone)) || null;
-      if (!tree) tree = nearest(this.trees, bot.x, bot.y, t => this.treeSearchAvailable(t, bot.id) && this.objectInZone(t, zone));
+      let tree = bot.target && this.treeSearchAvailable(bot.target, bot.id) && this.objectInZone(bot.target, zone, bot) ? bot.target : null;
+      if (!tree && step.treeId) tree = this.trees.find(t => t.id === step.treeId && this.treeSearchAvailable(t, bot.id) && this.objectInZone(t, zone, bot)) || null;
+      if (!tree) tree = nearest(this.trees, bot.x, bot.y, t => this.treeSearchAvailable(t, bot.id) && this.objectInZone(t, zone, bot));
       if (!tree) { bot.message = `Taught loop waiting for an unsearched tree in ${this.zoneLabel(zone)}.`; return; }
       tree.searchReservedBy = bot.id;
       bot.target = tree;
@@ -2959,9 +3568,9 @@ export class Game {
       const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
       if (step.op === 'chop_hemp' && !this.ensureChopTool(bot, dt)) return;
       if (step.op === 'search_hemp' && bot.inventory) { bot.message = `Taught loop needs empty hands to search hemp.`; return; }
-      let hemp = bot.target && !bot.target.harvested && this.objectInZone(bot.target, zone) ? bot.target : null;
-      if (!hemp && step.hempId) hemp = this.hempPlants.find(h => h.id === step.hempId && !h.harvested && this.objectInZone(h, zone)) || null;
-      if (!hemp) hemp = nearest(this.hempPlants, bot.x, bot.y, h => !h.harvested && this.objectInZone(h, zone) && (step.op === 'chop_hemp' || !h.searched));
+      let hemp = bot.target && !bot.target.harvested && this.objectInZone(bot.target, zone, bot) ? bot.target : null;
+      if (!hemp && step.hempId) hemp = this.hempPlants.find(h => h.id === step.hempId && !h.harvested && this.objectInZone(h, zone, bot)) || null;
+      if (!hemp) hemp = nearest(this.hempPlants, bot.x, bot.y, h => !h.harvested && this.objectInZone(h, zone, bot) && (step.op === 'chop_hemp' || !h.searched));
       if (!hemp) { bot.message = `Taught loop waiting for hemp in ${this.zoneLabel(zone)}.`; return; }
       bot.target = hemp;
       if (!this.moveBotTo(bot, hemp, dt, (hemp.radius || 14) + 12)) { bot.message = step.op === 'chop_hemp' ? 'Taught loop: move to hemp with axe.' : 'Taught loop: move to hemp and search.'; return; }
@@ -2978,9 +3587,9 @@ export class Game {
     if (step.op === 'mine_stone') {
       if (!this.ensureMineTool(bot, dt)) return;
       const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
-      let rock = bot.target?.type === 'stone_deposit' && !bot.target.depleted && this.objectInZone(bot.target, zone) ? bot.target : null;
-      if (!rock && step.rockId) rock = this.rocks.find(r => r.id === step.rockId && !r.depleted && this.objectInZone(r, zone)) || null;
-      if (!rock) rock = nearest(this.rocks, bot.x, bot.y, r => !r.depleted && this.objectInZone(r, zone));
+      let rock = bot.target?.type === 'stone_deposit' && !bot.target.depleted && this.objectInZone(bot.target, zone, bot) ? bot.target : null;
+      if (!rock && step.rockId) rock = this.rocks.find(r => r.id === step.rockId && !r.depleted && this.objectInZone(r, zone, bot)) || null;
+      if (!rock) rock = nearest(this.rocks, bot.x, bot.y, r => !r.depleted && this.objectInZone(r, zone, bot));
       if (!rock) { bot.message = `Taught loop waiting for a stone deposit in ${this.zoneLabel(zone)}.`; return; }
       bot.target = rock;
       if (!this.moveBotTo(bot, rock, dt, rock.radius + 14)) { bot.message = `Taught loop: move to stone deposit in ${this.zoneLabel(zone)}.`; return; }
@@ -3032,14 +3641,14 @@ export class Game {
     return this.takeLooseItem(bot, 'log', dt);
   }
   takeLooseItemNearStructure(bot, type, dt, structure, radius = PRODUCTION_SOURCE_RADIUS) {
-    let item = bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && i.type === type && rectDistance(i.x, i.y, structure) <= radius && this.objectInZone(i, this.getBotZone(bot))) : null;
+    let item = bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && i.type === type && rectDistance(i.x, i.y, structure) <= radius && this.objectInZone(i, this.getBotZone(bot), bot)) : null;
     if (!item) { item = this.findItemNearStructureFor(bot, type, structure, radius); if (item) { item.reservedBy=bot.id; bot.targetItemId=item.id; bot.targetItemPurpose='production_radius'; } }
     if (!item) { bot.message=`Waiting for loose ${itemLabel(type)}s around ${structure.name}.`; return false; }
     if (!this.moveBotTo(bot,item,dt,12)) { bot.message=`Picking up loose ${itemLabel(type)} near ${structure.name}.`; return false; }
     this.pickItem(bot,item); return true;
   }
   takeLooseItem(bot, type, dt) {
-    let item = bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && i.type === type && this.objectInZone(i, this.getBotZone(bot))) : null;
+    let item = bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && i.type === type && this.objectInZone(i, this.getBotZone(bot), bot)) : null;
     if (!item) { item = this.findItemFor(bot,type); if (item) { item.reservedBy=bot.id; bot.targetItemId=item.id; bot.targetItemPurpose='haul'; } }
     if (!item) { bot.message=`Waiting for ${itemLabel(type)}s in ${this.zoneLabel(this.getBotZone(bot))}.`; return false; }
     if (!this.moveBotTo(bot,item,dt,12)) { bot.message=`Picking up ${itemLabel(type)}.`; return false; }
@@ -3218,6 +3827,107 @@ export class Game {
     if (rectDistance(this.player.x, this.player.y, target) >= 48) return false;
     return this.demolishStructure(target);
   }
+  canDisassembleStructure(s) { return !!s && !!buildingKitItemTypeFor(s.type) && !this.isStructureProcessing(s); }
+  queuePlayerDisassembleStructure(s) {
+    if (!this.canDisassembleStructure(s)) return false;
+    this.setPlayerDestination(s.x, s.y, { action: 'disassemble_building_to_kit', structureId: s.id, floatText: `Disassemble ${s.name} into kit` });
+    return true;
+  }
+  finishPlayerDisassembleStructure(target) {
+    const s = this.structures.find(st => st.id === target?.structureId);
+    if (!this.canDisassembleStructure(s)) return false;
+    const kitType = this.disassembleStructureToKit(s, this.player);
+    if (kitType) this.recordTeachStep({ op: 'disassemble_building_to_kit', structureId: target.structureId, structureRef: s.ref, structureType: s.type, structureName: s.name, target: s.name });
+    this.syncTeachUi();
+    return !!kitType;
+  }
+  disassembleStructureToKit(s, actor = null) {
+    if (!this.canDisassembleStructure(s)) return null;
+    const kitType = buildingKitItemTypeFor(s.type);
+    this.structures = this.structures.filter(st => st.id !== s.id);
+    for (const bot of this.bots || []) {
+      for (const key of ['targetStructureId', 'sourceStructureId', 'sourcePaletteId', 'targetFactoryId', 'targetWorkbenchId']) if (bot[key] === s.id) bot[key] = null;
+      if (bot.target?.id === s.id || bot.target?.structureId === s.id) bot.target = null;
+      if (bot.productionJob?.structureId === s.id) bot.productionJob = null;
+    }
+    if (this.player.target?.structureId === s.id) this.player.target = null;
+    this.projectiles = (this.projectiles || []).filter(p => p.sourceStructureId !== s.id && p.targetRef !== s.ref);
+    if (actor && !actor.inventory) actor.inventory = { type: kitType, count: 1 };
+    else this.spawnItem(kitType, s.x, s.y, 1);
+    this.addFloat(`Disassembled ${s.name} into ${itemLabel(kitType)}`, s.x, s.y - 35, '#d3a95f');
+    this.emitSound('hit', { cooldownKey: `disassemble:${s.id}`, minGapMs: 120 });
+    this.syncBuildUi();
+    return kitType;
+  }
+  deployBuildingKitAt(type, x, y, options = {}) {
+    const kitType = this.normalizeBuildingKitItemType(type);
+    const buildingType = buildingTypeFromKitItem(kitType);
+    if (!buildingType || !BUILDING_TYPES[buildingType]) return null;
+    const s = this.addStructure(buildingType, clamp(x, 70, this.map.width - 70), clamp(y, 80, this.map.height - 70), { placed: true, ...options });
+    this.addFloat(`Deployed ${itemLabel(kitType)}`, s.x, s.y - 52, '#9abf8f');
+    return s;
+  }
+  queuePlayerDeployHeldKit(x, y) {
+    const kitType = this.normalizeBuildingKitItemType(this.player.inventory?.type);
+    if (!kitType) return false;
+    this.setPlayerDestination(x, y, { action: 'deploy_building_kit', itemType: kitType, x, y, floatText: `Deploy ${itemLabel(kitType)}` });
+    return true;
+  }
+  queuePlayerDeployLooseKit(item) {
+    const kitType = this.normalizeBuildingKitItemType(item?.type);
+    if (!item || !kitType) return false;
+    if (this.player.inventory) { this.addFloat(`Need empty hands to deploy ${itemLabel(kitType)} from ground`, this.player.x, this.player.y - 30, '#c86b5f'); return true; }
+    if (item.reservedBy && item.reservedBy !== 'player') { this.addFloat(`${itemLabel(kitType)} is reserved`, item.x, item.y - 28, '#c86b5f'); return true; }
+    item.reservedBy = 'player';
+    this.setPlayerDestination(item.x, item.y, { action: 'deploy_loose_building_kit', itemId: item.id, floatText: `Deploy ${itemLabel(kitType)}` });
+    return true;
+  }
+  finishPlayerDeployHeldKit(target) {
+    const kitType = this.normalizeBuildingKitItemType(target?.itemType || this.player.inventory?.type);
+    if (!kitType || this.player.inventory?.type !== kitType) return false;
+    const s = this.deployBuildingKitAt(kitType, target.x, target.y);
+    if (!s) return false;
+    this.player.inventory = null;
+    this.recordTeachStep(this.deployBuildingKitStep(kitType, s.x, s.y));
+    this.syncTeachUi();
+    return true;
+  }
+  finishPlayerDeployLooseKit(target) {
+    const item = this.items.find(i => i.id === target?.itemId);
+    const kitType = this.normalizeBuildingKitItemType(item?.type);
+    if (!item || !kitType) return false;
+    const s = this.deployBuildingKitAt(kitType, item.x, item.y);
+    if (!s) { if (item.reservedBy === 'player') item.reservedBy = null; return false; }
+    this.items = this.items.filter(i => i.id !== item.id);
+    this.recordTeachStep({ op: 'pick_up', type: kitType });
+    this.recordTeachStep(this.deployBuildingKitStep(kitType, s.x, s.y));
+    this.syncTeachUi();
+    return true;
+  }
+  executeDeployBuildingKitStep(bot, step, dt) {
+    const kitType = this.normalizeBuildingKitItemType(step.type);
+    if (!kitType) { bot.message = 'deploy_building_kit needs a building kit type.'; return false; }
+    if (!bot.inventory || bot.inventory.type !== kitType) { bot.message = `Taught loop needs ${itemLabel(kitType)} before deploying.`; bot.runtime.pc = 0; return false; }
+    const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
+    const target = this.zoneCenter(zone, bot) || bot;
+    if (target && !this.moveBotTo(bot, target, dt, 12)) { bot.message = `Taught loop: deploy ${itemLabel(kitType)} in ${this.zoneLabel(zone)}.`; return false; }
+    const s = this.deployBuildingKitAt(kitType, target.x, target.y);
+    if (!s) { bot.message = `Cannot deploy ${itemLabel(kitType)}.`; return false; }
+    bot.inventory = null;
+    bot.message = `Deployed ${itemLabel(kitType)} as ${s.name}.`;
+    return true;
+  }
+  executeDisassembleBuildingToKitStep(bot, step, dt) {
+    if (bot.inventory) { bot.message = `Disassemble needs empty hands; holding ${itemLabel(bot.inventory.type)}.`; return false; }
+    let s = this.resolveRecordedStructure(step, bot);
+    if (!this.canDisassembleStructure(s)) s = nearest(this.structures, bot.x, bot.y, st => this.canDisassembleStructure(st) && (!step.structureType || st.type === step.structureType));
+    if (!s) { bot.message = `No disassemblable ${step.structureName || step.structureType || 'building'} found.`; return false; }
+    if (!this.moveBotTo(bot, s, dt, 34)) { bot.message = `Taught loop: disassemble ${s.name}.`; return false; }
+    const kitType = this.disassembleStructureToKit(s, bot);
+    if (!kitType) { bot.message = `Cannot disassemble ${s.name}.`; return false; }
+    bot.message = `Disassembled ${s.name} into ${itemLabel(kitType)}.`;
+    return true;
+  }
   manualMineStone() {
     const rock = nearest(this.rocks, this.player.x, this.player.y, r => !r.depleted && distXY(this.player.x,this.player.y,r.x,r.y)<48);
     if (!rock) return false;
@@ -3340,7 +4050,7 @@ export class Game {
   }
   manualDepositToStructure(s = null, { waitIfProcessing = false } = {}) {
     if (!this.player.inventory) return false;
-    const target = s || this.structures.find(st => rectDistance(this.player.x, this.player.y, st) < 45 && [...STORAGE_STRUCTURE_TYPES, 'sawbench', 'workbench', 'factory', 'smithery', 'bowmaker'].includes(st.type));
+    const target = s || this.structures.find(st => rectDistance(this.player.x, this.player.y, st) < 45 && [...STORAGE_STRUCTURE_TYPES, 'sawbench', 'workbench', 'factory', 'smithery', 'bowmaker', 'assembler'].includes(st.type));
     if (!target) { this.addFloat(`No production building nearby for ${itemLabel(this.player.inventory.type)}`, this.player.x, this.player.y - 30, '#c86b5f'); return false; }
     const type = this.player.inventory.type;
     if (this.isStructureProcessing(target)) { if (!waitIfProcessing) this.addFloat(`${target.name} is processing`, target.x, target.y - 35, '#c7b683'); return false; }
@@ -3354,6 +4064,7 @@ export class Game {
   interact() {
     const s = this.structures.find(st => rectDistance(this.player.x,this.player.y,st)<45);
     if (this.player.inventory?.type === 'crude_hammer' && this.manualDemolishStructure(s)) return;
+    if (isBuildingKitItemType(this.player.inventory?.type) && this.queuePlayerDeployHeldKit(this.player.x, this.player.y + 42)) return;
     if (this.player.inventory?.type === 'crude_shovel') { this.manualDigHole(); return; }
     if (this.player.inventory?.type === 'crude_pickaxe' && this.manualMineStone()) return;
     if (this.player.inventory?.type === 'crude_axe' && this.manualChopTree()) return;
@@ -3379,6 +4090,18 @@ export class Game {
     return String(bot?.name || `Bot ${bot?.id ?? ''}`).trim() || `Bot ${bot?.id ?? ''}`;
   }
 
+  normalizeBotDisplayName(name, { fallback = '', minLength = 2, maxLength = 32 } = {}) {
+    const cleaned = String(name ?? '')
+      .replace(/[\x00-\x1F\x7F]/g, '')
+      .replace(/[<>`{}]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, maxLength)
+      .trim();
+    if (!cleaned || cleaned.length < minLength) return fallback;
+    return cleaned;
+  }
+
   teamColor(color) {
     return /^#[0-9a-f]{6}$/i.test(String(color || '')) ? String(color) : '#5d8063';
   }
@@ -3395,7 +4118,7 @@ export class Game {
     const bot = typeof botOrId === 'object' ? botOrId : this.findBot(botOrId);
     if (!bot) return { ok: false, error: 'Bot not found' };
     const fallback = `Bot ${bot.id}`;
-    const next = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 32) || fallback;
+    const next = this.normalizeBotDisplayName(name, { fallback, minLength: 1, maxLength: 32 });
     bot.name = next;
     this.addFloat(`Renamed ${fallback} to ${next}`, bot.x, bot.y - 30, '#d3a95f');
     this.syncBotDrawerUi();
@@ -3459,7 +4182,7 @@ export class Game {
     const name = this.botDisplayName(bot);
     const color = this.teamColor(team?.color || '#101413');
     const teamText = team ? team.name : 'No team';
-    return `<article class="bot-card bot-team-card" draggable="true" data-bot-card data-bot-id="${bot.id}" style="--team-color:${escapeHtml(color)}"><div class="bot-badge">#${bot.id}</div><div class="bot-card-body"><label class="bot-name-edit">Name <input data-bot-name-input="${bot.id}" value="${escapeHtml(name)}" maxlength="32" /></label><p><span class="program">${escapeHtml(bot.program)}</span> · ${escapeHtml(teamText)}</p><p>${escapeHtml(bot.message)}</p></div></article>`;
+    return `<article class="bot-card bot-team-card" draggable="true" data-bot-card data-bot-id="${bot.id}" style="--team-color:${escapeHtml(color)}"><div class="bot-badge">#${bot.id}</div><div class="bot-card-body"><label class="bot-name-edit">Name <input data-bot-name-input="${bot.id}" value="${escapeHtml(name)}" maxlength="32" /></label><p><span class="program">${escapeHtml(bot.program)}</span> · ${escapeHtml(teamText)} · ${escapeHtml(bot.status === 'manager' ? 'manager' : 'worker')}</p><p>${escapeHtml(bot.message)}</p></div></article>`;
   }
 
   renderBotDrawerTeam(team, bots) {
@@ -3600,6 +4323,10 @@ export class Game {
     if (!step) return false;
     Object.assign(step, patch);
     if (patch.type === '') delete step.type;
+    if (patch.name === '') delete step.name;
+    if (patch.target === '') { delete step.target; delete step.botId; delete step.botName; delete step.targetName; }
+    if (patch.recipient === '') { delete step.recipient; delete step.recipientBotId; delete step.recipientName; }
+    if (patch.message === '') delete step.message;
     step.text = this.stepText(step);
     return this.setBotMenuEditSteps(steps);
   }
@@ -3690,16 +4417,26 @@ export class Game {
     el.addEventListener('change', event => {
       const op = event.target.closest('[data-bot-step-op]');
       const type = event.target.closest('[data-bot-step-type]');
+      const name = event.target.closest('[data-bot-step-name]');
+      const target = event.target.closest('[data-bot-step-target]');
+      const packs = event.target.closest('[data-bot-step-packs]');
+      const recipient = event.target.closest('[data-bot-step-recipient]');
+      const message = event.target.closest('[data-bot-step-message]');
       const locationMenu = event.target.closest('select[data-bot-step-location-menu]');
       if (op) this.updateBotMenuEditStep(Number(op.dataset.botStepOp), { op: op.value });
       if (type) this.updateBotMenuEditStep(Number(type.dataset.botStepType), { type: type.value.trim() });
+      if (name) this.updateBotMenuEditStep(Number(name.dataset.botStepName), { name: name.value.trim() });
+      if (target) this.updateBotMenuEditStep(Number(target.dataset.botStepTarget), { target: target.value.trim() });
+      if (packs) this.updateBotMenuEditStep(Number(packs.dataset.botStepPacks), { knowledgePacks: this.normalizeManagerKnowledgePacks(packs.value) });
+      if (recipient) this.updateBotMenuEditStep(Number(recipient.dataset.botStepRecipient), { recipient: recipient.value.trim() });
+      if (message) this.updateBotMenuEditStep(Number(message.dataset.botStepMessage), { message: this.sanitizeManagerMessage(message.value) });
       if (locationMenu) {
         const index = Number(locationMenu.dataset.botStepLocationMenu);
         const mode = locationMenu.value;
         locationMenu.value = '';
         if (Number.isFinite(index) && mode) this.beginTeachLocationEdit(index, mode, 'bot-edit');
       }
-      if (op || type || locationMenu) this.syncBotMenuEditSurface(el);
+      if (op || type || name || target || packs || recipient || message || locationMenu) this.syncBotMenuEditSurface(el);
     });
     el.addEventListener('dragstart', event => {
       const card = event.target.closest('[data-bot-step-index]');
@@ -3722,6 +4459,16 @@ export class Game {
     });
   }
 
+  renderManagerPackControls(bot) {
+    const catalog = this.managerKnowledgePackCatalog || {};
+    const selected = new Set(bot.managerKnowledgePacks?.length ? bot.managerKnowledgePacks : DEFAULT_MANAGER_KNOWLEDGE_PACKS);
+    const ids = Object.keys(catalog).length ? Object.keys(catalog) : DEFAULT_MANAGER_KNOWLEDGE_PACKS;
+    return ids.map(id => {
+      const pack = catalog[id] || { id, name: id };
+      return `<label class="manager-pack-option"><input type="checkbox" data-manager-pack="${escapeHtml(id)}"${selected.has(id) ? ' checked' : ''}> ${escapeHtml(pack.name || id)}</label>`;
+    }).join('');
+  }
+
   showBotMenu(bot, x, y, { refreshEdit = false } = {}) {
     const el = this.dom.botMenu;
     const edit = this.ensureBotMenuEdit(bot, { refresh: refreshEdit });
@@ -3734,14 +4481,34 @@ export class Game {
     const hasWorkflow = !!bot.program && bot.program !== 'idle';
     const stopLabel = bot.paused ? 'Resume workflow' : 'Stop workflow';
     const displayName = this.botDisplayName(bot);
+    const statusLabel = this.isManagerBot(bot) ? 'manager' : (bot.status || 'worker');
+    const promoteButton = this.isManagerBot(bot) ? '' : '<button type="button" data-promote-manager>Promote to Manager</button>';
+    const managerSection = this.isManagerBot(bot) ? `<section class="manager-menu" data-manager-section><b>Manager controls</b><p>Status: <code>manager</code> · Known packs: <span data-manager-pack-summary>${escapeHtml((bot.managerKnowledgePacks || []).join(', ') || 'starter_automation')}</span></p><div class="manager-pack-list">${this.renderManagerPackControls(bot)}</div><label class="manager-message-input">Message manager <textarea data-manager-message rows="3" placeholder="make bot 2 chop trees"></textarea></label><button type="button" data-send-manager-message>Send to Manager</button><p class="manager-message-status" data-manager-status></p></section>` : '';
     const nameStatus = edit.nameStatus ? `<p class="bot-menu-name-status" data-bot-name-status>${escapeHtml(edit.nameStatus)}</p>` : '';
     const nameEditor = edit.nameEditing ? `<label class="bot-menu-name-edit">Bot name <input data-menu-bot-name value="${escapeHtml(edit.nameDraft || displayName)}" maxlength="32"></label>` : '';
     const workflowButton = hasWorkflow ? `<button data-stop-workflow>${stopLabel}</button>` : '';
-    el.innerHTML = `<div class="bot-menu-title"><div class="bot-menu-title-row"><b>${escapeHtml(displayName)}</b><button type="button" data-edit-bot-name aria-label="Edit bot name">✎</button></div>${nameStatus}${nameEditor}</div><button data-close>×</button><p>${escapeHtml(bot.message)}</p><p><b>Program:</b> ${escapeHtml(bot.program)}</p><p><b>Ref:</b> <code>${escapeHtml(bot.ref)}</code></p>${workflowButton}<section class="teach-menu"><b>Teach by doing</b><p>${escapeHtml(this.recorder.recording ? `Recording ${this.recorder.steps.length} steps for Bot ${this.recorder.targetBotId || bot.id}…` : this.recorder.status)}</p><ol class="teach-steps menu-teach-steps">${teachSteps}</ol><button data-teach-record>${recordLabel}</button><button data-assign-taught${assignDisabled}>Assign to ${escapeHtml(displayName)}</button></section><section class="bot-program-editor"><b>Assigned JSON</b><p data-bot-edit-status>${escapeHtml(edit.status || 'Edit JSON, or adjust the DSL cards and accept them.')}</p><textarea data-bot-json-editor spellcheck="false">${escapeHtml(tpl)}</textarea><button type="button" data-save-json>Save JSON + refresh Bot ${bot.id}</button><div class="bot-card-flow-head"><b>DSL card flow</b><button type="button" data-add-loop-step>Add loop</button></div><ol class="teach-steps bot-program-steps" data-bot-program-steps>${editSteps}</ol><button type="button" data-accept-dsl-cards>Accept card flow + refresh Bot ${bot.id}</button></section><button data-add>Add bot to chat</button>`;
+    el.innerHTML = `<div class="bot-menu-title"><div class="bot-menu-title-row"><b>${escapeHtml(displayName)}</b><button type="button" data-edit-bot-name aria-label="Edit bot name">✎</button></div>${nameStatus}${nameEditor}</div><button data-close>×</button><p>${escapeHtml(bot.message)}</p><p><b>Status:</b> ${escapeHtml(statusLabel)}</p><p><b>Program:</b> ${escapeHtml(bot.program)}</p><p><b>Ref:</b> <code>${escapeHtml(bot.ref)}</code></p>${promoteButton}${managerSection}${workflowButton}<section class="teach-menu"><b>Teach by doing</b><p>${escapeHtml(this.recorder.recording ? `Recording ${this.recorder.steps.length} steps for Bot ${this.recorder.targetBotId || bot.id}…` : this.recorder.status)}</p><ol class="teach-steps menu-teach-steps">${teachSteps}</ol><button data-teach-record>${recordLabel}</button><button data-assign-taught${assignDisabled}>Assign to ${escapeHtml(displayName)}</button></section><section class="bot-program-editor"><b>Assigned JSON</b><p data-bot-edit-status>${escapeHtml(edit.status || 'Edit JSON, or adjust the DSL cards and accept them.')}</p><textarea data-bot-json-editor spellcheck="false">${escapeHtml(tpl)}</textarea><button type="button" data-save-json>Save JSON + refresh Bot ${bot.id}</button><div class="bot-card-flow-head"><b>DSL card flow</b><button type="button" data-add-loop-step>Add loop</button></div><ol class="teach-steps bot-program-steps" data-bot-program-steps>${editSteps}</ol><button type="button" data-accept-dsl-cards>Accept card flow + refresh Bot ${bot.id}</button></section><button data-add>Add bot to chat</button>`;
     this.placeMenu(el,x,y);
     this.bindTeachStepControls(el.querySelector('.menu-teach-steps'));
     this.bindBotProgramEditControls(el, bot, x, y);
     el.querySelector('[data-close]').onclick=()=>this.hideMenus();
+    el.querySelector('[data-promote-manager]')?.addEventListener('click', event => {
+      event.stopPropagation();
+      this.promoteBotToManager(bot, bot.managerKnowledgePacks?.length ? bot.managerKnowledgePacks : (this.getDefaultManagerKnowledgePacks?.() || DEFAULT_MANAGER_KNOWLEDGE_PACKS));
+      this.showBotMenu(bot, x, y, { refreshEdit: true });
+    });
+    el.querySelectorAll('[data-manager-pack]')?.forEach(input => input.addEventListener('change', () => {
+      const ids = [...el.querySelectorAll('[data-manager-pack]:checked')].map(box => box.dataset.managerPack);
+      this.setManagerKnowledgePacks(bot.id, ids);
+      const summary = el.querySelector('[data-manager-pack-summary]');
+      if (summary) summary.textContent = (bot.managerKnowledgePacks || []).join(', ') || 'starter_automation';
+    }));
+    el.querySelector('[data-send-manager-message]')?.addEventListener('click', () => {
+      const text = el.querySelector('[data-manager-message]')?.value || '';
+      const res = this.delegateMessageToManager(bot, bot.id, text, { throttleKey: `manual:${bot.id}:${this.sanitizeManagerMessage(text)}` });
+      const status = el.querySelector('[data-manager-status]');
+      if (status) status.textContent = res.ok ? `Sent to ${this.botDisplayName(bot)}.` : res.error;
+    });
     el.querySelector('[data-edit-bot-name]')?.addEventListener('click', () => this.beginBotMenuNameEdit(bot, x, y));
     el.querySelector('[data-menu-bot-name]')?.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); this.saveBotMenuName(bot, x, y, el.querySelector('[data-menu-bot-name]')?.value || ''); } });
     el.querySelector('[data-add]').onclick=()=>{this.chat.insertAtCursor(`Bot ${bot.id} `); this.hideMenus();};
@@ -3758,27 +4525,43 @@ export class Game {
   showStructureMenu(s, x, y) {
     const el = this.dom.structureMenu;
     const processing = s.processing ? `<br>processing ${escapeHtml(s.processing.label)} · ${Math.max(0, s.processing.remaining).toFixed(1)}s left` : '';
-    const storage = (s.type === 'throne' ? `<br>owner ${s.ownerLabel || s.ownerId || 'none'} · HP ${Math.max(0, s.hp || 0)}/${s.maxHp || THRONE_HP}` : s.type === 'defensetower' ? `<br>range ${s.rangedAttack?.range || DEFENSE_TOWER_ATTACK.range} · damage ${s.rangedAttack?.damage || 1} · cooldown ${s.rangedAttack?.cooldown || 1}s${s.rangedAttack?.targetRef ? ` · target ${s.rangedAttack.targetRef}` : ''}` : STORAGE_STRUCTURE_TYPES.includes(s.type) ? `<br>locked type ${s.storageType || 'empty/unlocked'} · stored ${s.stored || 0}/${s.capacity || 0}` : s.type === 'workbench' ? `<br>sticks ${s.sticks||0} · stones ${s.stones||0} · output ${escapeHtml(itemLabel(workbenchRecipe(s)))} · made A${s.axes||0} P${s.pickaxes||0} S${s.shovels||0} H${s.hammers||0}` : s.type === 'smithery' ? `<br>sticks ${s.sticks||0} · planks ${s.planks||0} · mode ${escapeHtml(itemLabel(smitheryRecipe(s)))} · made swords ${s.swords||0} shields ${s.shields||0}` : s.type === 'bowmaker' ? `<br>sticks ${s.sticks||0}/2 · hemp ${s.hemps||0}/3 · made bows ${s.bows||0}` : s.type === 'factory' ? `<br>logs ${s.logs||0} · planks ${s.planks||0} · poles ${s.poles||0} · seeds ${s.tree_seeds||0}` : `<br>logs ${s.logs||0} · planks ${s.planks||0} · poles ${s.poles||0}`) + processing;
+    const storage = (s.type === 'throne' ? `<br>owner ${s.ownerLabel || s.ownerId || 'none'} · HP ${Math.max(0, s.hp || 0)}/${s.maxHp || THRONE_HP}` : s.type === 'defensetower' ? `<br>range ${s.rangedAttack?.range || DEFENSE_TOWER_ATTACK.range} · damage ${s.rangedAttack?.damage || 1} · cooldown ${s.rangedAttack?.cooldown || 1}s${s.rangedAttack?.targetRef ? ` · target ${s.rangedAttack.targetRef}` : ''}` : STORAGE_STRUCTURE_TYPES.includes(s.type) ? `<br>locked type ${s.storageType || 'empty/unlocked'} · stored ${s.stored || 0}/${s.capacity || 0}` : s.type === 'workbench' ? `<br>sticks ${s.sticks||0} · stones ${s.stones||0} · output ${escapeHtml(itemLabel(workbenchRecipe(s)))} · made A${s.axes||0} P${s.pickaxes||0} S${s.shovels||0} H${s.hammers||0}` : s.type === 'smithery' ? `<br>sticks ${s.sticks||0} · planks ${s.planks||0} · mode ${escapeHtml(itemLabel(smitheryRecipe(s)))} · made swords ${s.swords||0} shields ${s.shields||0}` : s.type === 'bowmaker' ? `<br>sticks ${s.sticks||0}/2 · hemp ${s.hemps||0}/3 · made bows ${s.bows||0}` : s.type === 'factory' ? `<br>logs ${s.logs||0} · planks ${s.planks||0} · poles ${s.poles||0} · seeds ${s.tree_seeds||0}` : s.type === 'assembler' ? `<br>planks ${s.planks||0}/2 · poles ${s.poles||0}/1 · output ${escapeHtml(itemLabel(assemblerRecipe(s)))}` : `<br>logs ${s.logs||0} · planks ${s.planks||0} · poles ${s.poles||0}`) + processing;
     const insertButton = STORAGE_STRUCTURE_TYPES.includes(s.type) ? '<button data-insert-nearby>Insert nearby item</button>' : '<button data-add-radius>Add small radius</button>';
     const demolishButton = this.canDemolishStructure(s) ? '<button data-demolish-structure>Demolish with hammer</button>' : '';
+    const disassembleButton = this.canDisassembleStructure(s) ? '<button data-disassemble-structure>Disassemble into kit</button>' : '';
     const selectedRecipe = workbenchRecipe(s);
-    const selector = s.type === 'workbench' ? `<section class="tool-selector" aria-label="Tool bench output"><b>Produce:</b> ${WORKBENCH_TOOL_RECIPES.map(type => `<button type="button" data-select-tool="${type}"${type === selectedRecipe ? ' aria-pressed="true" class="is-active"' : ' aria-pressed="false"'}>${escapeHtml(itemLabel(type))}</button>`).join('')}</section>` : s.type === 'smithery' ? `<section class="tool-selector" aria-label="Smithery production mode"><b>Production mode:</b> <button type="button" data-switch-smithery>${escapeHtml(itemLabel(smitheryRecipe(s)))} (switch)</button></section>` : '';
+    const selector = s.type === 'workbench' ? `<section class="tool-selector" aria-label="Tool bench output"><b>Produce:</b> ${WORKBENCH_TOOL_RECIPES.map(type => `<button type="button" data-select-tool="${type}"${type === selectedRecipe ? ' aria-pressed="true" class="is-active"' : ' aria-pressed="false"'}>${escapeHtml(itemLabel(type))}</button>`).join('')}</section>` : s.type === 'smithery' ? `<section class="tool-selector" aria-label="Smithery production mode"><b>Production mode:</b> <button type="button" data-switch-smithery>${escapeHtml(itemLabel(smitheryRecipe(s)))} (switch)</button></section>` : s.type === 'assembler' ? `<section class="tool-selector" aria-label="Assembler building kit output"><b>Assemble:</b> ${BUILDING_KIT_ITEM_TYPES.map(type => `<button type="button" data-select-kit="${type}"${type === assemblerRecipe(s) ? ' aria-pressed="true" class="is-active"' : ' aria-pressed="false"'}>${escapeHtml(itemLabel(type))}</button>`).join('')}</section>` : '';
     const info = STRUCTURE_INFO[s.type] || 'Building.';
     const visibleType = BUILDING_TYPES[s.type]?.category || s.type;
-    el.innerHTML = `<b>${escapeHtml(s.name)}</b><button data-close>×</button><p>${escapeHtml(s.label)} · type <code>${escapeHtml(visibleType)}</code> · ref <code>${escapeHtml(s.ref)}</code>${storage}<br><b>Info:</b> ${escapeHtml(info)}<br><b>Recipe:</b> ${escapeHtml(structureRecipeText(s))}</p>${selector}${demolishButton}<button data-add-name>Add name</button><button data-add-ref>Add ref</button>${insertButton}`;
+    el.innerHTML = `<b>${escapeHtml(s.name)}</b><button data-close>×</button><p>${escapeHtml(s.label)} · type <code>${escapeHtml(visibleType)}</code> · ref <code>${escapeHtml(s.ref)}</code>${storage}<br><b>Info:</b> ${escapeHtml(info)}<br><b>Recipe:</b> ${escapeHtml(structureRecipeText(s))}</p>${selector}${demolishButton}${disassembleButton}<button data-add-name>Add name</button><button data-add-ref>Add ref</button>${insertButton}`;
     this.placeMenu(el,x,y);
     el.querySelector('[data-close]').onclick=()=>this.hideMenus();
     el.querySelectorAll('[data-select-tool]').forEach(btn => btn.addEventListener('click', () => {
       if (this.setWorkbenchRecipe(s, btn.dataset.selectTool)) this.showStructureMenu(s, x, y);
     }));
+    el.querySelectorAll('[data-select-kit]').forEach(btn => btn.addEventListener('click', () => {
+      if (this.setAssemblerRecipe(s, btn.dataset.selectKit)) this.showStructureMenu(s, x, y);
+    }));
     el.querySelector('[data-switch-smithery]')?.addEventListener('click', () => {
       if (this.switchSmitheryRecipe(s)) this.showStructureMenu(s, x, y);
     });
     el.querySelector('[data-demolish-structure]')?.addEventListener('click', () => { this.queuePlayerDemolishStructure(s) || this.manualDemolishStructure(s); this.hideMenus(); });
+    el.querySelector('[data-disassemble-structure]')?.addEventListener('click', () => { this.queuePlayerDisassembleStructure(s); this.hideMenus(); });
     el.querySelector('[data-add-name]').onclick=()=>{this.chat.insertAtCursor(s.name); this.hideMenus();};
     el.querySelector('[data-add-ref]').onclick=()=>{this.chat.insertAtCursor(s.ref); this.hideMenus();};
     el.querySelector('[data-add-radius]')?.addEventListener('click',()=>{this.chat.insertAtCursor(`small area around ${s.name}`); this.hideMenus();});
     el.querySelector('[data-insert-nearby]')?.addEventListener('click',()=>{this.acceptNearestItemForPalette(s); this.hideMenus();});
+  }
+  showBuildingKitItemMenu(item, x, y) {
+    const el = this.dom.structureMenu;
+    const kitType = this.normalizeBuildingKitItemType(item?.type);
+    const buildingType = buildingTypeFromKitItem(kitType);
+    const buildingLabel = BUILDING_TYPES[buildingType]?.label || buildingType || 'building';
+    el.innerHTML = `<b>${escapeHtml(itemLabel(kitType || item?.type || 'kit'))}</b><button data-close>×</button><p>Building kit item · ref <code>${escapeHtml(item?.ref || '')}</code><br>Deploys into ${escapeHtml(buildingLabel)}.</p><button data-kit-pickup>Pick up kit</button><button data-kit-deploy>Deploy here</button>`;
+    this.placeMenu(el, x, y);
+    el.querySelector('[data-close]').onclick = () => this.hideMenus();
+    el.querySelector('[data-kit-pickup]')?.addEventListener('click', () => { this.queuePlayerItemPickup(item); this.hideMenus(); });
+    el.querySelector('[data-kit-deploy]')?.addEventListener('click', () => { this.queuePlayerDeployLooseKit(item); this.hideMenus(); });
   }
   showTreeMenu(tree, x, y) {
     const el = this.dom.structureMenu;
@@ -3892,7 +4675,7 @@ export class Game {
     ...this.projectiles.map(p=>({ id:p.ref, numericId:p.id, kind:'projectile', type:p.type, sourceStructureId:p.sourceStructureId, targetRef:p.targetRef, x:Math.round(p.x), y:Math.round(p.y), damage:p.damage })),
     ...this.monsters.map(m=>({ id:m.ref||`monster:${m.id}`, numericId:m.id||null, kind:'monster', type:m.type||'passive_monster', name:m.name||'passive monster', x:Math.round(m.x), y:Math.round(m.y), hp:m.hp, maxHp:m.maxHp, radius:m.radius, passive:!!m.passive, spawnedAtNight:!!m.spawnedAtNight, avoidRadius:m.avoidRadius, roamRadius:m.roamRadius })),
     ...this.rocks.map(r=>({ id:r.ref, numericId:r.id, kind:'resource', type:'stone_deposit', name:'stone deposit', x:Math.round(r.x), y:Math.round(r.y), hp:r.hp, maxHp:r.maxHp, depleted:!!r.depleted })),
-    ...this.bots.map(b=>({ id:b.ref, numericId:b.id, kind:'bot', name:this.botDisplayName(b), x:Math.round(b.x), y:Math.round(b.y), hp:b.hp, maxHp:b.maxHp, hostile:!!b.hostile, equipment:this.equipmentSummary(b), program:b.program, teamId:b.teamId||null, teamName:this.botTeam(b)?.name||null }))
+    ...this.bots.map(b=>({ id:b.ref, numericId:b.id, kind:'bot', name:this.botDisplayName(b), status:b.status||'worker', managerKnowledgePacks:b.managerKnowledgePacks||[], x:Math.round(b.x), y:Math.round(b.y), hp:b.hp, maxHp:b.maxHp, hostile:!!b.hostile, equipment:this.equipmentSummary(b), program:b.program, teamId:b.teamId||null, teamName:this.botTeam(b)?.name||null }))
   ]; }
-  getState(){ return { gameMode:this.gameMode||this.multiplayer?.mapMode||'test', map:{...this.map}, mapFeatures:clone(this.mapFeatures || []), paused:!!this.paused, fps:Math.round(this.fps||0), targetFps:this.targetFps, dynamicShadowsEnabled:!!this.dynamicShadowsEnabled, lightingEffectsEnabled:this.lightingEffectsEnabled!==false, showFpsOverlay:this.showFpsOverlay!==false, dayNight:this.getDayNightState(), fogOfWar:getFogStats(this.fogOfWar), nightSpawns:clone(this.nightSpawns||{}), multiplayer:this.getMultiplayerSnapshot(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), customTemplates:clone(this.customTemplates || []), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,customTemplateName:b.customTemplateName||'',paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,label:s.label,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,hammers:s.hammers||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:z.kind==='rect'?Math.round(z.w):undefined,h:z.kind==='rect'?Math.round(z.h):undefined,radius:z.kind==='radius'?Math.round(z.radius||DEFAULT_RESOURCE_RADIUS):undefined})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, webgpuAvailable:this.renderer.webgpu, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
+  getState(){ return { gameMode:this.gameMode||this.multiplayer?.mapMode||'test', map:{...this.map}, mapFeatures:clone(this.mapFeatures || []), paused:!!this.paused, fps:Math.round(this.fps||0), targetFps:this.targetFps, dynamicShadowsEnabled:!!this.dynamicShadowsEnabled, lightingEffectsEnabled:this.lightingEffectsEnabled!==false, showFpsOverlay:this.showFpsOverlay!==false, dayNight:this.getDayNightState(), fogOfWar:getFogStats(this.fogOfWar), nightSpawns:clone(this.nightSpawns||{}), multiplayer:this.getMultiplayerSnapshot(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), customTemplates:clone(this.customTemplates || []), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),status:b.status||'worker',managerKnowledgePacks:b.managerKnowledgePacks||[],knowledgePacks:b.managerKnowledgePacks||[],teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,customTemplateName:b.customTemplateName||'',paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,label:s.label,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,hammers:s.hammers||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:z.kind==='rect'?Math.round(z.w):undefined,h:z.kind==='rect'?Math.round(z.h):undefined,radius:z.kind==='radius'?Math.round(z.radius||DEFAULT_RESOURCE_RADIUS):undefined})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, webgpuAvailable:this.renderer.webgpu, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
 }

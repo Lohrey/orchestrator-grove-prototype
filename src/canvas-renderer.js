@@ -1,6 +1,6 @@
-import { BUILDING_TYPES } from './data.js?v=t_bdae19d0';
+import { BUILDING_TYPES } from './data.js?v=t_building_kits_0618';
 import { clamp } from './utils.js?v=20260613-player-tools';
-import { drawFogOfWarOverlay, fogRevealSources as buildFogRevealSources, isLightEmittingStructure, isPointCurrentlyVisible, isPointExplored as isFogPointExplored, structureLightRadius as getFogStructureLightRadius } from './fog-of-war.js?v=t_mobile_controls';
+import { drawFogOfWarOverlay, fogRevealSources as buildFogRevealSources, isLightEmittingStructure, isPointCurrentlyVisible, isPointExplored as isFogPointExplored, structureLightRadius as getFogStructureLightRadius } from './fog-of-war.js?v=t_building_kits_0618';
 import { createDepthDrawable, sortDepthDrawables } from './depth-sort.js?v=t_da28d8dd';
 import {
   drawBuildingAsset,
@@ -9,10 +9,29 @@ import {
   drawItemAsset,
   drawMiniItemAsset,
   itemLabel
-} from './visual-assets.js?v=t_bdae19d0';
+} from './visual-assets.js?v=t_building_kits_0618';
 
 const staticMapBaseCache = new Map();
 const BOT_HAND_TOOL_TYPES = new Set(['crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer']);
+export const LOOSE_ITEM_RENDER_MIN_ZOOM = 0.55;
+export const DECORATIVE_DETAIL_RENDER_MIN_ZOOM = 0.55;
+export const BOT_RENDER_MIN_ZOOM = 0.30;
+
+function normalizedCameraZoom(cameraZoom) {
+  return Number.isFinite(cameraZoom) ? cameraZoom : 1;
+}
+
+export function shouldRenderLooseGroundItems(cameraZoom) {
+  return normalizedCameraZoom(cameraZoom) >= LOOSE_ITEM_RENDER_MIN_ZOOM;
+}
+
+export function shouldRenderDecorativeDetails(cameraZoom) {
+  return normalizedCameraZoom(cameraZoom) >= DECORATIVE_DETAIL_RENDER_MIN_ZOOM;
+}
+
+export function shouldRenderBots(cameraZoom) {
+  return normalizedCameraZoom(cameraZoom) >= BOT_RENDER_MIN_ZOOM;
+}
 
 function isBotHandTool(type) {
   return BOT_HAND_TOOL_TYPES.has(type);
@@ -25,14 +44,17 @@ export function drawWorld(renderState, ctx) {
   const view = getWorldViewBounds(game);
   const lighting = lightingEnabled(game);
   const revealSources = fogEnabled(game) || lighting ? fogRevealSources(game) : [];
-  prepareAnimationState(game, now, view);
+  const renderLooseGroundItems = shouldRenderLooseGroundItems(game.camera?.zoom);
+  const renderDecorativeDetails = shouldRenderDecorativeDetails(game.camera?.zoom);
+  const renderBots = shouldRenderBots(game.camera?.zoom);
+  prepareAnimationState(game, now, view, { renderLooseGroundItems });
   c.clearRect(0, 0, game.W, game.H);
   drawViewportBackdrop(game, c);
 
   c.save();
   c.scale(game.camera.zoom || 1, game.camera.zoom || 1);
   c.translate(-game.camera.x, -game.camera.y);
-  drawMapBase(game, c, view);
+  drawMapBase(game, c, view, { renderDecorativeDetails });
   drawMapFeatures(game, c, view);
   drawGrid(game, c, view);
   drawZones(game, c, view);
@@ -68,11 +90,13 @@ export function drawWorld(renderState, ctx) {
     visibleProjectiles.push(projectile);
     pushDepth('projectile', projectile, () => drawProjectile(c, projectile));
   }
-  for (const item of game.items || []) {
-    if (!circleInView(item.x, item.y, 20, view) || !fogDynamicVisible(game, item.x, item.y)) continue;
-    visibleItems.push(item);
-    const bob = item._bob ?? Math.sin(now / 400 + item.bob) * 2;
-    pushDepth('item', item, () => drawItem(game, c, item, now), { bob });
+  if (renderLooseGroundItems) {
+    for (const item of game.items || []) {
+      if (!circleInView(item.x, item.y, 20, view) || !fogDynamicVisible(game, item.x, item.y)) continue;
+      visibleItems.push(item);
+      const bob = item._bob ?? Math.sin(now / 400 + item.bob) * 2;
+      pushDepth('item', item, () => drawItem(game, c, item, now), { bob });
+    }
   }
   for (const monster of game.monsters || []) {
     if ((monster.hp || 0) <= 0 || !circleInView(monster.x, monster.y, (monster.radius || 18) + 16, view)) continue;
@@ -80,10 +104,12 @@ export function drawWorld(renderState, ctx) {
     visibleMonsters.push(monster);
     pushDepth('monster', monster, () => drawMonster(game, c, monster, now));
   }
-  for (const bot of game.bots || []) {
-    if (!circleInView(bot.x, bot.y, (bot.r || 11) + 18, view) || !fogDynamicVisible(game, bot.x, bot.y)) continue;
-    visibleBots.push(bot);
-    pushDepth('bot', bot, () => drawBot(game, c, bot, now));
+  if (renderBots) {
+    for (const bot of game.bots || []) {
+      if (!circleInView(bot.x, bot.y, (bot.r || 11) + 18, view) || !fogDynamicVisible(game, bot.x, bot.y)) continue;
+      visibleBots.push(bot);
+      pushDepth('bot', bot, () => drawBot(game, c, bot, now));
+    }
   }
   if (game.player.target && (!view || circleInView(game.player.target.x, game.player.target.y, 64, view))) drawPlayerTarget(game, c);
   if (!view || circleInView(game.player.x, game.player.y, (game.player.r || 13) + 42, view)) {
@@ -235,23 +261,24 @@ function drawFogOfWar(game, c, view, revealSources = fogRevealSources(game)) {
   drawFogOfWarOverlay(c, { fog: game.fogOfWar, map: game.map, view: clipped, sources: revealSources, occluders, nightAmount: lightingEnabled(game) ? getNightAmount(game) : 0 });
 }
 
-function drawMapBase(game, c, view) {
+function drawMapBase(game, c, view, { renderDecorativeDetails = true } = {}) {
   const clipped = getClippedMapView(game, view);
   if (!clipped) return;
-  const base = getStaticMapBase(game, c);
+  const base = getStaticMapBase(game, c, { renderDecorativeDetails });
   c.drawImage(base, clipped.left, clipped.top, clipped.width, clipped.height, clipped.left, clipped.top, clipped.width, clipped.height);
 }
 
-function getStaticMapBase(game, c) {
+function getStaticMapBase(game, c, { renderDecorativeDetails = true } = {}) {
   const width = game.map.width;
   const height = game.map.height;
-  const key = `${width}x${height}`;
+  const detailKey = renderDecorativeDetails ? 'details' : 'no-details';
+  const key = `${width}x${height}:${detailKey}`;
   const cached = staticMapBaseCache.get(key);
   if (cached && cached.width === width && cached.height === height) return cached.canvas;
 
   const canvas = createCanvasLayer(width, height, c);
   const layer = canvas.getContext('2d');
-  renderStaticMapBase(game, layer);
+  renderStaticMapBase(game, layer, { renderDecorativeDetails });
   staticMapBaseCache.set(key, { canvas, width, height });
   return canvas;
 }
@@ -273,7 +300,7 @@ function createCanvasLayer(width, height, c) {
   throw new Error('Unable to create offscreen canvas layer');
 }
 
-function renderStaticMapBase(game, c) {
+function renderStaticMapBase(game, c, { renderDecorativeDetails = true } = {}) {
   const width = game.map.width;
   const height = game.map.height;
   const base = c.createLinearGradient(0, 0, width, height);
@@ -295,7 +322,7 @@ function renderStaticMapBase(game, c) {
   drawPainterlyGroundPatches(c, width, height);
   drawLushStream(c, width, height);
   drawGoldenTrail(c, width, height);
-  drawTerrainSprites(c, width, height);
+  if (renderDecorativeDetails) drawTerrainSprites(c, width, height);
   c.restore();
 
   const vignette = c.createRadialGradient(width * .48, height * .42, width * .08, width * .48, height * .42, width * .72);
@@ -440,10 +467,12 @@ function drawLakeFeature(c, feature) {
   c.restore();
 }
 
-function prepareAnimationState(game, now, view) {
-  for (const item of game.items || []) {
-    if (view && !circleInView(item.x, item.y, 20, view)) continue;
-    item._bob = Math.sin(now / 400 + item.bob) * 2;
+function prepareAnimationState(game, now, view, { renderLooseGroundItems = true } = {}) {
+  if (renderLooseGroundItems) {
+    for (const item of game.items || []) {
+      if (view && !circleInView(item.x, item.y, 20, view)) continue;
+      item._bob = Math.sin(now / 400 + item.bob) * 2;
+    }
   }
   for (const hemp of game.hempPlants || []) {
     if (view && !circleInView(hemp.x, hemp.y, (hemp.radius || 14) + 18, view)) continue;

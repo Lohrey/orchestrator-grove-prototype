@@ -12,7 +12,8 @@ import {
   PROGRAM_TEMPLATES,
   getActionStepChainRows
 } from '../src/data.js';
-import { ACTION_STEP_ORDER, ACTION_STEP_REGISTRY, actionStepOpsForPack } from '../src/action-steps.js';
+import { ACTION_STEP_ORDER, ACTION_STEP_REGISTRY, actionStepDetailsForOps, actionStepOpsForPack } from '../src/action-steps.js';
+import { normalizeAssistantKnowledgePack, normalizeAssistantPackCatalog, summarizeAssistantLoadout } from '../src/assistant.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relativePath => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
@@ -37,11 +38,34 @@ for (const action of DSL_ACTION_WIKI.actions) {
 
 for (const pack of Object.values(ASSISTANT_KNOWLEDGE_PACKS)) {
   assert.deepEqual(pack.unlockedOps, actionStepOpsForPack(pack.id), `${pack.id} unlockedOps must be registry-derived`);
+  const details = actionStepDetailsForOps(pack.unlockedOps);
+  assert.deepEqual(details.map(action => action.op), pack.unlockedOps, `${pack.id} action details must preserve registry-derived pack ops`);
+  for (const action of details) {
+    assert.deepEqual(action.validVariables, ACTION_STEPS[action.op].args || [], `${pack.id} action ${action.op} variables must be registry args`);
+    assert.ok(action.dslSnippet, `${pack.id} action ${action.op} needs a DSL snippet`);
+    assert.ok(action.promptSignature, `${pack.id} action ${action.op} needs prompt signature`);
+  }
   for (const op of pack.unlockedOps) {
     assert.ok(ACTION_STEPS[op], `${pack.id} unlocks unknown op ${op}`);
     assert.ok(ACTION_STEPS[op].signature, `${pack.id} op ${op} needs a prompt signature`);
   }
 }
+
+const customPack = normalizeAssistantKnowledgePack({
+  id: 'custom_tree_courier',
+  name: 'Tree courier',
+  custom: true,
+  unlockedOps: ['pick_up', 'not_real_op', 'deposit_to_player'],
+  contextVariables: ['availableBotNames']
+});
+assert.deepEqual(customPack.unlockedOps, ['pick_up', 'deposit_to_player'], 'custom pack ops must be filtered through the registry');
+assert.deepEqual(customPack.actions.map(action => action.op), customPack.unlockedOps, 'custom pack action details must match selected valid ops only');
+assert.deepEqual(customPack.actions[0].validVariables, ACTION_STEPS.pick_up.args, 'custom pack action variables derive from registry args');
+assert.ok(customPack.actions[0].dslSnippet.includes('"type":"$type"'), 'custom pack action snippets derive from registry snippets');
+const customCatalog = normalizeAssistantPackCatalog({ ...ASSISTANT_KNOWLEDGE_PACKS, [customPack.id]: customPack });
+const customSummary = summarizeAssistantLoadout([customPack.id], customCatalog);
+assert.deepEqual(customSummary.unlockedOps, customPack.unlockedOps, 'custom loadout unlocks selected custom ops only');
+assert.equal(customSummary.packs[0].actions.length, 2, 'custom loadout includes per-pack action details');
 
 assertSameSet(Object.keys(PROGRAM_TEMPLATES), PROGRAMS, 'PROGRAMS and PROGRAM_TEMPLATES must match');
 for (const [templateId, template] of Object.entries(PROGRAM_TEMPLATES)) {

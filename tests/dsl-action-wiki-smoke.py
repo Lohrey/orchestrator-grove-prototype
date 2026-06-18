@@ -144,7 +144,7 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             starter_user_prompt = captured[-1]["messages"][1]["content"]
             assert '"id":"starter_automation"' in starter_user_prompt, starter_user_prompt
             assert '"id":"woodworking"' not in starter_user_prompt, starter_user_prompt
-            assert '"unlockedOps":["pick_up","drop_item","move_to_structure","use_held_item","assign_template","deposit_to_player","take_from_player","loop","wait"]' in starter_user_prompt, starter_user_prompt
+            assert '"unlockedOps":["pick_up","drop_item","deploy_building_kit","move_to_structure","disassemble_building_to_kit","use_held_item","assign_template","rename_bot","promote_to_manager","delegate_to_manager","follow","deposit_to_player","take_from_player","loop","wait"]' in starter_user_prompt, starter_user_prompt
             assert "deposit_to_structure(type" not in starter_user_prompt, starter_user_prompt
             assert "chop_tree(zone" not in starter_user_prompt, starter_user_prompt
             assert "use_held_item(targetKind" in starter_user_prompt, starter_user_prompt

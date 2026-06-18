@@ -1,10 +1,10 @@
-import { createCanvas2dRenderer } from './canvas2d-renderer.js?v=t_pixi_worker_wasm';
+import { createCanvas2dRenderer } from './canvas2d-renderer.js?v=t_building_kits_0618';
 
 export async function createRenderBackend({ canvas, mode = 'pixi' } = {}) {
   const normalized = String(mode || 'pixi').toLowerCase();
   if (normalized === 'pixi' || normalized === 'auto') {
     try {
-      const { createPixiRenderer } = await import('./pixi-renderer.js?v=t_pixi_worker_wasm');
+      const { createPixiRenderer } = await import('./pixi-renderer.js?v=t_building_kits_0618');
       return await createPixiRenderer({ canvas });
     } catch (err) {
       console.warn('Pixi renderer failed; falling back to Canvas2D', err);

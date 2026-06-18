@@ -1,13 +1,14 @@
 const freezeList = values => Object.freeze([...values]);
 
-export const KNOWLEDGE_PACK_IDS = freezeList(['starter_automation', 'woodworking', 'logistics', 'farming', 'mining_tools']);
+export const KNOWLEDGE_PACK_IDS = freezeList(['starter_automation', 'woodworking', 'logistics', 'farming', 'mining_tools', 'combat']);
 
 export const KNOWLEDGE_PACK_OP_ORDER = Object.freeze({
-  starter_automation: freezeList(['pick_up', 'drop_item', 'move_to_structure', 'use_held_item', 'assign_template', 'deposit_to_player', 'take_from_player', 'loop', 'wait']),
+  starter_automation: freezeList(['pick_up', 'drop_item', 'deploy_building_kit', 'move_to_structure', 'disassemble_building_to_kit', 'use_held_item', 'assign_template', 'rename_bot', 'promote_to_manager', 'delegate_to_manager', 'follow', 'deposit_to_player', 'take_from_player', 'loop', 'wait']),
   woodworking: freezeList(['pick_up', 'deposit_to_structure', 'use_held_item', 'chop_tree', 'search_tree', 'loop']),
   logistics: freezeList(['pick_up_from_storage', 'deposit_to_structure', 'drop_item', 'use_held_item', 'loop']),
   farming: freezeList(['pick_up', 'plant_seed', 'use_held_item', 'search_tree', 'loop']),
-  mining_tools: freezeList(['mine_stone', 'chop_hemp', 'use_held_item', 'search_hemp', 'loop'])
+  mining_tools: freezeList(['mine_stone', 'chop_hemp', 'use_held_item', 'search_hemp', 'loop']),
+  combat: freezeList(['rename_bot', 'follow', 'guard_area', 'patrol_route', 'attack', 'equip_item', 'craft_smithery', 'craft_bowmaker', 'loop', 'wait'])
 });
 
 export const ACTION_STEP_ORDER = freezeList([
@@ -15,9 +16,9 @@ export const ACTION_STEP_ORDER = freezeList([
   'chop_tree', 'search_tree', 'chop_hemp', 'search_hemp', 'mine_stone', 'dig_hole',
   'pick_up', 'pick_up_from_storage', 'pick_up_specific',
   'deliver_to_sawbench', 'process_sawbench', 'process_poles', 'fetch_plank_from_sawbench', 'fetch_pole_from_sawbench',
-  'deliver_to_workbench', 'craft_workbench', 'deliver_to_factory', 'assemble_bot',
-  'idle_parking', 'wait', 'loop', 'if_inventory', 'assign_template',
-  'move_to_structure', 'deposit_to_structure', 'drop_item', 'find_dug_hole', 'plant_seed', 'use_held_item',
+  'deliver_to_workbench', 'craft_workbench', 'craft_smithery', 'craft_bowmaker', 'deliver_to_factory', 'assemble_bot',
+  'idle_parking', 'wait', 'loop', 'if_inventory', 'assign_template', 'rename_bot', 'promote_to_manager', 'delegate_to_manager', 'follow', 'guard_area', 'patrol_route', 'attack', 'equip_item',
+  'move_to_structure', 'deposit_to_structure', 'drop_item', 'deploy_building_kit', 'disassemble_building_to_kit', 'find_dug_hole', 'plant_seed', 'use_held_item',
   'deposit_to_player', 'take_from_player'
 ]);
 
@@ -235,6 +236,24 @@ export const ACTION_STEP_REGISTRY = Object.freeze({
     templates: true,
     uiCard: 'recipe + structure selector'
   }),
+  craft_smithery: step({
+    label: 'Craft at smithery',
+    args: ['recipe', 'target'],
+    description: 'Craft existing smithery weapon recipes. Supported aliases normalize to wooden_sword or wooden_shield.',
+    signature: 'craft_smithery(recipe, target?) - craft wooden_sword/sword or wooden_shield/shield at a smithery',
+    packs: ['combat'],
+    customLoop: true,
+    uiCard: 'recipe + smithery selector'
+  }),
+  craft_bowmaker: step({
+    label: 'Craft at bowmaker',
+    args: ['recipe', 'target'],
+    description: 'Craft the existing bowmaker recipe. Supported recipe: bow.',
+    signature: 'craft_bowmaker(recipe, target?) - craft bow at a bowmaker when supplied with sticks and hemp',
+    packs: ['combat'],
+    customLoop: true,
+    uiCard: 'recipe + bowmaker selector'
+  }),
   deliver_to_factory: step({
     label: 'Deliver to factory',
     args: ['type', 'target', 'source', 'zone'],
@@ -295,6 +314,78 @@ export const ACTION_STEP_REGISTRY = Object.freeze({
     customLoop: true,
     uiCard: 'bot + template name fields'
   }),
+  rename_bot: step({
+    label: 'Rename bot',
+    args: ['name', 'target'],
+    description: 'Rename the executing bot by default; optional target/bot can rename another bot by id, ref, or exact name.',
+    signature: 'rename_bot(name, target?) - rename this bot, or a target bot by id/ref/name, to a safe 2-32 character display name',
+    packs: ['starter_automation', 'combat'],
+    customLoop: true,
+    uiCard: 'bot display name + optional target fields'
+  }),
+  promote_to_manager: step({
+    label: 'Promote to manager',
+    args: ['knowledgePacks', 'target'],
+    description: 'Promote the executing bot, or an optional target bot by id/ref/name, to manager status and attach manager knowledge packs.',
+    signature: 'promote_to_manager(knowledgePacks?, target?) - mark this or target bot as a manager and set known knowledge pack ids',
+    packs: ['starter_automation'],
+    customLoop: true,
+    uiCard: 'bot target + knowledge pack selector'
+  }),
+  delegate_to_manager: step({
+    label: 'Delegate to manager',
+    args: ['message', 'recipient'],
+    description: 'Send a text instruction to an existing manager bot so its manager LLM route can assign bot work using the manager’s known packs.',
+    signature: 'delegate_to_manager(message, recipient) - send a short instruction to an existing manager bot by name/id/ref',
+    packs: ['starter_automation'],
+    customLoop: true,
+    uiCard: 'manager recipient + text message fields'
+  }),
+  follow: step({
+    label: 'Follow',
+    args: ['target', 'distance'],
+    description: 'Keep the executing bot near a moving actor target. Target can be me/player or a bot name/ref/id; distance defaults to a small escort radius.',
+    signature: 'follow(target, distance?) - keep this bot near me/player or another bot by name/ref/id',
+    packs: ['starter_automation', 'combat'],
+    customLoop: true,
+    uiCard: 'actor target + follow distance fields'
+  }),
+  guard_area: step({
+    label: 'Guard area',
+    args: ['zone', 'radius'],
+    description: 'Hold a guard center/zone, attack hostile targets in or near it, then return to the guard center instead of wandering.',
+    signature: 'guard_area(zone?, radius?) - hold/guard current area, named zone, radius zone, or nearby radius; attack hostiles then return to center',
+    packs: ['combat'],
+    customLoop: true,
+    uiCard: 'zone/radius guard fields'
+  }),
+  patrol_route: step({
+    label: 'Patrol route',
+    args: ['points', 'radius'],
+    description: 'Patrol between checkpoint points while attacking hostile targets near the patrol path/checkpoint.',
+    signature: 'patrol_route(points, radius?) - points is an array like [{x:100,y:100},{x:220,y:100}]; attack nearby hostiles while cycling checkpoints',
+    packs: ['combat'],
+    customLoop: true,
+    uiCard: 'JSON points + radius fields'
+  }),
+  attack: step({
+    label: 'Attack',
+    args: ['target', 'type', 'zone', 'radius'],
+    description: 'Move toward and attack hostile targets by explicit target, monster type, or zone. zone:"nearby" creates a moving radius around the bot; radius defaults but can be set, e.g. 500.',
+    signature: 'attack(target?, type?, zone?, radius?) - attack hostile target/type in a zone; use zone:"nearby" and radius:500 for a moving bot-centered search radius',
+    packs: ['combat'],
+    customLoop: true,
+    uiCard: 'target/type + zone/radius fields'
+  }),
+  equip_item: step({
+    label: 'Equip weapon item',
+    args: ['type'],
+    description: 'Pick up and equip only weaponry: sword/wooden_sword, shield/wooden_shield, or bow. Tools/resources are rejected.',
+    signature: 'equip_item(type) - equip only sword, shield, or bow weaponry; never tools/resources',
+    packs: ['combat'],
+    customLoop: true,
+    uiCard: 'weapon type field'
+  }),
   move_to_structure: step({
     label: 'Move to structure',
     args: ['target'],
@@ -324,6 +415,26 @@ export const ACTION_STEP_REGISTRY = Object.freeze({
     customLoop: true,
     recordable: true,
     uiCard: 'type + location selector'
+  }),
+  deploy_building_kit: step({
+    label: 'Deploy building kit',
+    args: ['type', 'zone'],
+    description: 'Deploy a carried building-kit item into its target building at the current or selected ground zone.',
+    signature: 'deploy_building_kit(type, zone?) - deploy a carried building kit item such as sawbench_kit/workbench_kit into a placed building',
+    packs: ['starter_automation'],
+    customLoop: true,
+    recordable: true,
+    uiCard: 'kit type + location selector'
+  }),
+  disassemble_building_to_kit: step({
+    label: 'Disassemble building to kit',
+    args: ['target'],
+    description: 'Move to a player-placed/disassemblable building, remove it, and carry or drop the matching building kit.',
+    signature: 'disassemble_building_to_kit(target/structureId) - disassemble a player-placed non-protected building into its matching kit',
+    packs: ['starter_automation'],
+    customLoop: true,
+    recordable: true,
+    uiCard: 'structure selector'
   }),
   find_dug_hole: step({
     label: 'Find dug hole',
@@ -390,14 +501,36 @@ export function actionStepWikiActions() {
   }));
 }
 
+export function validActionStepOps(ops = []) {
+  const seen = new Set();
+  return (Array.isArray(ops) ? ops : [])
+    .filter(op => ACTION_STEP_REGISTRY[op] && !seen.has(op) && seen.add(op));
+}
+
 export function runtimeDslSignaturesForOps(ops = []) {
-  return ops.map(op => ACTION_STEP_REGISTRY[op]?.signature).filter(Boolean);
+  return validActionStepOps(ops).map(op => ACTION_STEP_REGISTRY[op]?.signature).filter(Boolean);
 }
 
 function actionStepDslSnippet(step) {
   const snippet = { op: step.op };
   for (const arg of step.args || []) snippet[arg] = `$${arg}`;
   return JSON.stringify(snippet);
+}
+
+export function actionStepDetailsForOps(ops = []) {
+  return validActionStepOps(ops).map(op => {
+    const step = ACTION_STEP_REGISTRY[op];
+    const args = step.args || [];
+    return {
+      op,
+      label: step.label,
+      description: step.description,
+      args,
+      validVariables: args,
+      dslSnippet: step.dslSnippet || actionStepDslSnippet({ op, ...step }),
+      promptSignature: step.signature || ''
+    };
+  });
 }
 
 export function actionStepChainRows({ programTemplates = {}, knowledgePacks = {} } = {}) {

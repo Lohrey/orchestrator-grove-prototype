@@ -44,11 +44,24 @@ const BUILDING_ASSETS = {
 };
 
 export function itemLabel(type) {
+  if (isBuildingKitType(type)) return `${buildingLabelFromKit(type)} kit`;
   return ITEM_PALETTE[type]?.label || type;
 }
 
 export function getItemColor(type) {
+  if (isBuildingKitType(type)) return BUILDING_ASSETS[buildingTypeFromKit(type)]?.accent || '#d3a95f';
   return ITEM_PALETTE[type]?.color || '#d3a95f';
+}
+
+function buildingTypeFromKit(type) {
+  const match = String(type || '').match(/^(.+)_kit$/);
+  return match?.[1] && BUILDING_ASSETS[match[1]] ? match[1] : null;
+}
+
+function isBuildingKitType(type) { return !!buildingTypeFromKit(type); }
+
+function buildingLabelFromKit(type) {
+  return String(buildingTypeFromKit(type) || '').replace(/_/g, ' ');
 }
 
 export function drawBuildingAsset(c, structure, def, { hover = false, now = 0 } = {}) {
@@ -84,6 +97,7 @@ export function drawBuildingPreviewAsset(c, x, y, w, h, def) {
 }
 
 export function drawItemAsset(c, type) {
+  if (isBuildingKitType(type)) return drawBuildingKitItem(c, type);
   c.save();
   c.strokeStyle = 'rgba(6,10,8,.72)';
   c.lineWidth = 1.5;
@@ -121,6 +135,23 @@ export function drawMiniItemAsset(c, type) {
   c.save();
   c.scale(.72, .72);
   drawItemAsset(c, type);
+  c.restore();
+}
+
+function drawBuildingKitItem(c, type) {
+  const buildingType = buildingTypeFromKit(type);
+  const asset = BUILDING_ASSETS[buildingType] || { base: getItemColor(type), roof: '#303834', accent: '#d3a95f', trim: '#0e1512' };
+  c.save();
+  c.scale(.24, .24);
+  drawBuildingAsset(c, { type: buildingType, x: 0, y: 0, w: 76, h: 54 }, { type: buildingType, w: 76, h: 54, color: asset.base }, { hover: false, now: 0 });
+  c.restore();
+  c.save();
+  c.strokeStyle = 'rgba(6,10,8,.72)';
+  c.lineWidth = 1.2;
+  c.fillStyle = 'rgba(255,244,208,.78)';
+  roundedRect(c, -11, 5, 22, 7, 2);
+  c.fill();
+  c.stroke();
   c.restore();
 }
 

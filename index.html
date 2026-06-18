@@ -6,8 +6,8 @@
   <title>Orchestrator Grove Prototype v9</title>
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="styles.css?v=t_8ab80257" />
-  <link rel="stylesheet" href="styles-interactions.css?v=t_mobile_controls" />
-  <link rel="stylesheet" href="ui-overlays/orchestrator-grove-prototype.css?v=t_pixi_worker_wasm" />
+  <link rel="stylesheet" href="styles-interactions.css?v=t_building_kits_0618" />
+  <link rel="stylesheet" href="ui-overlays/orchestrator-grove-prototype.css?v=t_building_kits_0618" />
 </head>
 <body>
   <main class="shell" aria-label="Orchestrator Grove fullscreen game">
@@ -95,7 +95,7 @@
         <div id="assignmentToast" class="assignment-toast" role="status" aria-live="polite" hidden></div>
         <div id="mobileControls" class="mobile-controls" aria-label="Mobile game controls">
           <div class="mobile-controls-row mobile-top-actions" role="toolbar" aria-label="Mobile menu controls">
-            <button id="mobileSettingsBtn" class="mobile-control-button" type="button" aria-label="Open pause and settings menu">☰<span>Menu</span></button>
+            <button id="mobileSettingsBtn" class="mobile-control-button mobile-menu-button" type="button" aria-label="Open pause and settings menu"><span class="hamburger-lines" aria-hidden="true"><i></i><i></i><i></i></span><span class="mobile-menu-label">Menu</span></button>
             <button id="mobileBuildBtn" class="mobile-control-button" type="button" aria-label="Open build drawer">⚒<span>Build</span></button>
             <button id="mobileChatBtn" class="mobile-control-button" type="button" aria-label="Open assistant chat">💬<span>Chat</span></button>
           </div>
@@ -117,6 +117,7 @@
         </div>
         <aside id="widgetRoster" class="widget-roster" aria-label="Canvas widget roster">
           <div class="widget-roster-rail" aria-hidden="true"></div>
+          <button id="widgetRosterHandle" class="widget-roster-handle" type="button" aria-label="Open widgets" aria-controls="radioWidgetPanel" aria-expanded="false"><span aria-hidden="true"></span></button>
           <div class="widget-roster-buttons" role="toolbar" aria-label="Canvas widgets">
             <button id="radioWidgetToggle" class="widget-roster-button music-widget-button" type="button" aria-controls="radioWidgetPanel" aria-expanded="false" title="Cozy radio">
               <span aria-hidden="true">♫</span>
@@ -574,6 +575,35 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
         <h3>Assistant Knowledge Packs</h3>
         <p class="small">Choose which DSL concepts, vocabulary, operations, and optional runtime name lists are equipped for the assistant parser and Ollama prompt. Saved in this browser.</p>
         <div id="knowledgePackList" class="knowledge-pack-list"></div>
+        <section class="custom-action-pack-editor" aria-label="Custom action pack editor">
+          <h3>Create / edit custom action pack</h3>
+          <p class="small">Select one or more action steps. The LLM prompt will inject only those actions with registry-derived args, variables, JSON snippets, and prompt signatures.</p>
+          <div class="custom-pack-grid">
+            <label>Pack id
+              <input id="customPackId" type="text" placeholder="auto from name" autocomplete="off" />
+            </label>
+            <label>Pack name
+              <input id="customPackName" type="text" placeholder="e.g. Player courier actions" autocomplete="off" />
+            </label>
+          </div>
+          <label>Context variables (optional, comma/newline separated)
+            <textarea id="customPackContextVariables" rows="2" placeholder="availableBotNames, availableItemTypes"></textarea>
+          </label>
+          <label>Concepts (optional)
+            <textarea id="customPackConcepts" rows="2" placeholder="Leave blank to derive from selected actions."></textarea>
+          </label>
+          <label>Vocabulary (optional)
+            <textarea id="customPackVocabulary" rows="2" placeholder="Leave blank to derive from selected actions."></textarea>
+          </label>
+          <label>Examples (optional)
+            <textarea id="customPackExamples" rows="2" placeholder="One example/intent per line."></textarea>
+          </label>
+          <div id="customPackActionList" class="custom-action-list" aria-label="Action step selector"></div>
+          <div class="endpoint-actions" aria-label="Custom action pack actions">
+            <button id="saveCustomPack" type="button">Save custom pack</button>
+            <button id="clearCustomPackForm" type="button">Clear form</button>
+          </div>
+        </section>
         <div class="endpoint-actions" aria-label="Knowledge pack actions">
           <button id="resetKnowledgePacks" type="button">Reset to default loadout</button>
         </div>
@@ -619,7 +649,7 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
   <div id="botMenu" class="entity-menu" hidden></div>
   <div id="structureMenu" class="entity-menu" hidden></div>
 
-  <script type="module" src="ui-overlays/ui-overlays.js?v=t_pixi_worker_wasm"></script>
-  <script src="game.js?v=t_pixi_worker_wasm"></script>
+  <script type="module" src="ui-overlays/ui-overlays.js?v=t_building_kits_0618"></script>
+  <script src="game.js?v=t_building_kits_0618"></script>
 </body>
 </html>

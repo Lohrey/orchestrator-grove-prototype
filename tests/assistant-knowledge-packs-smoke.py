@@ -21,7 +21,7 @@ class QuietHandler(http.server.SimpleHTTPRequestHandler):
 
 def wait_ready(page) -> None:
     page.wait_for_function(
-        "() => window.getGameState && window.generateAssistantDsl && window.assignCustomDslProgram && window.assistantKnowledgePacks && window.getAssistantLoadoutDebug && window.getAssistantPromptPreview"
+        "() => window.getGameState && window.generateAssistantDsl && window.assignCustomDslProgram && window.assistantKnowledgePacks && window.getAssistantLoadoutDebug && window.getAssistantPromptPreview && window.getCustomActionPacks && window.getActionPackCatalog"
     )
 
 
@@ -87,6 +87,47 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             assert "Request: bot 1 feed sawbench with logs" in prompt_after, prompt_after
             mining_parse = page.evaluate("window.generateAssistantDsl('bot 1 mine stone')")
             assert not mining_parse.get("dslAssignments"), mining_parse
+
+            page.fill("#customPackName", "Player Courier Test")
+            page.fill("#customPackContextVariables", "availableBotNames\navailableItemTypes")
+            page.check('[data-action-pack-op="pick_up"]')
+            page.check('[data-action-pack-op="deposit_to_player"]')
+            page.click("#saveCustomPack")
+            page.wait_for_function("() => !!window.getCustomActionPacks().custom_player_courier_test")
+            assert page.locator('[data-knowledge-pack="custom_player_courier_test"]').count() == 1
+            page.evaluate("window.setAssistantLoadout(['custom_player_courier_test'])")
+            custom_debug = page.evaluate("window.getAssistantLoadoutDebug()")
+            assert custom_debug["selectedPackIds"] == ["custom_player_courier_test"], custom_debug
+            assert custom_debug["unlockedOps"] == ["pick_up", "deposit_to_player"], custom_debug
+            page.fill("#chatInput", "bot 1 bring log to me")
+            custom_prompt = page.evaluate("window.getAssistantPromptPreview()")
+            assert '"id":"custom_player_courier_test"' in custom_prompt, custom_prompt
+            custom_knowledge = page.evaluate("JSON.parse(document.getElementById('assistantLoadoutView').textContent)")
+            custom_pack = custom_knowledge["equippedPacks"][0]
+            custom_ops = [action["op"] for action in custom_pack["actions"]]
+            assert custom_ops == ["pick_up", "deposit_to_player"], custom_pack
+            assert custom_pack["actions"][0]["validVariables"] == ["type", "zone"], custom_pack
+            assert custom_pack["actions"][0]["dslSnippet"] == '{"op":"pick_up","type":"$type","zone":"$zone"}', custom_pack
+            assert custom_pack["actions"][1]["promptSignature"].startswith("deposit_to_player"), custom_pack
+            assert "drop_item" not in custom_knowledge["unlockedOps"], custom_knowledge
+            assert all(action["op"] != "drop_item" for action in custom_knowledge["actionGuide"]), custom_knowledge
+            custom_bad_validation = page.evaluate(
+                """
+                () => {
+                  try {
+                    window.validateAssistantDslAssignments([{ botId: 1, program: { steps: [
+                      { op: 'pick_up', type: 'log' },
+                      { op: 'drop_item', type: 'log' }
+                    ] } }]);
+                    return { ok: true };
+                  } catch (err) {
+                    return { ok: false, error: err.message };
+                  }
+                }
+                """
+            )
+            assert custom_bad_validation["ok"] is False, custom_bad_validation
+            assert "locked op drop_item" in custom_bad_validation["error"], custom_bad_validation
 
             page.evaluate("window.setAssistantLoadout(['starter_automation'])")
             page.fill("#chatInput", "make bot 1 pick up crude_axe and chop tree")

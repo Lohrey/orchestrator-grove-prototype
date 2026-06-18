@@ -10,6 +10,8 @@ with sync_playwright() as p:
     page = browser.new_page(viewport={"width": 1280, "height": 800})
     page.goto(URL, wait_until="networkidle")
     page.wait_for_function("() => window.getCameraState && window.teachDebug")
+    page.evaluate("() => { if (window.gameMenuDebug?.isPaused?.()) window.gameMenuDebug.startTest?.(); }")
+    page.wait_for_function("() => !window.gameMenuDebug?.isPaused?.()")
 
     def key_event(kind: str, key: str) -> None:
         page.evaluate(

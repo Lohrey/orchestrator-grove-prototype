@@ -22,6 +22,8 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
         page = browser.new_page(viewport={"width": 1280, "height": 800})
         page.goto(url)
         page.wait_for_function("() => window.getCameraState && window.teachDebug")
+        page.evaluate("() => { if (window.gameMenuDebug?.isPaused?.()) window.gameMenuDebug.startTest?.(); }")
+        page.wait_for_function("() => !window.gameMenuDebug?.isPaused?.()")
 
         def key_event(kind: str, key: str) -> None:
             page.evaluate(
