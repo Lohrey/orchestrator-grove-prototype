@@ -258,6 +258,42 @@ button[type="submit"], #benchmarkBtn { border-color: #416149; background: #21312
 .grow { flex: 1; margin-bottom: 0; }
 .full-width { width: 100%; margin-bottom: 10px; }
 .status-text { min-height: 34px; margin: 9px 0 0; }
+.browser-stt-card {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(16, 20, 19, 0.72);
+  margin-top: 14px;
+}
+.browser-stt-progress-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin: 8px 0 4px;
+}
+.browser-stt-progress-row progress {
+  width: 100%;
+  height: 14px;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #111715;
+}
+.browser-stt-progress-row progress::-webkit-progress-bar { background: #111715; }
+.browser-stt-progress-row progress::-webkit-progress-value {
+  background: linear-gradient(90deg, var(--accent), #b7da83);
+  border-radius: 999px;
+}
+.browser-stt-progress-row progress::-moz-progress-bar {
+  background: linear-gradient(90deg, var(--accent), #b7da83);
+  border-radius: 999px;
+}
+.browser-stt-progress-text {
+  min-width: 4ch;
+  text-align: right;
+  margin: 0;
+}
 .program-view {
   max-height: 250px;
   overflow: auto;

@@ -44,20 +44,30 @@ export function createFogOfWar({ enabled = true, cellSize = FOG_CELL_SIZE } = {}
   };
 }
 
+function ensureFogOfWarState(fog = {}, { enabled = true, cellSize = FOG_CELL_SIZE } = {}) {
+  const state = fog && typeof fog === 'object' ? fog : {};
+  if (state.enabled === undefined) state.enabled = enabled;
+  if (!state.cellSize) state.cellSize = cellSize;
+  if (!state.explored || typeof state.explored !== 'object') state.explored = {};
+  if (!state.visible || typeof state.visible !== 'object') state.visible = {};
+  if (!state.lastSeen || typeof state.lastSeen !== 'object') state.lastSeen = {};
+  if (!Number.isFinite(state.revision)) state.revision = 0;
+  if (!Number.isFinite(state.updatedAt)) state.updatedAt = 0;
+  return state;
+}
+
 export function normalizeFogOfWar(fog = {}, { enabled = true, cellSize = FOG_CELL_SIZE } = {}) {
+  const state = ensureFogOfWarState({ ...(fog || {}) }, { enabled, cellSize: fog?.cellSize || cellSize });
   return {
-    ...createFogOfWar({ enabled, cellSize: fog?.cellSize || cellSize }),
-    ...(fog || {}),
-    enabled: fog?.enabled ?? enabled,
-    cellSize: fog?.cellSize || cellSize,
-    explored: { ...(fog?.explored || {}) },
-    visible: { ...(fog?.visible || {}) },
-    lastSeen: { ...(fog?.lastSeen || {}) }
+    ...state,
+    explored: { ...state.explored },
+    visible: { ...state.visible },
+    lastSeen: { ...state.lastSeen }
   };
 }
 
 export function serializeFogOfWar(fog = {}) {
-  const normalized = normalizeFogOfWar(fog);
+  const normalized = ensureFogOfWarState(fog);
   return {
     enabled: !!normalized.enabled,
     cellSize: normalized.cellSize || FOG_CELL_SIZE,
@@ -104,7 +114,7 @@ export function fogRevealSources({ player, assistant, bots = [], structures = []
 }
 
 export function revealFogCircle(fog, { x, y, radius, strength = 1 } = {}, { map = {}, time = 0, visible = true } = {}) {
-  const normalized = normalizeFogOfWar(fog);
+  const normalized = ensureFogOfWarState(fog);
   if (!normalized.enabled || !Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(radius) || radius <= 0) return normalized;
   const cell = normalized.cellSize || FOG_CELL_SIZE;
   const maxCellX = Math.ceil((map.width || x + radius) / cell) - 1;
@@ -131,7 +141,7 @@ export function revealFogCircle(fog, { x, y, radius, strength = 1 } = {}, { map 
 }
 
 export function updateFogOfWarState(fog, { map = {}, sources = [], time = 0 } = {}) {
-  let normalized = normalizeFogOfWar(fog);
+  let normalized = ensureFogOfWarState(fog);
   if (!normalized.enabled) return normalized;
   normalized.visible = {};
   for (const source of sources || []) {
@@ -143,19 +153,19 @@ export function updateFogOfWarState(fog, { map = {}, sources = [], time = 0 } = 
 }
 
 export function isPointExplored(fog, x, y) {
-  const normalized = normalizeFogOfWar(fog);
+  const normalized = ensureFogOfWarState(fog);
   const cell = fogCellForPoint(normalized, x, y);
   return !!normalized.explored[makeCellKey(cell.x, cell.y)];
 }
 
 export function isPointCurrentlyVisible(fog, x, y) {
-  const normalized = normalizeFogOfWar(fog);
+  const normalized = ensureFogOfWarState(fog);
   const cell = fogCellForPoint(normalized, x, y);
   return !!normalized.visible[makeCellKey(cell.x, cell.y)];
 }
 
 export function getFogStats(fog = {}) {
-  const normalized = normalizeFogOfWar(fog);
+  const normalized = ensureFogOfWarState(fog);
   return {
     enabled: !!normalized.enabled,
     cellSize: normalized.cellSize || FOG_CELL_SIZE,
@@ -271,7 +281,7 @@ function createFogLayer(width, height, targetContext) {
 }
 
 export function drawFogOfWarOverlay(c, { fog, map = {}, view, sources = [], occluders = [], nightAmount = 0 } = {}) {
-  const normalized = normalizeFogOfWar(fog);
+  const normalized = ensureFogOfWarState(fog);
   if (!normalized.enabled || !view || view.width <= 0 || view.height <= 0) return;
   const cell = normalized.cellSize || FOG_CELL_SIZE;
   const layer = createFogLayer(view.width, view.height, c);

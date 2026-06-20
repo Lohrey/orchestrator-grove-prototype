@@ -39,7 +39,7 @@ const CAMPAIGN_MAP_FEATURES = [
   { id: 'campaign_lake_road', type: 'road', label: 'border road', points: [[-120, CAMPAIGN_MAP_SIZE.height - 910], [780, CAMPAIGN_MAP_SIZE.height - 910], [1180, CAMPAIGN_MAP_SIZE.height - 820], [CAMPAIGN_MAP_SIZE.width + 120, CAMPAIGN_MAP_SIZE.height - 820]], width: 96 },
   { id: 'campaign_lake_parking', type: 'parking_lot', label: 'lake parking lot', x: 1170, y: CAMPAIGN_MAP_SIZE.height - 650, w: 440, h: 250, rotation: -0.06 },
   { id: 'campaign_glow_lake', type: 'lake', label: 'glowing lake', x: 650, y: CAMPAIGN_MAP_SIZE.height - 530, rx: 560, ry: 360, rotation: -0.14, glow: 'green', glowRadius: 460, glowAlpha: 0.76 },
-  { id: 'campaign_camper', type: 'camper_van', label: 'campaign camper van', x: 1160, y: CAMPAIGN_MAP_SIZE.height - 646, w: 126, h: 62, rotation: -0.06 }
+  { id: 'campaign_camper', type: 'camper_van', label: 'trusty camper van', x: 1160, y: CAMPAIGN_MAP_SIZE.height - 646, w: 126, h: 62, rotation: -0.06 }
 ];
 export const CAMERA_MIN_ZOOM = 0.05;
 const CAMERA_MAX_ZOOM = 2.35;
@@ -54,6 +54,8 @@ const DIG_ZONE_RADIUS = 96;
 const HOLE_VISUAL_RADIUS = 16;
 const HOLE_BLOCK_RADIUS = 42;
 const RESOURCE_HIT_SECONDS = 3;
+const BUILDING_KIT_DEPLOY_SECONDS = 1.6;
+const BUILDING_DISASSEMBLE_SECONDS = 1.8;
 const TREE_SEARCH_SECONDS = 2.4;
 const HEMP_SEARCH_SECONDS = 1.4;
 const HEMP_CHOP_SECONDS = 1.8;
@@ -166,7 +168,7 @@ const STRUCTURE_INFO = {
   defensetower: 'Military building with a reusable ranged-attack component. Fires one 1 HP arrow per second at hostile targets in range.',
   item_palette: 'Stores one item type for pickup tasks.',
   throne: 'Multiplayer objective. Destroy the enemy throne to win.',
-  camper_van: 'Simple white camper van: the character’s mobile base for driving to the childhood lake.',
+  camper_van: 'Simple white camper van: the characterâ€™s mobile base for driving to the childhood lake.',
   hammock_camp: 'Rest camp built around the bought hammock for sleeping by the lake.',
   ultrabook_desk: 'Remote-work field desk with the ultrabook laptop open.',
   solar_array: 'Fold-out solar panels for charging the camp kit.',
@@ -176,13 +178,13 @@ const STRUCTURE_INFO = {
   robotics_parts_bin: 'Parts bin for DIY robotics components.'
 };
 function structureRecipeText(s) {
-  if (s.type === 'sawbench') return '1 log → 2 planks; 1 plank → 2 wood poles. Last depositor works the job.';
-  if (s.type === 'workbench') return `1 stick + 1 stone → 1 selected crude tool. Current: ${itemLabel(workbenchRecipe(s))}. Last depositor works the job.`;
-  if (s.type === 'smithery') return `1 ${smitheryRecipe(s) === 'wooden_sword' ? 'stick' : 'plank'} → 1 ${itemLabel(smitheryRecipe(s))}. Current mode: ${itemLabel(smitheryRecipe(s))}. Last depositor works the job.`;
-  if (s.type === 'bowmaker') return '2 sticks + 3 hemp → 1 bow. Last depositor works the long build.';
+  if (s.type === 'sawbench') return '1 log â†’ 2 planks; 1 plank â†’ 2 wood poles. Last depositor works the job.';
+  if (s.type === 'workbench') return `1 stick + 1 stone â†’ 1 selected crude tool. Current: ${itemLabel(workbenchRecipe(s))}. Last depositor works the job.`;
+  if (s.type === 'smithery') return `1 ${smitheryRecipe(s) === 'wooden_sword' ? 'stick' : 'plank'} â†’ 1 ${itemLabel(smitheryRecipe(s))}. Current mode: ${itemLabel(smitheryRecipe(s))}. Last depositor works the job.`;
+  if (s.type === 'bowmaker') return '2 sticks + 3 hemp â†’ 1 bow. Last depositor works the long build.';
   if (s.type === 'defensetower') return 'No recipe: auto-fires arrows at enemies in range; 1 HP damage, 1 arrow per second.';
-  if (s.type === 'factory') return `${Object.entries(FACTORY_BOT_RECIPE).map(([type, cost]) => `${cost} ${itemLabel(type)}${cost === 1 ? '' : 's'}`).join(' + ')} → 1 Basic Bot. Last depositor assembles it.`;
-  if (s.type === 'assembler') return `${Object.entries(ASSEMBLER_KIT_RECIPE).map(([type, cost]) => `${cost} ${itemLabel(type)}${cost === 1 ? '' : 's'}`).join(' + ')} → 1 ${itemLabel(assemblerRecipe(s))}. Current: ${itemLabel(assemblerRecipe(s))}.`;
+  if (s.type === 'factory') return `${Object.entries(FACTORY_BOT_RECIPE).map(([type, cost]) => `${cost} ${itemLabel(type)}${cost === 1 ? '' : 's'}`).join(' + ')} â†’ 1 Basic Bot. Last depositor assembles it.`;
+  if (s.type === 'assembler') return `${Object.entries(ASSEMBLER_KIT_RECIPE).map(([type, cost]) => `${cost} ${itemLabel(type)}${cost === 1 ? '' : 's'}`).join(' + ')} â†’ 1 ${itemLabel(assemblerRecipe(s))}. Current: ${itemLabel(assemblerRecipe(s))}.`;
   if (s.type === 'item_palette') return `No crafting recipe; stores up to ${s.capacity || BUILDING_TYPES.item_palette.capacity || 0} of one item type.`;
   if (s.type === 'power_station') return `No crafting recipe; stores up to ${s.capacity || BUILDING_TYPES.power_station.capacity || 0} power-kit items.`;
   if (s.type === 'robotics_parts_bin') return `No crafting recipe; stores up to ${s.capacity || BUILDING_TYPES.robotics_parts_bin.capacity || 0} robotics parts.`;
@@ -229,7 +231,7 @@ export class Game {
     this.map = { ...WORLD_MAP_SIZE };
     this.gameMode = 'test';
     this.camera = { x: 0, y: 0, speed: 520, fastMultiplier: 2.35, zoom: 1, minZoom: CAMERA_MIN_ZOOM, maxZoom: CAMERA_MAX_ZOOM };
-    this.player = { x: 480, y: 410, r: 13, speed: 170, target: null, inventory: null, equipment: createEquipment(), attackCooldown: 0, hp: 10, maxHp: 10, facingX: 1, facingY: 0 };
+    this.player = { x: 480, y: 410, r: 13, speed: 170, target: null, targetQueue: [], inventory: null, equipment: createEquipment(), attackCooldown: 0, hp: 10, maxHp: 10, facingX: 1, facingY: 0 };
     this.assistant = { x: 452, y: 392, facingX: 1, facingY: 0 };
     this.trees = []; this.hempPlants = []; this.rocks = []; this.holes = []; this.items = []; this.bots = []; this.structures = []; this.monsters = []; this.projectiles = []; this.floaters = []; this.mapFeatures = []; this.mapFeatures = [];
     this.dayNight = { cycleSeconds: DAY_NIGHT_CYCLE_SECONDS };
@@ -348,25 +350,60 @@ export class Game {
     };
   }
 
-  setPlayerDestination(x, y, options = {}) {
-    this.releasePlayerTargetReservation();
-    this.player.target = { x: clamp(x, 20, this.map.width - 20), y: clamp(y, 20, this.map.height - 20), ...options };
-    const dx = this.player.target.x - this.player.x;
-    const dy = this.player.target.y - this.player.y;
-    const len = Math.hypot(dx, dy);
-    if (len > 0.001) { this.player.facingX = dx / len; this.player.facingY = dy / len; }
-    if (this.player.target.action === 'pickup_item' && this.player.target.itemId) {
-      const item = this.items.find(i => i.id === this.player.target.itemId);
+  normalizePlayerTarget(x, y, options = {}) {
+    return { x: clamp(x, 20, this.map.width - 20), y: clamp(y, 20, this.map.height - 20), ...options };
+  }
+  announcePlayerTarget(target, floatText = 'Move target', color = '#80a9c9') {
+    if (!target) return;
+    this.addFloat(floatText, target.x, target.y - 18, color);
+    this.emitSound(target.action || 'move', { cooldownKey: `player:${target.action || 'move'}`, minGapMs: 120 });
+  }
+  reservePlayerTarget(target) {
+    if (target?.action === 'pickup_item' && target.itemId) {
+      const item = this.items.find(i => i.id === target.itemId);
       if (item) item.reservedBy = 'player';
-    } else if (this.player.target.action === 'deploy_loose_building_kit' && this.player.target.itemId) {
-      const item = this.items.find(i => i.id === this.player.target.itemId);
+    } else if (target?.action === 'deploy_loose_building_kit' && target.itemId) {
+      const item = this.items.find(i => i.id === target.itemId);
       if (item) item.reservedBy = 'player';
-    } else if (this.player.target.action === 'search_tree' && this.player.target.resourceId) {
-      const tree = this.trees.find(t => t.id === this.player.target.resourceId);
+    } else if (target?.action === 'search_tree' && target.resourceId) {
+      const tree = this.trees.find(t => t.id === target.resourceId);
       if (tree) tree.searchReservedBy = 'player';
     }
-    this.addFloat(options.floatText || 'Move target', this.player.target.x, this.player.target.y - 18, '#80a9c9');
-    this.emitSound(options.action || 'move', { cooldownKey: `player:${options.action || 'move'}`, minGapMs: 120 });
+  }
+  activatePlayerTarget(target, { floatText, color = '#80a9c9' } = {}) {
+    this.player.target = target || null;
+    if (!target) return null;
+    const dx = target.x - this.player.x;
+    const dy = target.y - this.player.y;
+    const len = Math.hypot(dx, dy);
+    if (len > 0.001) { this.player.facingX = dx / len; this.player.facingY = dy / len; }
+    this.reservePlayerTarget(target);
+    this.announcePlayerTarget(target, floatText || target.floatText || 'Move target', color);
+    return target;
+  }
+  advancePlayerTargetQueue() {
+    this.player.target = null;
+    if (!Array.isArray(this.player.targetQueue) || !this.player.targetQueue.length) return false;
+    const next = this.player.targetQueue.shift();
+    this.activatePlayerTarget(next, { floatText: next.floatText || 'Queued command', color: '#9abf8f' });
+    return true;
+  }
+  clearPlayerTargetQueue() {
+    this.releasePlayerTargetReservation();
+    this.player.target = null;
+    this.player.targetQueue = [];
+  }
+  setPlayerDestination(x, y, options = {}, { append = false } = {}) {
+    const target = this.normalizePlayerTarget(x, y, options);
+    if (append && this.player.target) {
+      this.player.targetQueue ||= [];
+      this.player.targetQueue.push(target);
+      this.announcePlayerTarget(target, `Queued: ${options.floatText || 'Move target'}`, '#9abf8f');
+      return target;
+    }
+    this.releasePlayerTargetReservation();
+    if (!append) this.player.targetQueue = [];
+    return this.activatePlayerTarget(target, { floatText: options.floatText });
   }
   releasePlayerTargetReservation() {
     const target = this.player?.target;
@@ -387,14 +424,14 @@ export class Game {
       if (hemp) hemp.searchReservedBy = null;
     }
   }
-  queuePlayerItemPickup(item) {
+  queuePlayerItemPickup(item, { append = false } = {}) {
     if (!item) return false;
     if (this.player.inventory && !this.isEquipmentItem(item.type)) {
       this.addFloat(`No free space: carrying ${itemLabel(this.player.inventory.type)}`, item.x, item.y - 24, '#c86b5f');
       return false;
     }
     const verb = this.isEquipmentItem(item.type) ? 'Equip' : 'Pick up';
-    this.setPlayerDestination(item.x, item.y, { action: 'pickup_item', itemId: item.id, floatText: `${verb} ${itemLabel(item.type)}` });
+    this.setPlayerDestination(item.x, item.y, { action: 'pickup_item', itemId: item.id, floatText: `${verb} ${itemLabel(item.type)}` }, { append });
     return true;
   }
   completePlayerTarget(target) {
@@ -405,11 +442,11 @@ export class Game {
       return;
     }
     if (target?.action === 'deploy_loose_building_kit' && target.itemId) {
-      this.finishPlayerDeployLooseKit(target);
+      this.startPlayerBuildingKitAction(target);
       return;
     }
     if (target?.action === 'deploy_building_kit') {
-      this.finishPlayerDeployHeldKit(target);
+      this.startPlayerBuildingKitAction(target);
       return;
     }
     if (target?.action === 'plant_seed' && target.holeId) {
@@ -422,7 +459,7 @@ export class Game {
     if (target?.action === 'attack_target') { this.playerAttackTargetByRef(target.targetRef); return; }
     if (target?.action === 'attack_throne' && target.structureId) { const throne = this.structures.find(st => st.id === target.structureId); this.damageThrone(throne, this.playerMeleeDamage()); return; }
     if (target?.action === 'demolish_structure' && target.structureId) { this.finishPlayerDemolishStructure(target); return; }
-    if (target?.action === 'disassemble_building_to_kit' && target.structureId) { this.finishPlayerDisassembleStructure(target); return; }
+    if (target?.action === 'disassemble_building_to_kit' && target.structureId) { this.startPlayerBuildingKitAction(target); return; }
     if (target?.action === 'take_from_storage' && target.structureId) {
       const s = this.structures.find(st => st.id === target.structureId);
       this.manualTakeFromPalette(s);
@@ -439,19 +476,19 @@ export class Game {
       }
     }
   }
-  queuePlayerStructureDeposit(s) {
+  queuePlayerStructureDeposit(s, { append = false } = {}) {
     const held = this.player.inventory?.type;
     if (!s || !held || !this.canStructureAcceptItem(s, held)) return false;
-    this.setPlayerDestination(s.x, s.y, { action: 'deposit_to_structure', structureId: s.id, itemType: held, floatText: `Deposit ${itemLabel(held)} into ${s.name}` });
+    this.setPlayerDestination(s.x, s.y, { action: 'deposit_to_structure', structureId: s.id, itemType: held, floatText: `Deposit ${itemLabel(held)} into ${s.name}` }, { append });
     return true;
   }
-  queuePlayerPlantSeedAtHole(hole) {
+  queuePlayerPlantSeedAtHole(hole, { append = false } = {}) {
     if (!hole || hole.planted) return false;
     if (this.player.inventory?.type !== 'tree_seed') return false;
-    this.setPlayerDestination(hole.x, hole.y, { action: 'plant_seed', holeId: hole.id, floatText: `Plant tree seed in ${hole.ref}` });
+    this.setPlayerDestination(hole.x, hole.y, { action: 'plant_seed', holeId: hole.id, floatText: `Plant tree seed in ${hole.ref}` }, { append });
     return true;
   }
-  queuePlayerPaletteInteraction(s) {
+  queuePlayerPaletteInteraction(s, { append = false } = {}) {
     if (!s || !STORAGE_STRUCTURE_TYPES.includes(s.type)) return false;
     const held = this.player.inventory?.type;
     if (held) {
@@ -460,14 +497,14 @@ export class Game {
         this.addFloat(reason, s.x, s.y - 35, '#c86b5f');
         return true;
       }
-      this.setPlayerDestination(s.x, s.y, { action: 'deposit_to_structure', structureId: s.id, itemType: held, floatText: `Store ${itemLabel(held)} in ${s.name}` });
+      this.setPlayerDestination(s.x, s.y, { action: 'deposit_to_structure', structureId: s.id, itemType: held, floatText: `Store ${itemLabel(held)} in ${s.name}` }, { append });
       return true;
     }
     if (!s.storageType || (s.stored || 0) <= 0) {
       this.addFloat(`${s.name} is empty`, s.x, s.y - 35, '#c86b5f');
       return true;
     }
-    this.setPlayerDestination(s.x, s.y, { action: 'take_from_storage', structureId: s.id, itemType: s.storageType, floatText: `Take ${itemLabel(s.storageType)} from ${s.name}` });
+    this.setPlayerDestination(s.x, s.y, { action: 'take_from_storage', structureId: s.id, itemType: s.storageType, floatText: `Take ${itemLabel(s.storageType)} from ${s.name}` }, { append });
     return true;
   }
 
@@ -603,23 +640,30 @@ export class Game {
     if (this.zoneDraft?.active) return true;
     if (this.placementType) { this.cancelPlacement(); return true; }
     if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return true; }
+    const append = this.keys.has('shift');
     const friendlyBot = this.botAt(p.x, p.y); if (friendlyBot && !this.isHostileTarget(friendlyBot)) { this.showBotMenu(friendlyBot, p.clientX, p.clientY, { refreshEdit: true }); return true; }
-    const attackTarget = this.attackTargetAt(p.x, p.y); if (attackTarget && this.queuePlayerAttackTarget(attackTarget)) return true;
+    const attackTarget = this.attackTargetAt(p.x, p.y); if (attackTarget && this.queuePlayerAttackTarget(attackTarget, { append })) return true;
     const item = this.itemAt(p.x, p.y);
-    if (item) return isBuildingKitItemType(item.type) ? (this.showBuildingKitItemMenu(item, p.clientX, p.clientY), true) : this.queuePlayerItemPickup(item);
+    if (item) return isBuildingKitItemType(item.type) ? (this.showBuildingKitItemMenu(item, p.clientX, p.clientY), true) : this.queuePlayerItemPickup(item, { append });
     const s = this.structureAt(p.x, p.y);
     if (s) {
-      if (this.queuePlayerDemolishStructure(s)) return true;
-      if (STORAGE_STRUCTURE_TYPES.includes(s.type)) return this.queuePlayerPaletteInteraction(s);
-      if (this.queuePlayerThroneAttack(s)) return true;
-      return this.queuePlayerStructureDeposit(s) || (this.showStructureMenu(s, p.clientX, p.clientY), true);
+      if (this.queuePlayerDemolishStructure(s, { append })) return true;
+      if (STORAGE_STRUCTURE_TYPES.includes(s.type)) return this.queuePlayerPaletteInteraction(s, { append });
+      if (this.queuePlayerThroneAttack(s, { append })) return true;
+      return this.queuePlayerStructureDeposit(s, { append }) || (this.showStructureMenu(s, p.clientX, p.clientY), true);
     }
-    const hole = this.holeAt(p.x, p.y); if (hole) { if (this.player.inventory?.type === 'tree_seed' && this.queuePlayerPlantSeedAtHole(hole)) return true; this.showHoleMenu(hole, p.clientX, p.clientY); return true; }
-    const hemp = this.hempAt(p.x, p.y); if (hemp && this.queuePlayerHempAction(hemp)) return true;
-    const tree = this.treeAt(p.x, p.y); if (tree) { this.showTreeMenu(tree, p.clientX, p.clientY); return true; }
-    const rock = this.rockAt(p.x, p.y); if (rock && this.queuePlayerResourceAction(rock, 'mine_stone')) return true;
-    if (this.queuePlayerDeployHeldKit(p.x, p.y)) return true;
-    this.setPlayerDestination(p.x, p.y);
+    const hole = this.holeAt(p.x, p.y); if (hole) { if (this.player.inventory?.type === 'tree_seed' && this.queuePlayerPlantSeedAtHole(hole, { append })) return true; this.showHoleMenu(hole, p.clientX, p.clientY); return true; }
+    const hemp = this.hempAt(p.x, p.y); if (hemp && this.queuePlayerHempAction(hemp, { append })) return true;
+    const tree = this.treeAt(p.x, p.y);
+    if (tree) {
+      if (this.player.inventory?.type === 'crude_axe' && this.queuePlayerResourceAction(tree, 'chop_tree', { append })) return true;
+      if (!this.player.inventory && this.queuePlayerTreeSearch(tree)) return true;
+      this.showTreeMenu(tree, p.clientX, p.clientY);
+      return true;
+    }
+    const rock = this.rockAt(p.x, p.y); if (rock && this.queuePlayerResourceAction(rock, 'mine_stone', { append })) return true;
+    if (this.queuePlayerDeployHeldKit(p.x, p.y, { append })) return true;
+    this.setPlayerDestination(p.x, p.y, {}, { append });
     return true;
   }
 
@@ -924,7 +968,7 @@ export class Game {
   createBot(x, y, program = 'idle', force = false) {
     if (!force && this.bots.length >= this.maxBots) { this.addFloat(`Max bots ${this.maxBots}`, x, y - 18, '#c86b5f'); return null; }
     const id = this.nextBotId++;
-    const bot = { id, ref: `bot:${id}`, name: `Bot ${id}`, status: 'worker', managerKnowledgePacks: [], teamId: null, x, y, r: 11, speed: 118, program, state: program, message: 'Waiting for assistant.', inventory: null, equipment: createEquipment(), tool: null, hp: 10, maxHp: 10, hostile: false, target: null, targetItemId: null, targetItemPurpose: null, targetHoleId: null, targetStructureId: null, sourceStructureId: null, sourcePaletteId: null, targetFactoryId: null, targetWorkbenchId: null, zoneId: null, zoneSpec: null, pickupItemType: 'log', timer: 0, runtime: { pc: 0, memory: {}, wait: 0 }, color: ['#80a9c9','#9abf8f','#d3a95f','#c7b683','#8fb9b5'][id % 5] };
+    const bot = { id, ref: `bot:${id}`, name: `Bot ${id}`, status: 'worker', managerKnowledgePacks: [], teamId: null, x, y, r: 11, speed: 118, program, state: program, message: 'Waiting for assistant.', inventory: null, equipment: createEquipment(), tool: null, hp: 10, maxHp: 10, hostile: false, target: null, targetItemId: null, targetItemPurpose: null, targetHoleId: null, targetStructureId: null, sourceStructureId: null, sourcePaletteId: null, targetFactoryId: null, targetWorkbenchId: null, zoneId: null, zoneSpec: null, pickupItemType: 'log', taughtLoopRepeat: true, timer: 0, runtime: { pc: 0, memory: {}, wait: 0 }, color: ['#80a9c9','#9abf8f','#d3a95f','#c7b683','#8fb9b5'][id % 5] };
     this.bots.push(bot); this.addFloat(`Bot ${id} online`, x, y - 18, '#80a9c9'); this.emitSound('bot_online', { cooldownKey: 'bot_online', minGapMs: 120 }); return bot;
   }
   spawnTree(x, y, options = {}) {
@@ -1159,14 +1203,14 @@ export class Game {
     const structure = this.structureAt(x, y); if (structure && this.isHostileTarget(structure)) return structure;
     return null;
   }
-  queuePlayerAttackTarget(target) {
+  queuePlayerAttackTarget(target, { append = false } = {}) {
     if (!this.isHostileTarget(target)) return false;
     const eq = ensureEquipment(this.player);
     if (eq.weapon === 'bow') return this.firePlayerBow(target);
     const dx = this.player.x - target.x, dy = this.player.y - target.y;
     const len = Math.hypot(dx, dy) || 1;
     const reach = (target.radius || target.r || 16) + MELEE_ATTACK_RANGE;
-    this.setPlayerDestination(target.x + dx / len * reach, target.y + dy / len * reach, { action: 'attack_target', targetRef: target.ref, floatText: `Attack ${target.name || target.ref || 'target'}` });
+    this.setPlayerDestination(target.x + dx / len * reach, target.y + dy / len * reach, { action: 'attack_target', targetRef: target.ref, floatText: `Attack ${target.name || target.ref || 'target'}` }, { append });
     return true;
   }
   firePlayerBow(target) {
@@ -1371,7 +1415,7 @@ export class Game {
   renderStepLocationControls(index, prefix = 'step', step = {}) {
     const attr = prefix === 'bot-step' ? 'bot-step-location' : 'step-location';
     const menuAttr = prefix === 'bot-step' ? 'bot-step-location-menu' : 'step-location-menu';
-    const options = '<option value="">Location…</option><option value="select_zone">Select zone</option><option value="draw_zone">Draw zone</option><option value="draw_radius">Draw radius</option><option value="nearest">Nearest</option>';
+    const options = '<option value="">Locationâ€¦</option><option value="select_zone">Select zone</option><option value="draw_zone">Draw zone</option><option value="draw_radius">Draw radius</option><option value="nearest">Nearest</option>';
     return `<button class="step-location-pill" type="button" data-${attr}="${index}">${escapeHtml(this.teachStepLocationText(step))}</button><select aria-label="Location mode" data-${menuAttr}="${index}">${options}</select>`;
   }
   renderStepCard(step, index, { mode = 'teach' } = {}) {
@@ -1393,7 +1437,7 @@ export class Game {
     const up = botEdit ? `data-bot-step-up="${index}" aria-label="Move DSL step up"` : `data-step-up="${index}" aria-label="Move step up"`;
     const down = botEdit ? `data-bot-step-down="${index}" aria-label="Move DSL step down"` : `data-step-down="${index}" aria-label="Move step down"`;
     const del = botEdit ? `data-bot-step-delete="${index}" aria-label="Delete DSL step"` : `data-delete-step="${index}" aria-label="Delete step"`;
-    return `<li class="teach-step-card${botEdit ? ' bot-program-step-card' : ''}" draggable="true" ${cardIndexAttr}><div class="step-card-main"><b class="step-card-number">${index + 1}.</b>${editFields}<code>${escapeHtml(this.stepText(step))}</code></div><div class="step-card-actions">${locationControls}<button type="button" ${up}>↑</button><button type="button" ${down}>↓</button><button type="button" ${del}>Delete</button></div></li>`;
+    return `<li class="teach-step-card${botEdit ? ' bot-program-step-card' : ''}" draggable="true" ${cardIndexAttr}><div class="step-card-main"><b class="step-card-number">${index + 1}.</b>${editFields}<code>${escapeHtml(this.stepText(step))}</code></div><div class="step-card-actions">${locationControls}<button type="button" ${up}>â†‘</button><button type="button" ${down}>â†“</button><button type="button" ${del}>Delete</button></div></li>`;
   }
   renderTeachSteps(steps) {
     if (!steps.length) return '<li class="empty">No recorded steps yet.</li>';
@@ -1408,7 +1452,7 @@ export class Game {
     if (!this.dom?.teachStatus) return;
     const steps = this.activeTeachSteps();
     const targetBotText = this.recorder.targetBotId ? ` for Bot ${this.recorder.targetBotId}` : '';
-    const status = this.recorder.recording ? `Recording ${this.recorder.steps.length} step${this.recorder.steps.length === 1 ? '' : 's'}${targetBotText}…` : this.recorder.status;
+    const status = this.recorder.recording ? `Recording ${this.recorder.steps.length} step${this.recorder.steps.length === 1 ? '' : 's'}${targetBotText}â€¦` : this.recorder.status;
     this.dom.teachStatus.textContent = status;
     if (this.dom.teachPanel) this.dom.teachPanel.hidden = !this.teachPanelOpened;
     if (this.dom.teachRecordBtn) this.dom.teachRecordBtn.textContent = this.recorder.recording ? 'Stop Recording' : 'Record Loop';
@@ -1460,7 +1504,8 @@ export class Game {
     if (mode === 'nearest') return this.clearTeachStepLocation(index, source);
     this.teachLocationEdit = { index, mode, source };
     if (mode === 'draw_zone' || mode === 'draw_radius') {
-      this.cancelPlacement(); this.hideMenus();
+      this.cancelPlacement();
+      if (source !== 'bot-edit') this.hideMenus();
       this.zoneDraft = { active: true, started: false, kind: mode === 'draw_radius' ? 'radius' : 'rect', x1: 0, y1: 0, x2: 0, y2: 0, radius: DEFAULT_RESOURCE_RADIUS };
       this.addFloat(mode === 'draw_radius' ? 'Drag a radius for this step' : 'Drag a zone for this step', this.player.x, this.player.y - 44, '#d3a95f');
       return true;
@@ -1692,6 +1737,7 @@ export class Game {
     bot.message = reason || `Assigned template: ${template.name}`;
     bot.customTemplateName = template.name;
     bot.taughtLoop = clone(checked.program.steps);
+    bot.taughtLoopRepeat = checked.program.repeat !== false;
     bot.runtime = { pc: 0, memory: {}, wait: 0 };
     bot.target = null; bot.targetItemId = null; bot.targetItemPurpose = null; bot.targetHoleId = null; bot.timer = 0;
     this.addFloat(`Bot ${bot.id}: ${template.name}`, bot.x, bot.y - 22, '#d3a95f');
@@ -1706,7 +1752,7 @@ export class Game {
   renderTemplateCard(template) {
     const steps = template.steps || [];
     const updated = template.updatedAt ? new Date(template.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-    return `<article class="template-card" data-template-id="${escapeHtml(template.id)}"><header><b>${escapeHtml(template.name)}</b><small>${steps.length} step${steps.length === 1 ? '' : 's'}${updated ? ` · ${escapeHtml(updated)}` : ''}</small></header>${this.renderTemplateSteps(steps)}<div class="template-card-actions"><label>Assign to bot <input data-template-bot-id="${escapeHtml(template.id)}" type="number" min="1" value="1"></label><button type="button" data-assign-template="${escapeHtml(template.id)}">Assign</button><button type="button" data-delete-template="${escapeHtml(template.id)}">Delete</button></div></article>`;
+    return `<article class="template-card" data-template-id="${escapeHtml(template.id)}"><header><b>${escapeHtml(template.name)}</b><small>${steps.length} step${steps.length === 1 ? '' : 's'}${updated ? ` Â· ${escapeHtml(updated)}` : ''}</small></header>${this.renderTemplateSteps(steps)}<div class="template-card-actions"><label>Assign to bot <input data-template-bot-id="${escapeHtml(template.id)}" type="number" min="1" value="1"></label><button type="button" data-assign-template="${escapeHtml(template.id)}">Assign</button><button type="button" data-delete-template="${escapeHtml(template.id)}">Delete</button></div></article>`;
   }
   syncTemplateDrawerUi() {
     const list = this.dom?.templateList;
@@ -1723,7 +1769,7 @@ export class Game {
     if (this.recorder.recording) this.stopTeachRecording();
     const source = this.recordedLoop.length ? this.recordedLoop : this.recorder.steps;
     if (!source.length) return { ok: false, error: 'No recorded loop to assign' };
-    bot.paused = false; bot.program = 'taught_loop'; bot.state = 'taught_loop'; bot.message = 'Assigned recorded teach-by-doing loop.'; bot.customTemplateName = ''; bot.taughtLoop = clone(source); bot.runtime = { pc: 0, memory: {}, wait: 0 }; bot.target = null; bot.targetItemId = null; bot.targetItemPurpose = null; bot.targetHoleId = null; bot.timer = 0;
+    bot.paused = false; bot.program = 'taught_loop'; bot.state = 'taught_loop'; bot.message = 'Assigned recorded teach-by-doing loop.'; bot.customTemplateName = ''; bot.taughtLoop = clone(source); bot.taughtLoopRepeat = true; bot.runtime = { pc: 0, memory: {}, wait: 0 }; bot.target = null; bot.targetItemId = null; bot.targetItemPurpose = null; bot.targetHoleId = null; bot.timer = 0;
     this.recorder.lastAssignedBotId = bot.id;
     this.recorder.status = `Assigned recorded loop to Bot ${bot.id}.`;
     this.addFloat(`Bot ${bot.id}: taught loop`, bot.x, bot.y - 22, '#d3a95f');
@@ -1761,6 +1807,9 @@ export class Game {
   }
   nearestStructure(type, x, y, targetId = null) { return targetId ? this.structures.find(s => s.id === targetId && s.type === type) : nearest(this.structures, x, y, s => s.type === type); }
   countItems(type) { return this.items.filter(i => i.type === type).length; }
+  isStandardWorkerBot(bot) { return !!bot && bot.status !== 'manager'; }
+  isIdleStandardWorkerBot(bot) { return this.isStandardWorkerBot(bot) && bot.program === 'idle' && !bot.paused; }
+  findAnyEligibleWorkerBot() { return this.bots.find(bot => this.isIdleStandardWorkerBot(bot)) || null; }
 
   normalizeStructureId(value, type = null) {
     if (value == null || value === '') return null;
@@ -1786,10 +1835,10 @@ export class Game {
       return { kind: 'radius', x, y, radius, name: this.radiusText({ x, y, radius }) };
     }
     const lower = raw.toLowerCase();
-    if (!/(around|near|um|bereich|radius|small|klein|large|groß|gross)/.test(lower)) return null;
+    if (!/(around|near|um|bereich|radius|small|klein|large|groÃŸ|gross)/.test(lower)) return null;
     const structure = this.findStructureMention(lower);
     if (!structure) return null;
-    const radius = /(large|groß|gross|big|weiter|weiten)/.test(lower) ? 220 : /(small|klein|kleinen|tiny)/.test(lower) ? 95 : 150;
+    const radius = /(large|groÃŸ|gross|big|weiter|weiten)/.test(lower) ? 220 : /(small|klein|kleinen|tiny)/.test(lower) ? 95 : 150;
     return { kind: 'radius', centerStructureId: structure.id, radius, name: `${radius <= 100 ? 'small' : radius >= 200 ? 'large' : 'radius'} area around ${structure.name}` };
   }
   parseNearbyZoneMention(text) {
@@ -1999,7 +2048,7 @@ export class Game {
   getBotProgram(bot) {
     const tpl = PROGRAM_TEMPLATES[bot.program] || PROGRAM_TEMPLATES.idle;
     if (bot.program === 'taught_loop' && bot.taughtLoop?.length) {
-      return { ...tpl, steps: clone(bot.taughtLoop), parameters: { source: bot.customTemplateName ? `template: ${bot.customTemplateName}` : 'teach by doing recorder' }, resolvedSteps: clone(bot.taughtLoop) };
+      return { ...tpl, repeat: bot.taughtLoopRepeat !== false, steps: clone(bot.taughtLoop), parameters: { source: bot.customTemplateName ? `template: ${bot.customTemplateName}` : 'teach by doing recorder' }, resolvedSteps: clone(bot.taughtLoop) };
     }
     const targetSawbench = bot.targetStructureId ? this.structures.find(s => s.id === bot.targetStructureId) : null;
     const sourceSawbench = bot.sourceStructureId ? this.structures.find(s => s.id === bot.sourceStructureId) : null;
@@ -2064,10 +2113,30 @@ export class Game {
   validateDslProgram(candidate) {
     const program = candidate?.program || candidate;
     const errors = [];
+    const details = [];
+    const recordError = (message, detail = null) => {
+      errors.push(message);
+      if (detail) details.push({ message, ...detail });
+    };
+    const resolveKnownItemType = rawValue => {
+      const type = this.normalizeItemType(rawValue, null);
+      return ITEM_TYPES.includes(type) ? type : null;
+    };
+    const resolveStrictZone = (rawValue, stepIndex, op) => {
+      const normalized = this.normalizeZoneSpec(rawValue);
+      if (normalized.zoneId || normalized.zoneSpec) return normalized;
+      recordError(`Step ${stepIndex}: ${op} references an unknown zone/location`, { code: 'unknown_zone_ref', field: 'zone', stepIndex, value: rawValue });
+      return { zoneId: null, zoneSpec: null };
+    };
     const steps = Array.isArray(program?.steps) ? program.steps : null;
     if (!steps) return { ok: false, error: 'DSL program must include a steps array' };
     if (!steps.length) errors.push('DSL program needs at least one step');
     if (steps.length > 24) errors.push('DSL program exceeds 24 step limit');
+    const hasLegacyLoopStep = steps.at(-1)?.op === 'loop';
+    const repeat = typeof program.repeat === 'boolean' ? program.repeat : hasLegacyLoopStep;
+    if (typeof program.repeat === 'boolean' && !program.repeat && hasLegacyLoopStep) {
+      recordError('program.repeat false conflicts with a final loop step', { code: 'repeat_conflict', field: 'program.repeat', stepIndex: 0, value: false });
+    }
     const normalizedSteps = [];
     const requireItemType = new Set(['pick_up', 'pick_up_from_storage', 'pick_up_specific', 'deposit_to_structure', 'deposit_to_player', 'take_from_player', 'drop_item', 'deploy_building_kit', 'find_item', 'deliver_to_sawbench', 'deliver_to_workbench', 'deliver_to_factory', 'if_inventory']);
     const zoneOps = new Set(['pick_up', 'drop_item', 'deploy_building_kit', 'find_item', 'find_nearest_tree', 'find_stone_deposit', 'find_hemp', 'find_dig_spot', 'find_dug_hole', 'chop_tree', 'search_tree', 'chop_hemp', 'search_hemp', 'mine_stone', 'dig_hole', 'plant_seed', 'guard_area']);
@@ -2076,24 +2145,32 @@ export class Game {
       let op = String(raw.op || '').trim();
       if (op === 'use_held_item') {
         const resolved = this.normalizeUseHeldItemDslStep(raw, normalizedSteps);
-        if (resolved.error) { errors.push(`Step ${index + 1}: ${resolved.error}`); continue; }
+        if (resolved.error) { recordError(`Step ${index + 1}: ${resolved.error}`, { code: 'invalid_use_held_item', field: 'targetKind', stepIndex: index + 1, value: raw.targetKind ?? raw.target ?? null }); continue; }
         raw = resolved.step;
         op = String(raw.op || '').trim();
       }
-      if (!op || !ALLOWED_OPS.includes(op)) { errors.push(`Step ${index + 1}: op ${op || '(missing)'} is not allowed`); continue; }
-      if (raw.steps || raw.children) errors.push(`Step ${index + 1}: nested steps are not allowed`);
-      if (op === 'loop' && index !== steps.length - 1) errors.push('loop is only allowed as the final step');
+      if (!op || !ALLOWED_OPS.includes(op)) { recordError(`Step ${index + 1}: op ${op || '(missing)'} is not allowed`, { code: 'unknown_op', field: 'op', stepIndex: index + 1, value: op || null }); continue; }
+      if (raw.steps || raw.children) recordError(`Step ${index + 1}: nested steps are not allowed`, { code: 'nested_steps_not_allowed', field: 'steps', stepIndex: index + 1 });
+      if (op === 'loop') {
+        if (index !== steps.length - 1) recordError('loop is only allowed as the final step', { code: 'misplaced_loop', field: 'op', stepIndex: index + 1, value: 'loop' });
+        continue;
+      }
       const step = { op };
       if (requireItemType.has(op)) {
-        if (!raw.type && !raw.itemType && !raw.item && !raw.resource) errors.push(`Step ${index + 1}: ${op} requires type`);
+        const rawType = raw.type || raw.itemType || raw.item || raw.resource;
+        if (!rawType) recordError(`Step ${index + 1}: ${op} requires type`, { code: 'missing_item_type', field: 'type', stepIndex: index + 1 });
         else if (op === 'deploy_building_kit') {
-          const kitType = this.normalizeBuildingKitItemType(raw.type || raw.itemType || raw.item || raw.resource);
-          if (!kitType) errors.push(`Step ${index + 1}: deploy_building_kit requires a deployable building kit type`);
+          const kitType = this.normalizeBuildingKitItemType(rawType);
+          if (!kitType) recordError(`Step ${index + 1}: deploy_building_kit requires a deployable building kit type`, { code: 'unknown_building_kit_type', field: 'type', stepIndex: index + 1, value: rawType });
           else step.type = kitType;
-        } else step.type = this.normalizeItemType(raw.type || raw.itemType || raw.item || raw.resource, raw.type || raw.itemType || raw.item || raw.resource);
+        } else {
+          const knownType = resolveKnownItemType(rawType);
+          if (!knownType) recordError(`Step ${index + 1}: unknown item type ${JSON.stringify(String(rawType))}`, { code: 'unknown_item_type', field: 'type', stepIndex: index + 1, value: rawType });
+          else step.type = knownType;
+        }
       }
       if (zoneOps.has(op) && (raw.zone || raw.zoneId || raw.zoneSpec || raw.area)) {
-        const normalizedZone = this.normalizeZoneSpec(raw.zone || raw.zoneId || raw.zoneSpec || raw.area);
+        const normalizedZone = resolveStrictZone(raw.zone || raw.zoneId || raw.zoneSpec || raw.area, index + 1, op);
         if (normalizedZone.zoneId) {
           step.zoneId = normalizedZone.zoneId;
           const zone = this.zones.find(z => z.id === normalizedZone.zoneId);
@@ -2106,8 +2183,9 @@ export class Game {
       }
       if (op === 'wait') step.seconds = clamp(Number(raw.seconds ?? raw.duration ?? 1), 0.1, 30);
       if (op === 'equip_item') {
-        const type = this.normalizeWeaponItemType(raw.type || raw.itemType || raw.item || raw.weapon);
-        if (!type) errors.push(`Step ${index + 1}: equip_item supports only sword, shield, or bow weaponry`);
+        const rawType = raw.type || raw.itemType || raw.item || raw.weapon;
+        const type = this.normalizeWeaponItemType(rawType);
+        if (!type) recordError(`Step ${index + 1}: equip_item supports only sword, shield, or bow weaponry`, { code: 'unknown_equipment_type', field: 'type', stepIndex: index + 1, value: rawType });
         else step.type = type;
       }
       if (op === 'guard_area') {
@@ -2125,13 +2203,15 @@ export class Game {
         step.radius = clamp(Number(raw.radius ?? raw.range ?? raw.distance ?? DEFAULT_NEARBY_RADIUS), 40, MAX_NEARBY_RADIUS);
       }
       if (op === 'craft_smithery') {
-        const recipe = this.normalizeSmitheryRecipe(raw.recipe || raw.type || raw.item || raw.itemType);
-        if (!recipe) errors.push(`Step ${index + 1}: craft_smithery supports sword/wooden_sword or shield/wooden_shield`);
+        const rawRecipe = raw.recipe || raw.type || raw.item || raw.itemType;
+        const recipe = this.normalizeSmitheryRecipe(rawRecipe);
+        if (!recipe) recordError(`Step ${index + 1}: craft_smithery supports sword/wooden_sword or shield/wooden_shield`, { code: 'unknown_recipe', field: 'recipe', stepIndex: index + 1, value: rawRecipe });
         else step.recipe = recipe;
       }
       if (op === 'craft_bowmaker') {
-        const recipe = this.normalizeBowmakerRecipe(raw.recipe || raw.type || raw.item || raw.itemType);
-        if (!recipe) errors.push(`Step ${index + 1}: craft_bowmaker supports only bow`);
+        const rawRecipe = raw.recipe || raw.type || raw.item || raw.itemType;
+        const recipe = this.normalizeBowmakerRecipe(rawRecipe);
+        if (!recipe) recordError(`Step ${index + 1}: craft_bowmaker supports only bow`, { code: 'unknown_recipe', field: 'recipe', stepIndex: index + 1, value: rawRecipe });
         else step.recipe = recipe;
       }
       if (op === 'if_inventory') {
@@ -2143,13 +2223,13 @@ export class Game {
         const botRef = raw.botId ?? raw.bot ?? raw.targetBotId ?? raw.target ?? raw.botName;
         const targetBot = this.resolveBotReference(botRef);
         const templateName = String(raw.templateName || raw.template || raw.name || '').trim();
-        if (!targetBot) errors.push(`Step ${index + 1}: assign_template requires an existing bot`);
+        if (!targetBot) recordError(`Step ${index + 1}: assign_template requires an existing bot`, { code: 'unknown_bot_ref', field: 'bot', stepIndex: index + 1, value: botRef });
         else Object.assign(step, { botId: targetBot.id, botName: this.botDisplayName?.(targetBot) || targetBot.name || `Bot ${targetBot.id}` });
-        if (!templateName) errors.push(`Step ${index + 1}: assign_template requires templateName`);
+        if (!templateName) recordError(`Step ${index + 1}: assign_template requires templateName`, { code: 'missing_template_name', field: 'templateName', stepIndex: index + 1 });
         else {
           step.templateName = templateName;
           const template = this.findCustomTemplate(templateName);
-          if (!template) errors.push(`Step ${index + 1}: template ${templateName} not found`);
+          if (!template) recordError(`Step ${index + 1}: template ${templateName} not found`, { code: 'unknown_template_name', field: 'templateName', stepIndex: index + 1, value: templateName });
         }
       }
       if (op === 'rename_bot') {
@@ -2160,7 +2240,7 @@ export class Game {
         const selfTarget = targetRaw == null || targetRaw === '' || ['self', 'itself', 'this bot'].includes(String(targetRaw).trim().toLowerCase());
         if (!selfTarget) {
           const targetBot = this.resolveBotReference(targetRaw);
-          if (!targetBot) errors.push(`Step ${index + 1}: rename_bot target must be an existing bot`);
+          if (!targetBot) recordError(`Step ${index + 1}: rename_bot target must be an existing bot`, { code: 'unknown_bot_ref', field: 'target', stepIndex: index + 1, value: targetRaw });
           else Object.assign(step, { botId: targetBot.id, target: targetBot.name || `Bot ${targetBot.id}`, targetName: this.botDisplayName?.(targetBot) || targetBot.name || `Bot ${targetBot.id}` });
         }
       }
@@ -2169,26 +2249,26 @@ export class Game {
         const selfTarget = targetRaw == null || targetRaw === '' || ['self', 'itself', 'this bot'].includes(String(targetRaw).trim().toLowerCase());
         if (!selfTarget) {
           const targetBot = this.resolveBotReference(targetRaw);
-          if (!targetBot) errors.push(`Step ${index + 1}: promote_to_manager target must be an existing bot`);
+          if (!targetBot) recordError(`Step ${index + 1}: promote_to_manager target must be an existing bot`, { code: 'unknown_bot_ref', field: 'target', stepIndex: index + 1, value: targetRaw });
           else Object.assign(step, { botId: targetBot.id, target: targetBot.name || `Bot ${targetBot.id}`, targetName: this.botDisplayName?.(targetBot) || targetBot.name || `Bot ${targetBot.id}` });
         }
         step.knowledgePacks = this.normalizeManagerKnowledgePacks(raw.knowledgePacks ?? raw.packs ?? raw.loadout, DEFAULT_MANAGER_KNOWLEDGE_PACKS);
       }
       if (op === 'delegate_to_manager') {
         const message = this.sanitizeManagerMessage(raw.message ?? raw.text ?? raw.prompt ?? raw.instruction);
-        if (!message) errors.push(`Step ${index + 1}: delegate_to_manager requires message`);
+        if (!message) recordError(`Step ${index + 1}: delegate_to_manager requires message`, { code: 'missing_message', field: 'message', stepIndex: index + 1 });
         else step.message = message;
         const recipientRaw = raw.recipient ?? raw.manager ?? raw.target ?? raw.bot ?? raw.botId;
         const managerBot = this.resolveBotReference(recipientRaw);
-        if (!managerBot) errors.push(`Step ${index + 1}: delegate_to_manager recipient must be an existing manager bot`);
-        else if (!this.isManagerBot(managerBot)) errors.push(`Step ${index + 1}: delegate_to_manager recipient must be a manager bot`);
+        if (!managerBot) recordError(`Step ${index + 1}: delegate_to_manager recipient must be an existing manager bot`, { code: 'unknown_bot_ref', field: 'recipient', stepIndex: index + 1, value: recipientRaw });
+        else if (!this.isManagerBot(managerBot)) recordError(`Step ${index + 1}: delegate_to_manager recipient must be a manager bot`, { code: 'bot_not_manager', field: 'recipient', stepIndex: index + 1, value: recipientRaw });
         else Object.assign(step, { recipient: managerBot.name || `Bot ${managerBot.id}`, recipientBotId: managerBot.id, recipientName: this.botDisplayName?.(managerBot) || managerBot.name || `Bot ${managerBot.id}` });
       }
       if (op === 'follow') {
         const targetRaw = raw.targetRef ?? raw.target ?? raw.follow ?? raw.player ?? raw.bot ?? 'me';
         const placeholder = typeof targetRaw === 'string' && targetRaw.startsWith('$');
         const target = placeholder ? null : this.resolveActorReference(targetRaw);
-        if (!placeholder && !target) errors.push(`Step ${index + 1}: follow requires an existing target actor`);
+        if (!placeholder && !target) recordError(`Step ${index + 1}: follow requires an existing target actor`, { code: 'unknown_actor_ref', field: 'target', stepIndex: index + 1, value: targetRaw });
         step.target = String(targetRaw || 'me');
         step.distance = clamp(Number(raw.distance ?? raw.spacing ?? DEFAULT_FOLLOW_DISTANCE), 18, 220);
         if (target) Object.assign(step, { targetRef: target.ref || (target === this.player ? 'player:local' : null), targetName: this.actorLabel(target) });
@@ -2202,7 +2282,7 @@ export class Game {
         const radiusValue = Number(raw.radius ?? raw.range ?? raw.distance);
         const zoneInput = raw.zone ?? raw.zoneId ?? raw.zoneSpec ?? raw.area ?? raw.location ?? (Number.isFinite(radiusValue) ? { kind: 'nearby', radius: radiusValue } : null);
         if (zoneInput) {
-          const normalizedZone = this.normalizeZoneSpec((typeof zoneInput === 'string' && /\bnearby\b/i.test(zoneInput) && Number.isFinite(radiusValue)) ? { kind: 'nearby', radius: radiusValue } : zoneInput);
+          const normalizedZone = resolveStrictZone((typeof zoneInput === 'string' && /\bnearby\b/i.test(zoneInput) && Number.isFinite(radiusValue)) ? { kind: 'nearby', radius: radiusValue } : zoneInput, index + 1, op);
           if (normalizedZone.zoneId) {
             step.zoneId = normalizedZone.zoneId;
             const zone = this.zones.find(z => z.id === normalizedZone.zoneId);
@@ -2222,7 +2302,7 @@ export class Game {
           const placeholder = typeof targetRaw === 'string' && targetRaw.startsWith('$');
           const target = placeholder ? null : this.resolveActorReference(targetRaw);
           if (target && this.isHostileTarget(target)) Object.assign(step, { target: String(targetRaw), targetRef: target.ref, targetName: this.actorLabel(target) });
-          else if (!placeholder) step.target = String(targetRaw);
+          else if (!placeholder) recordError(`Step ${index + 1}: attack target must resolve to an existing hostile actor`, { code: 'unknown_actor_ref', field: 'target', stepIndex: index + 1, value: targetRaw });
         }
       }
       if (op === 'pick_up_from_storage' || op === 'move_to_structure' || op === 'deposit_to_structure' || op === 'craft_smithery' || op === 'craft_bowmaker' || op === 'disassemble_building_to_kit') {
@@ -2233,8 +2313,8 @@ export class Game {
         const placeholder = typeof lookup === 'string' && lookup.startsWith('$');
         const structureId = placeholder ? null : this.normalizeStructureId(lookup, wantedType) || ((op === 'craft_smithery' || op === 'craft_bowmaker') ? null : this.normalizeStructureId(lookup, null));
         const structure = structureId ? this.structures.find(s => s.id === structureId) : null;
-        if (!placeholder && lookup != null && lookup !== '' && !structure) errors.push(`Step ${index + 1}: ${op} requires an existing ${wantedType || 'structure'} target/source`);
-        if (!placeholder && op === 'disassemble_building_to_kit' && !this.canDisassembleStructure(structure)) errors.push(`Step ${index + 1}: disassemble_building_to_kit requires a disassemblable building`);
+        if (!placeholder && lookup != null && lookup !== '' && !structure) recordError(`Step ${index + 1}: ${op} requires an existing ${wantedType || 'structure'} target/source`, { code: 'unknown_structure_ref', field: op === 'pick_up_from_storage' ? 'source' : 'target', stepIndex: index + 1, value: lookup });
+        if (!placeholder && op === 'disassemble_building_to_kit' && !this.canDisassembleStructure(structure)) recordError(`Step ${index + 1}: disassemble_building_to_kit requires a disassemblable building`, { code: 'structure_not_disassemblable', field: 'target', stepIndex: index + 1, value: lookup });
         if (structure) Object.assign(step, { structureId: structure.id, structureName: structure.name, structureType: structure.type, target: structure.name });
         else if (placeholder) Object.assign(step, { target: lookup, structureType: wantedType || raw.structureType || null });
       }
@@ -2263,13 +2343,21 @@ export class Game {
         if (held === 'tree_seed') held = null;
       }
     }
-    const normalizedProgram = { id: program.id || 'custom_loop', name: program.name || 'Generated DSL Loop', steps: normalizedSteps };
-    return errors.length ? { ok: false, error: errors.join('; '), errors, program: normalizedProgram } : { ok: true, program: normalizedProgram, normalizedProgram };
+    const normalizedProgram = { id: program.id || 'custom_loop', name: program.name || 'Generated DSL Loop', repeat: !!repeat, steps: normalizedSteps };
+    return errors.length ? { ok: false, error: errors.join('; '), errors, details, program: normalizedProgram } : { ok: true, program: normalizedProgram, normalizedProgram, details };
   }
 
-  assignCustomDslProgram({ botId, program, reason = '' }) {
-    const bot = this.findBot(botId);
+  assignCustomDslProgram({ botId, assignee = null, program, reason = '' }) {
+    let bot = botId != null ? this.findBot(botId) : null;
+    if (!bot && assignee?.strategy === 'any_eligible') {
+      bot = this.findAnyEligibleWorkerBot();
+      if (!bot) return { ok: false, error: 'No idle standard worker bot is available for assignee any_eligible' };
+    }
     if (!bot) return { ok: false, error: `Bot ${botId} not found` };
+    if (assignee?.strategy === 'any_eligible') {
+      if (!this.isStandardWorkerBot(bot)) return { ok: false, error: `${this.botDisplayName?.(bot) || `Bot ${bot.id}`} is not a standard worker bot` };
+      if (!this.isIdleStandardWorkerBot(bot)) return { ok: false, error: `${this.botDisplayName?.(bot) || `Bot ${bot.id}`} is not idle` };
+    }
     const checked = this.validateDslProgram(program);
     if (!checked.ok) return { ok: false, error: checked.error, validation: checked };
     bot.paused = false;
@@ -2278,6 +2366,7 @@ export class Game {
     bot.message = reason || `Generated DSL: ${checked.program.name}`;
     bot.customTemplateName = '';
     bot.taughtLoop = clone(checked.program.steps);
+    bot.taughtLoopRepeat = checked.program.repeat !== false;
     bot.target = null; bot.targetItemId = null; bot.targetItemPurpose = null; bot.targetHoleId = null; bot.timer = 0; bot.runtime = { pc: 0, memory: {}, wait: 0 };
     this.addFloat(`Bot ${bot.id}: generated DSL`, bot.x, bot.y - 22, '#d3a95f');
     this.syncTeachUi?.();
@@ -2301,6 +2390,7 @@ export class Game {
     bot.paused = false; bot.program = program; bot.state = program; bot.message = reason || `Assigned ${program}`;
     bot.customTemplateName = '';
     bot.taughtLoop = taughtLoop;
+    bot.taughtLoopRepeat = true;
     bot.target = null; bot.targetItemId = null; bot.targetItemPurpose = null; bot.targetHoleId = null; bot.timer = 0; bot.runtime = { pc: 0, memory: {}, wait: 0 };
     bot.targetStructureId = sawTarget;
     bot.sourceStructureId = sawSource;
@@ -2360,7 +2450,7 @@ export class Game {
     this.resetWorldCollections();
     this.gameMode = 'test';
     this.map = { ...WORLD_MAP_SIZE };
-    this.player = { x: 480, y: 410, r: 13, speed: 170, target: null, inventory: null, equipment: createEquipment(), attackCooldown: 0, hp: 10, maxHp: 10 };
+    this.player = { x: 480, y: 410, r: 13, speed: 170, target: null, targetQueue: [], inventory: null, equipment: createEquipment(), attackCooldown: 0, hp: 10, maxHp: 10 };
     this.assistant = { x: 452, y: 392 };
     this.camera = { x: 0, y: 0, speed: 520, fastMultiplier: 2.35, zoom: this.camera?.zoom || 1, minZoom: CAMERA_MIN_ZOOM, maxZoom: CAMERA_MAX_ZOOM };
     this.multiplayer = { enabled: false, sessionId: null, role: 'solo', playerId: 'p1', mapMode: 'test', status: 'Test mode prototype', players: {}, winner: null, syncTimer: 0 };
@@ -2390,7 +2480,7 @@ export class Game {
     this.resetWorldCollections();
     this.gameMode = 'campaign';
     this.map = { ...CAMPAIGN_MAP_SIZE };
-    this.player = { x: CAMPAIGN_START.x, y: CAMPAIGN_START.y, r: 13, speed: 170, target: null, inventory: null, equipment: createEquipment(), attackCooldown: 0, hp: 10, maxHp: 10, facingX: 1, facingY: 0 };
+    this.player = { x: CAMPAIGN_START.x, y: CAMPAIGN_START.y, r: 13, speed: 170, target: null, targetQueue: [], inventory: null, equipment: createEquipment(), attackCooldown: 0, hp: 10, maxHp: 10, facingX: 1, facingY: 0 };
     this.assistant = { x: CAMPAIGN_START.x - 32, y: CAMPAIGN_START.y + 24, facingX: 1, facingY: 0 };
     this.camera = { x: clamp(CAMPAIGN_START.x - this.W / 2, 0, Math.max(0, this.map.width - this.W / (this.camera?.zoom || 1))), y: clamp(CAMPAIGN_START.y - this.H / 2, 0, Math.max(0, this.map.height - this.H / (this.camera?.zoom || 1))), speed: 520, fastMultiplier: 2.35, zoom: this.camera?.zoom || 1, minZoom: CAMERA_MIN_ZOOM, maxZoom: CAMERA_MAX_ZOOM };
     this.multiplayer = { enabled: false, sessionId: null, role: 'solo', playerId: 'p1', mapMode: 'campaign', status: 'Campaign mode: glowing lake road camp', players: {}, winner: null, syncTimer: 0, aiWave: { enabled: false }, mapFeatures: clone(CAMPAIGN_MAP_FEATURES) };
@@ -2409,7 +2499,7 @@ export class Game {
     this.recordedLoop = [];
     this.zones = clone(DEFAULT_WORLD_ZONES);
     this.nextZoneId = 1;
-    this.idleDepot = { x: 1190, y: CAMPAIGN_MAP_SIZE.height - 610, label: 'camper van' };
+    this.idleDepot = { x: 1190, y: CAMPAIGN_MAP_SIZE.height - 610, label: 'trusty camper van' };
     this.placementType = null; this.zoneDraft = null; this.zoneDrag = null; this.zoneResize = null; this.justDrewZone = false; this.justDraggedZone = false;
 
     [[910, 2790], [1220, 2830], [1500, 3000], [1730, 2540], [2080, 2760], [2460, 2440], [2920, 2720], [3400, 2380], [3920, 2820], [4580, 2500], [5100, 3060], [760, 2250], [1360, 2140], [2240, 1960], [3200, 1840], [4300, 1720]].forEach(([x, y]) => this.spawnTree(x, y));
@@ -2417,7 +2507,6 @@ export class Game {
     [[1480, 3240], [2080, 3120], [2700, 2860], [3480, 3060], [4320, 2860], [5000, 3220], [2380, 2180], [3760, 2060]].forEach(([x, y]) => this.spawnStoneDeposit(x, y));
     this.addStructure('sawbench', CAMPAIGN_START.x + 95, CAMPAIGN_START.y - 130);
     this.addStructure('workbench', CAMPAIGN_START.x + 225, CAMPAIGN_START.y - 130);
-    this.addStructure('camper_van', CAMPAIGN_START.x + 110, CAMPAIGN_START.y - 330);
     this.addStructure('hammock_camp', CAMPAIGN_START.x - 120, CAMPAIGN_START.y - 205);
     this.addStructure('ultrabook_desk', CAMPAIGN_START.x + 18, CAMPAIGN_START.y - 230);
     this.addStructure('solar_array', CAMPAIGN_START.x + 300, CAMPAIGN_START.y - 245);
@@ -2474,7 +2563,7 @@ export class Game {
     this.map = { ...WORLD_MAP_SIZE, ...(payload.map || {}) };
     this.gameMode = payload.mode || (payload.multiplayer?.enabled ? 'multiplayer' : 'test');
     this.camera = { x: 0, y: 0, speed: 520, fastMultiplier: 2.35, zoom: 1, minZoom: CAMERA_MIN_ZOOM, maxZoom: CAMERA_MAX_ZOOM, ...(payload.camera || {}) };
-    this.player = { x: 480, y: 410, r: 13, speed: 170, target: null, inventory: null, equipment: createEquipment(), attackCooldown: 0, hp: 10, maxHp: 10, ...(payload.player || {}) };
+    this.player = { x: 480, y: 410, r: 13, speed: 170, target: null, targetQueue: [], inventory: null, equipment: createEquipment(), attackCooldown: 0, hp: 10, maxHp: 10, ...(payload.player || {}) };
     ensureEquipment(this.player);
     this.assistant = { x: 452, y: 392, ...(payload.assistant || {}) };
     this.multiplayer = { enabled: false, sessionId: null, role: 'solo', playerId: 'p1', status: 'Solo prototype', players: {}, winner: null, syncTimer: 0, ...(payload.multiplayer || {}) };
@@ -2491,7 +2580,7 @@ export class Game {
     this.zones = clone(payload.zones || DEFAULT_WORLD_ZONES);
     this.idleDepot = { x: 115, y: 245, label: 'idle depot', ...(payload.idleDepot || {}) };
     this.trees = clone(payload.trees || []); this.hempPlants = clone(payload.hempPlants || []); this.rocks = clone(payload.rocks || []); this.holes = clone(payload.holes || []); this.items = clone(payload.items || []); this.bots = clone(payload.bots || []); this.structures = clone(payload.structures || []); this.monsters = clone(payload.monsters || []); this.projectiles = clone(payload.projectiles || []); this.floaters = [];
-    for (const bot of this.bots) { ensureEquipment(bot); bot.name = bot.name || `Bot ${bot.id}`; bot.status = bot.status === 'manager' ? 'manager' : 'worker'; bot.managerKnowledgePacks = this.normalizeManagerKnowledgePacks(bot.managerKnowledgePacks || bot.knowledgePacks || [], bot.status === 'manager' ? DEFAULT_MANAGER_KNOWLEDGE_PACKS : []); bot.knowledgePacks = bot.managerKnowledgePacks; if (bot.teamId && !this.findBotTeam(bot.teamId)) bot.teamId = null; }
+    for (const bot of this.bots) { ensureEquipment(bot); bot.name = bot.name || `Bot ${bot.id}`; bot.status = bot.status === 'manager' ? 'manager' : 'worker'; bot.taughtLoopRepeat = bot.taughtLoopRepeat !== false; bot.managerKnowledgePacks = this.normalizeManagerKnowledgePacks(bot.managerKnowledgePacks || bot.knowledgePacks || [], bot.status === 'manager' ? DEFAULT_MANAGER_KNOWLEDGE_PACKS : []); bot.knowledgePacks = bot.managerKnowledgePacks; if (bot.teamId && !this.findBotTeam(bot.teamId)) bot.teamId = null; }
     const counters = payload.counters || {};
     this.nextItemId = Number(counters.nextItemId || 1); this.nextRockId = Number(counters.nextRockId || 1); this.nextHoleId = Number(counters.nextHoleId || 1); this.nextTreeId = Number(counters.nextTreeId || 1); this.nextHempId = Number(counters.nextHempId || 1); this.nextMonsterId = Number(counters.nextMonsterId || 1); this.nextProjectileId = Number(counters.nextProjectileId || 1); this.nextBotId = Number(counters.nextBotId || 1); this.nextStructureId = Number(counters.nextStructureId || 1); this.nextZoneId = Number(counters.nextZoneId || 1); this.nextBotTeamId = Number(counters.nextBotTeamId || this.nextBotTeamId || 1); this.nextCustomTemplateId = Number(counters.nextCustomTemplateId || this.nextCustomTemplateId || 1);
     if (payload.settings?.maxBots) this.maxBots = Number(payload.settings.maxBots);
@@ -2508,7 +2597,7 @@ export class Game {
     this.resetWorldCollections();
     this.gameMode = 'local_ai';
     this.map = { ...WORLD_MAP_SIZE };
-      this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.hp = this.player.maxHp || 10; this.player.facingX = 1; this.player.facingY = 0;
+      this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.targetQueue = []; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.hp = this.player.maxHp || 10; this.player.facingX = 1; this.player.facingY = 0;
       this.assistant.x = localStart.x - 30; this.assistant.y = localStart.y + 24; this.assistant.facingX = 1; this.assistant.facingY = 0;
     this.camera.x = localStart.x - (this.W / (this.camera.zoom || 1)) / 2;
     this.camera.y = localStart.y - (this.H / (this.camera.zoom || 1)) / 2;
@@ -2546,7 +2635,7 @@ export class Game {
     this.gameMode = 'online_lakes';
     this.map = { ...WORLD_MAP_SIZE };
     this.mapFeatures = clone(ONLINE_MULTIPLAYER_FEATURES);
-      this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.hp = this.player.maxHp || 10; this.player.facingX = 1; this.player.facingY = 0;
+      this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.targetQueue = []; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.hp = this.player.maxHp || 10; this.player.facingX = 1; this.player.facingY = 0;
       this.assistant.x = localStart.x - 30; this.assistant.y = localStart.y + 24; this.assistant.facingX = 1; this.assistant.facingY = 0;
     this.camera.x = localStart.x - (this.W / (this.camera.zoom || 1)) / 2;
     this.camera.y = localStart.y - (this.H / (this.camera.zoom || 1)) / 2;
@@ -2574,10 +2663,10 @@ export class Game {
     return this.getMultiplayerSnapshot();
   }
   isEnemyThrone(s) { return !!(this.multiplayer?.enabled && s?.type === 'throne' && s.ownerId && s.ownerId !== this.multiplayer.playerId && (s.hp || 0) > 0); }
-  queuePlayerThroneAttack(s) {
+  queuePlayerThroneAttack(s, { append = false } = {}) {
     if (!this.isEnemyThrone(s)) return false;
     const side = this.player.x < s.x ? -1 : 1;
-    this.setPlayerDestination(s.x + side * Math.max(42, s.w / 2), s.y, { action: 'attack_throne', structureId: s.id, floatText: `Attack ${s.name}` });
+    this.setPlayerDestination(s.x + side * Math.max(42, s.w / 2), s.y, { action: 'attack_throne', structureId: s.id, floatText: `Attack ${s.name}` }, { append });
     return true;
   }
   damageThrone(s, damage = THRONE_ATTACK_DAMAGE) {
@@ -2709,23 +2798,30 @@ export class Game {
     eq.rangedAttack.cooldownRemaining = Math.max(0, (eq.rangedAttack.cooldownRemaining || 0) - dt);
     this.player.attackCooldown = Math.max(0, (this.player.attackCooldown || 0) - dt);
     const target = this.player.target;
-    if (!target) { this.updateActorAutoAttack(this.player, dt); return; }
-    if (target.started && ['search_tree', 'search_hemp', 'chop_hemp', 'chop_tree', 'mine_stone', 'structure_processing'].includes(target.action)) {
+    if (!target) {
+      if (this.advancePlayerTargetQueue()) return;
+      this.updateActorAutoAttack(this.player, dt);
+      return;
+    }
+    if (target.started && ['search_tree', 'search_hemp', 'chop_hemp', 'chop_tree', 'mine_stone', 'structure_processing', 'deploy_loose_building_kit', 'deploy_building_kit', 'disassemble_building_to_kit'].includes(target.action)) {
       if (target.action === 'structure_processing') {
         const s = this.structures.find(st => st.id === target.structureId);
-        if (!this.isStructureProcessing(s)) { this.player.target = null; return; }
+        if (!this.isStructureProcessing(s)) { this.advancePlayerTargetQueue(); return; }
         target.remaining = s.processing.remaining;
         target.total = s.processing.total;
         target.processLabel = s.processing.label;
         return;
       }
+      if (target.action === 'deploy_loose_building_kit' && !this.canFinishPlayerDeployLooseKit(target)) { this.releasePlayerTargetReservation(); this.advancePlayerTargetQueue(); return; }
+      if (target.action === 'deploy_building_kit' && !this.canFinishPlayerDeployHeldKit(target)) { this.advancePlayerTargetQueue(); return; }
+      if (target.action === 'disassemble_building_to_kit' && !this.canFinishPlayerDisassembleStructure(target)) { this.advancePlayerTargetQueue(); return; }
       const tree = target.action === 'search_tree' ? this.trees.find(t => t.id === target.resourceId && !t.stump) : null;
       const hemp = target.action !== 'search_tree' ? this.hempPlants.find(h => h.id === target.resourceId && !h.harvested) : null;
-      if (target.action === 'search_tree' && (!tree || this.player.inventory)) { this.releasePlayerTargetReservation(); this.player.target = null; return; }
-      if (target.action === 'search_hemp' && (!hemp || hemp.searched || this.player.inventory)) { this.releasePlayerTargetReservation(); this.player.target = null; return; }
-      if (target.action === 'chop_hemp' && (!hemp || this.player.inventory?.type !== 'crude_axe')) { this.releasePlayerTargetReservation(); this.player.target = null; return; }
-      if (target.action === 'chop_tree' && !this.canFinishPlayerChopTree(target)) { this.player.target = null; return; }
-      if (target.action === 'mine_stone' && !this.canFinishPlayerMineStone(target)) { this.player.target = null; return; }
+      if (target.action === 'search_tree' && (!tree || this.player.inventory)) { this.releasePlayerTargetReservation(); this.advancePlayerTargetQueue(); return; }
+      if (target.action === 'search_hemp' && (!hemp || hemp.searched || this.player.inventory)) { this.releasePlayerTargetReservation(); this.advancePlayerTargetQueue(); return; }
+      if (target.action === 'chop_hemp' && (!hemp || this.player.inventory?.type !== 'crude_axe')) { this.releasePlayerTargetReservation(); this.advancePlayerTargetQueue(); return; }
+      if (target.action === 'chop_tree' && !this.canFinishPlayerChopTree(target)) { this.advancePlayerTargetQueue(); return; }
+      if (target.action === 'mine_stone' && !this.canFinishPlayerMineStone(target)) { this.advancePlayerTargetQueue(); return; }
       target.remaining = Math.max(0, (target.remaining ?? target.total ?? TREE_SEARCH_SECONDS) - dt);
       if (target.remaining <= 0) {
         this.releasePlayerTargetReservation();
@@ -2735,6 +2831,10 @@ export class Game {
         if (target.action === 'chop_hemp') this.finishHempChop(hemp);
         if (target.action === 'chop_tree') this.finishPlayerChopTree(target);
         if (target.action === 'mine_stone') this.finishPlayerMineStone(target);
+        if (target.action === 'deploy_loose_building_kit') this.finishPlayerDeployLooseKit(target);
+        if (target.action === 'deploy_building_kit') this.finishPlayerDeployHeldKit(target);
+        if (target.action === 'disassemble_building_to_kit') this.finishPlayerDisassembleStructure(target);
+        if (!this.player.target) this.advancePlayerTargetQueue();
       }
       return;
       }
@@ -2752,29 +2852,30 @@ export class Game {
         if (target.action === 'mine_stone') { this.completePlayerTarget(target); return; }
         if (target.action === 'search_tree') {
           const tree = this.trees.find(t => t.id === target.resourceId && !t.stump);
-          if (!tree || this.player.inventory) { this.releasePlayerTargetReservation(); this.player.target = null; return; }
-          if (!this.treeSearchAvailable(tree, 'player')) { this.player.target = null; this.addFloat('Tree already being searched', tree.x, tree.y - 34, '#c86b5f'); return; }
+          if (!tree || this.player.inventory) { this.releasePlayerTargetReservation(); this.advancePlayerTargetQueue(); return; }
+          if (!this.treeSearchAvailable(tree, 'player')) { this.advancePlayerTargetQueue(); this.addFloat('Tree already being searched', tree.x, tree.y - 34, '#c86b5f'); return; }
           tree.searchReservedBy = 'player';
           this.player.target = { ...target, started: true, remaining: TREE_SEARCH_SECONDS, total: TREE_SEARCH_SECONDS, processLabel: 'searching tree' };
-          this.addFloat('Searching tree…', tree.x, tree.y - 34, '#d3a95f');
+          this.addFloat('Searching treeâ€¦', tree.x, tree.y - 34, '#d3a95f');
           return;
         }
         const hemp = this.hempPlants.find(h => h.id === target.resourceId && !h.harvested);
-        if (!hemp) { this.player.target = null; return; }
+        if (!hemp) { this.advancePlayerTargetQueue(); return; }
         if (target.action === 'search_hemp') {
-          if (this.player.inventory || hemp.searched) { this.player.target = null; this.addFloat(hemp.searched ? 'Hemp already searched' : 'Hands must be empty', hemp.x, hemp.y - 28, '#c86b5f'); return; }
+          if (this.player.inventory || hemp.searched) { this.advancePlayerTargetQueue(); this.addFloat(hemp.searched ? 'Hemp already searched' : 'Hands must be empty', hemp.x, hemp.y - 28, '#c86b5f'); return; }
           hemp.searchReservedBy = 'player';
           this.player.target = { ...target, started: true, remaining: HEMP_SEARCH_SECONDS, total: HEMP_SEARCH_SECONDS, processLabel: 'searching hemp' };
-          this.addFloat('Searching hemp…', hemp.x, hemp.y - 28, '#d3a95f');
+          this.addFloat('Searching hempâ€¦', hemp.x, hemp.y - 28, '#d3a95f');
           return;
         }
-        if (this.player.inventory?.type !== 'crude_axe') { this.player.target = null; this.addFloat('Need crude axe to chop hemp', hemp.x, hemp.y - 28, '#c86b5f'); return; }
+        if (this.player.inventory?.type !== 'crude_axe') { this.advancePlayerTargetQueue(); this.addFloat('Need crude axe to chop hemp', hemp.x, hemp.y - 28, '#c86b5f'); return; }
         this.player.target = { ...target, started: true, remaining: HEMP_CHOP_SECONDS, total: HEMP_CHOP_SECONDS, processLabel: 'chopping hemp' };
-        this.addFloat('Chopping hemp…', hemp.x, hemp.y - 28, '#d3a95f');
+        this.addFloat('Chopping hempâ€¦', hemp.x, hemp.y - 28, '#d3a95f');
         return;
       }
       this.player.target = null;
       this.completePlayerTarget(target);
+      if (!this.player.target) this.advancePlayerTargetQueue();
       return;
     }
     this.player.x = clamp(this.player.x + ((target.x - this.player.x) / d) * step, 20, this.map.width - 20);
@@ -3249,7 +3350,7 @@ export class Game {
       return false;
     }
     attack.targetRef = target.ref;
-    if (attack.cooldownRemaining > 0) { bot.message = `Attacking ${target.name || target.ref || 'target'}…`; return true; }
+    if (attack.cooldownRemaining > 0) { bot.message = `Attacking ${target.name || target.ref || 'target'}â€¦`; return true; }
     if (ranged) this.fireActorBow(bot, target, attack);
     else {
       this.damageAttackTarget(target, attack.damage || 1);
@@ -3376,12 +3477,57 @@ export class Game {
     if (!missing) { bot.message = `${s.name} is ready for ${itemLabel(recipe)}.`; return false; }
     return this.takeLooseItem(bot, missing, dt);
   }
+  completeTaughtProgram(bot, message = 'Completed DSL program.') {
+    this.releaseReservation(bot);
+    bot.program = 'idle';
+    bot.state = 'idle';
+    bot.message = message;
+    bot.runtime = { pc: 0, memory: {}, wait: 0 };
+    bot.target = null;
+    bot.targetItemId = null;
+    bot.targetItemPurpose = null;
+    bot.targetHoleId = null;
+    bot.timer = 0;
+    this.addFloat(`Bot ${bot.id}: DSL done`, bot.x, bot.y - 22, '#9abf8f');
+    return true;
+  }
   programTaughtLoop(bot, dt) {
     const steps = bot.taughtLoop || [];
     if (!steps.length) { bot.message = 'No taught loop assigned.'; return; }
-    if (bot.runtime.pc >= steps.length) bot.runtime.pc = 0;
+    if (bot.runtime.pc >= steps.length) {
+      if (bot.taughtLoopRepeat === false) {
+        this.completeTaughtProgram(bot);
+        return;
+      }
+      bot.runtime.pc = 0;
+    }
     const step = steps[bot.runtime.pc] || steps[0];
-    const advance = () => { this.releaseReservation(bot); bot.runtime.pc = (bot.runtime.pc + 1) % steps.length; bot.target = null; bot.targetItemId = null; bot.targetItemPurpose = null; bot.targetHoleId = null; bot.timer = 0; };
+    const advance = () => {
+      this.releaseReservation(bot);
+      bot.runtime.pc += 1;
+      if (bot.runtime.pc >= steps.length) {
+        if (bot.taughtLoopRepeat === false) {
+          this.completeTaughtProgram(bot);
+          return false;
+        }
+        bot.runtime.pc = 0;
+      }
+      bot.target = null;
+      bot.targetItemId = null;
+      bot.targetItemPurpose = null;
+      bot.targetHoleId = null;
+      bot.timer = 0;
+      bot.runtime.wait = 0;
+      return true;
+    };
+    if (step.op === 'wait') {
+      const duration = clamp(Number(step.seconds ?? 1), 0.1, 30);
+      if (!(bot.runtime.wait > 0)) bot.runtime.wait = duration;
+      bot.runtime.wait = Math.max(0, bot.runtime.wait - dt);
+      bot.message = `Taught loop: waiting ${bot.runtime.wait > 0 ? bot.runtime.wait.toFixed(1) : '0.0'}/${duration.toFixed(1)}s.`;
+      if (bot.runtime.wait <= 0) advance();
+      return;
+    }
     if (step.op === 'assign_template') {
       const res = this.assignTemplateToBot(step.botId, step.templateName, { actorBot: bot, reason: `Assigned by ${this.botDisplayName?.(bot) || `Bot ${bot.id}`}` });
       bot.message = res.ok ? `Assigned template ${res.template.name} to ${this.botDisplayName?.(res.bot) || `Bot ${res.bot.id}`}.` : res.error;
@@ -3693,17 +3839,38 @@ export class Game {
     return true;
   }
 
-  queuePlayerResourceAction(resource, op) {
+  queuePlayerResourceAction(resource, op, { append = false } = {}) {
     if (op === 'chop_tree' && this.player.inventory?.type !== 'crude_axe') return false;
     if (op === 'mine_stone' && this.player.inventory?.type !== 'crude_pickaxe') return false;
     const label = op === 'chop_tree' ? 'Chop tree' : 'Mine stone deposit';
-    this.setPlayerDestination(resource.x, resource.y, { action: op, resourceId: resource.id, floatText: label });
+    this.setPlayerDestination(resource.x, resource.y, { action: op, resourceId: resource.id, floatText: label }, { append });
     return true;
   }
   startPlayerResourceWork(target, resource, processLabel) {
     this.player.target = { ...target, x: resource.x, y: resource.y, started: true, remaining: RESOURCE_HIT_SECONDS, total: RESOURCE_HIT_SECONDS, processLabel };
-    this.addFloat(`${processLabel[0].toUpperCase()}${processLabel.slice(1)}…`, resource.x, resource.y - 34, '#d3a95f');
+    this.addFloat(`${processLabel[0].toUpperCase()}${processLabel.slice(1)}â€¦`, resource.x, resource.y - 34, '#d3a95f');
     return true;
+  }
+  startPlayerTimedAction(target, duration, processLabel) {
+    this.player.target = { ...target, started: true, remaining: duration, total: duration, processLabel };
+    this.addFloat(`${processLabel[0].toUpperCase()}${processLabel.slice(1)}â€¦`, target.x, target.y - 34, '#d3a95f');
+    return true;
+  }
+  startPlayerBuildingKitAction(target) {
+    if (!target?.action) return false;
+    if (target.action === 'deploy_loose_building_kit') {
+      if (!this.canFinishPlayerDeployLooseKit(target)) return false;
+      return this.startPlayerTimedAction(target, BUILDING_KIT_DEPLOY_SECONDS, 'deploying building kit');
+    }
+    if (target.action === 'deploy_building_kit') {
+      if (!this.canFinishPlayerDeployHeldKit(target)) return false;
+      return this.startPlayerTimedAction(target, BUILDING_KIT_DEPLOY_SECONDS, 'deploying building kit');
+    }
+    if (target.action === 'disassemble_building_to_kit') {
+      if (!this.canFinishPlayerDisassembleStructure(target)) return false;
+      return this.startPlayerTimedAction(target, BUILDING_DISASSEMBLE_SECONDS, 'disassembling building');
+    }
+    return false;
   }
   canFinishPlayerChopTree(target) {
     return !!this.trees.find(t => t.id === target.resourceId && this.isChoppableTree(t)) && this.player.inventory?.type === 'crude_axe';
@@ -3741,14 +3908,14 @@ export class Game {
     this.setPlayerDestination(tree.x, tree.y, { action: 'search_tree', resourceId: tree.id, floatText: 'Search tree for sticks/seeds' });
     return true;
   }
-  queuePlayerHempAction(hemp) {
+  queuePlayerHempAction(hemp, { append = false } = {}) {
     if (!hemp || hemp.harvested) return false;
     if (this.player.inventory?.type === 'crude_axe') {
-      this.setPlayerDestination(hemp.x, hemp.y, { action: 'chop_hemp', resourceId: hemp.id, floatText: 'Chop hemp' });
+      this.setPlayerDestination(hemp.x, hemp.y, { action: 'chop_hemp', resourceId: hemp.id, floatText: 'Chop hemp' }, { append });
       return true;
     }
     if (!this.player.inventory && !hemp.searched) {
-      this.setPlayerDestination(hemp.x, hemp.y, { action: 'search_hemp', resourceId: hemp.id, floatText: 'Search hemp for seed' });
+      this.setPlayerDestination(hemp.x, hemp.y, { action: 'search_hemp', resourceId: hemp.id, floatText: 'Search hemp for seed' }, { append });
       return true;
     }
     this.addFloat(this.player.inventory ? `Need empty hands or crude axe (holding ${itemLabel(this.player.inventory.type)})` : 'Hemp already searched', hemp.x, hemp.y - 28, '#c86b5f');
@@ -3794,9 +3961,9 @@ export class Game {
     return true;
   }
   canDemolishStructure(s) { return !!s && s.placed === true && s.type !== 'throne'; }
-  queuePlayerDemolishStructure(s) {
+  queuePlayerDemolishStructure(s, { append = false } = {}) {
     if (!this.canDemolishStructure(s) || this.player.inventory?.type !== 'crude_hammer') return false;
-    this.setPlayerDestination(s.x, s.y, { action: 'demolish_structure', structureId: s.id, floatText: `Demolish ${s.name}` });
+    this.setPlayerDestination(s.x, s.y, { action: 'demolish_structure', structureId: s.id, floatText: `Demolish ${s.name}` }, { append });
     return true;
   }
   finishPlayerDemolishStructure(target) {
@@ -3827,10 +3994,14 @@ export class Game {
     if (rectDistance(this.player.x, this.player.y, target) >= 48) return false;
     return this.demolishStructure(target);
   }
+  canFinishPlayerDisassembleStructure(target) {
+    const s = this.structures.find(st => st.id === target?.structureId);
+    return !this.player.inventory && this.canDisassembleStructure(s);
+  }
   canDisassembleStructure(s) { return !!s && !!buildingKitItemTypeFor(s.type) && !this.isStructureProcessing(s); }
-  queuePlayerDisassembleStructure(s) {
+  queuePlayerDisassembleStructure(s, { append = false } = {}) {
     if (!this.canDisassembleStructure(s)) return false;
-    this.setPlayerDestination(s.x, s.y, { action: 'disassemble_building_to_kit', structureId: s.id, floatText: `Disassemble ${s.name} into kit` });
+    this.setPlayerDestination(s.x, s.y, { action: 'disassemble_building_to_kit', structureId: s.id, floatText: `Disassemble ${s.name} into kit` }, { append });
     return true;
   }
   finishPlayerDisassembleStructure(target) {
@@ -3867,11 +4038,15 @@ export class Game {
     this.addFloat(`Deployed ${itemLabel(kitType)}`, s.x, s.y - 52, '#9abf8f');
     return s;
   }
-  queuePlayerDeployHeldKit(x, y) {
+  queuePlayerDeployHeldKit(x, y, { append = false } = {}) {
     const kitType = this.normalizeBuildingKitItemType(this.player.inventory?.type);
     if (!kitType) return false;
-    this.setPlayerDestination(x, y, { action: 'deploy_building_kit', itemType: kitType, x, y, floatText: `Deploy ${itemLabel(kitType)}` });
+    this.setPlayerDestination(x, y, { action: 'deploy_building_kit', itemType: kitType, x, y, floatText: `Deploy ${itemLabel(kitType)}` }, { append });
     return true;
+  }
+  canFinishPlayerDeployHeldKit(target) {
+    const kitType = this.normalizeBuildingKitItemType(target?.itemType || this.player.inventory?.type);
+    return !!kitType && this.player.inventory?.type === kitType;
   }
   queuePlayerDeployLooseKit(item) {
     const kitType = this.normalizeBuildingKitItemType(item?.type);
@@ -3881,6 +4056,11 @@ export class Game {
     item.reservedBy = 'player';
     this.setPlayerDestination(item.x, item.y, { action: 'deploy_loose_building_kit', itemId: item.id, floatText: `Deploy ${itemLabel(kitType)}` });
     return true;
+  }
+  canFinishPlayerDeployLooseKit(target) {
+    const item = this.items.find(i => i.id === target?.itemId);
+    const kitType = this.normalizeBuildingKitItemType(item?.type);
+    return !!item && !!kitType && !this.player.inventory;
   }
   finishPlayerDeployHeldKit(target) {
     const kitType = this.normalizeBuildingKitItemType(target?.itemType || this.player.inventory?.type);
@@ -3910,7 +4090,10 @@ export class Game {
     if (!bot.inventory || bot.inventory.type !== kitType) { bot.message = `Taught loop needs ${itemLabel(kitType)} before deploying.`; bot.runtime.pc = 0; return false; }
     const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
     const target = this.zoneCenter(zone, bot) || bot;
-    if (target && !this.moveBotTo(bot, target, dt, 12)) { bot.message = `Taught loop: deploy ${itemLabel(kitType)} in ${this.zoneLabel(zone)}.`; return false; }
+    if (target && !this.moveBotTo(bot, target, dt, 12)) { bot.timer = 0; bot.message = `Taught loop: deploy ${itemLabel(kitType)} in ${this.zoneLabel(zone)}.`; return false; }
+    bot.timer += dt;
+    bot.message = `Deploying ${itemLabel(kitType)} (${Math.min(BUILDING_KIT_DEPLOY_SECONDS, bot.timer).toFixed(1)}/${BUILDING_KIT_DEPLOY_SECONDS.toFixed(1)}s).`;
+    if (bot.timer < BUILDING_KIT_DEPLOY_SECONDS) return false;
     const s = this.deployBuildingKitAt(kitType, target.x, target.y);
     if (!s) { bot.message = `Cannot deploy ${itemLabel(kitType)}.`; return false; }
     bot.inventory = null;
@@ -3922,7 +4105,10 @@ export class Game {
     let s = this.resolveRecordedStructure(step, bot);
     if (!this.canDisassembleStructure(s)) s = nearest(this.structures, bot.x, bot.y, st => this.canDisassembleStructure(st) && (!step.structureType || st.type === step.structureType));
     if (!s) { bot.message = `No disassemblable ${step.structureName || step.structureType || 'building'} found.`; return false; }
-    if (!this.moveBotTo(bot, s, dt, 34)) { bot.message = `Taught loop: disassemble ${s.name}.`; return false; }
+    if (!this.moveBotTo(bot, s, dt, 34)) { bot.timer = 0; bot.message = `Taught loop: disassemble ${s.name}.`; return false; }
+    bot.timer += dt;
+    bot.message = `Disassembling ${s.name} (${Math.min(BUILDING_DISASSEMBLE_SECONDS, bot.timer).toFixed(1)}/${BUILDING_DISASSEMBLE_SECONDS.toFixed(1)}s).`;
+    if (bot.timer < BUILDING_DISASSEMBLE_SECONDS) return false;
     const kitType = this.disassembleStructureToKit(s, bot);
     if (!kitType) { bot.message = `Cannot disassemble ${s.name}.`; return false; }
     bot.message = `Disassembled ${s.name} into ${itemLabel(kitType)}.`;
@@ -4172,7 +4358,7 @@ export class Game {
     const team = teamId ? this.findBotTeam(teamId) : null;
     if (teamId && !team) return { ok: false, error: 'Team not found' };
     bot.teamId = team?.id || null;
-    this.addFloat(`${this.botDisplayName(bot)} → ${team?.name || 'No team'}`, bot.x, bot.y - 30, team?.color || '#c7b683');
+    this.addFloat(`${this.botDisplayName(bot)} â†’ ${team?.name || 'No team'}`, bot.x, bot.y - 30, team?.color || '#c7b683');
     this.syncBotDrawerUi();
     return { ok: true, bot, team };
   }
@@ -4182,7 +4368,7 @@ export class Game {
     const name = this.botDisplayName(bot);
     const color = this.teamColor(team?.color || '#101413');
     const teamText = team ? team.name : 'No team';
-    return `<article class="bot-card bot-team-card" draggable="true" data-bot-card data-bot-id="${bot.id}" style="--team-color:${escapeHtml(color)}"><div class="bot-badge">#${bot.id}</div><div class="bot-card-body"><label class="bot-name-edit">Name <input data-bot-name-input="${bot.id}" value="${escapeHtml(name)}" maxlength="32" /></label><p><span class="program">${escapeHtml(bot.program)}</span> · ${escapeHtml(teamText)} · ${escapeHtml(bot.status === 'manager' ? 'manager' : 'worker')}</p><p>${escapeHtml(bot.message)}</p></div></article>`;
+    return `<article class="bot-card bot-team-card" draggable="true" data-bot-card data-bot-id="${bot.id}" style="--team-color:${escapeHtml(color)}"><button type="button" class="bot-badge bot-card-menu-button" data-open-bot-menu="${bot.id}" aria-label="Open ${escapeHtml(name)} menu">#${bot.id}</button><div class="bot-card-body"><div class="bot-card-topline"><label class="bot-name-edit">Name <input data-bot-name-input="${bot.id}" value="${escapeHtml(name)}" maxlength="32" /></label><button type="button" class="bot-card-inline-action" data-open-bot-menu="${bot.id}">Open menu</button></div><p><span class="program">${escapeHtml(bot.program)}</span> Â· ${escapeHtml(teamText)} Â· ${escapeHtml(bot.status === 'manager' ? 'manager' : 'worker')}</p><p>${escapeHtml(bot.message)}</p></div></article>`;
   }
 
   renderBotDrawerTeam(team, bots) {
@@ -4224,6 +4410,17 @@ export class Game {
     this.dom.botList?.addEventListener('keydown', event => {
       const input = event.target.closest('[data-bot-name-input]');
       if (input && event.key === 'Enter') { event.preventDefault(); input.blur(); this.setBotName(input.dataset.botNameInput, input.value); }
+    });
+    this.dom.botList?.addEventListener('click', event => {
+      const button = event.target.closest('[data-open-bot-menu]');
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const card = button.closest('[data-bot-card]');
+      const bot = this.findBot(Number(button.dataset.openBotMenu || card?.dataset.botId || 0));
+      if (!bot || !card) return;
+      const rect = card.getBoundingClientRect();
+      this.showBotMenu(bot, rect.right - 8, rect.top + Math.min(rect.height * 0.5, 40), { refreshEdit: true });
     });
     this.dom.botList?.addEventListener('dragstart', event => {
       const card = event.target.closest('[data-bot-card]');
@@ -4407,11 +4604,7 @@ export class Game {
       if (!Number.isFinite(index)) return;
       if ('botStepUp' in button.dataset) this.moveBotMenuEditStep(index, -1);
       else if ('botStepDown' in button.dataset) this.moveBotMenuEditStep(index, 1);
-      else {
-        this.deleteBotMenuEditStep(index);
-        this.hideMenus();
-        return;
-      }
+      else this.deleteBotMenuEditStep(index);
       this.syncBotMenuEditSurface(el);
     });
     el.addEventListener('change', event => {
@@ -4483,11 +4676,11 @@ export class Game {
     const displayName = this.botDisplayName(bot);
     const statusLabel = this.isManagerBot(bot) ? 'manager' : (bot.status || 'worker');
     const promoteButton = this.isManagerBot(bot) ? '' : '<button type="button" data-promote-manager>Promote to Manager</button>';
-    const managerSection = this.isManagerBot(bot) ? `<section class="manager-menu" data-manager-section><b>Manager controls</b><p>Status: <code>manager</code> · Known packs: <span data-manager-pack-summary>${escapeHtml((bot.managerKnowledgePacks || []).join(', ') || 'starter_automation')}</span></p><div class="manager-pack-list">${this.renderManagerPackControls(bot)}</div><label class="manager-message-input">Message manager <textarea data-manager-message rows="3" placeholder="make bot 2 chop trees"></textarea></label><button type="button" data-send-manager-message>Send to Manager</button><p class="manager-message-status" data-manager-status></p></section>` : '';
+    const managerSection = this.isManagerBot(bot) ? `<section class="manager-menu" data-manager-section><b>Manager controls</b><p>Status: <code>manager</code> Â· Known packs: <span data-manager-pack-summary>${escapeHtml((bot.managerKnowledgePacks || []).join(', ') || 'starter_automation')}</span></p><div class="manager-pack-list">${this.renderManagerPackControls(bot)}</div><label class="manager-message-input">Message manager <textarea data-manager-message rows="3" placeholder="make bot 2 chop trees"></textarea></label><button type="button" data-send-manager-message>Send to Manager</button><p class="manager-message-status" data-manager-status></p></section>` : '';
     const nameStatus = edit.nameStatus ? `<p class="bot-menu-name-status" data-bot-name-status>${escapeHtml(edit.nameStatus)}</p>` : '';
     const nameEditor = edit.nameEditing ? `<label class="bot-menu-name-edit">Bot name <input data-menu-bot-name value="${escapeHtml(edit.nameDraft || displayName)}" maxlength="32"></label>` : '';
     const workflowButton = hasWorkflow ? `<button data-stop-workflow>${stopLabel}</button>` : '';
-    el.innerHTML = `<div class="bot-menu-title"><div class="bot-menu-title-row"><b>${escapeHtml(displayName)}</b><button type="button" data-edit-bot-name aria-label="Edit bot name">✎</button></div>${nameStatus}${nameEditor}</div><button data-close>×</button><p>${escapeHtml(bot.message)}</p><p><b>Status:</b> ${escapeHtml(statusLabel)}</p><p><b>Program:</b> ${escapeHtml(bot.program)}</p><p><b>Ref:</b> <code>${escapeHtml(bot.ref)}</code></p>${promoteButton}${managerSection}${workflowButton}<section class="teach-menu"><b>Teach by doing</b><p>${escapeHtml(this.recorder.recording ? `Recording ${this.recorder.steps.length} steps for Bot ${this.recorder.targetBotId || bot.id}…` : this.recorder.status)}</p><ol class="teach-steps menu-teach-steps">${teachSteps}</ol><button data-teach-record>${recordLabel}</button><button data-assign-taught${assignDisabled}>Assign to ${escapeHtml(displayName)}</button></section><section class="bot-program-editor"><b>Assigned JSON</b><p data-bot-edit-status>${escapeHtml(edit.status || 'Edit JSON, or adjust the DSL cards and accept them.')}</p><textarea data-bot-json-editor spellcheck="false">${escapeHtml(tpl)}</textarea><button type="button" data-save-json>Save JSON + refresh Bot ${bot.id}</button><div class="bot-card-flow-head"><b>DSL card flow</b><button type="button" data-add-loop-step>Add loop</button></div><ol class="teach-steps bot-program-steps" data-bot-program-steps>${editSteps}</ol><button type="button" data-accept-dsl-cards>Accept card flow + refresh Bot ${bot.id}</button></section><button data-add>Add bot to chat</button>`;
+    el.innerHTML = `<div class="bot-menu-title"><div class="bot-menu-title-row"><b>${escapeHtml(displayName)}</b><button type="button" data-edit-bot-name aria-label="Edit bot name">âœŽ</button></div>${nameStatus}${nameEditor}</div><button data-close>Ã—</button><p>${escapeHtml(bot.message)}</p><p><b>Status:</b> ${escapeHtml(statusLabel)}</p><p><b>Program:</b> ${escapeHtml(bot.program)}</p><p><b>Ref:</b> <code>${escapeHtml(bot.ref)}</code></p>${promoteButton}${managerSection}${workflowButton}<section class="teach-menu"><b>Teach by doing</b><p>${escapeHtml(this.recorder.recording ? `Recording ${this.recorder.steps.length} steps for Bot ${this.recorder.targetBotId || bot.id}â€¦` : this.recorder.status)}</p><ol class="teach-steps menu-teach-steps">${teachSteps}</ol><button data-teach-record>${recordLabel}</button><button data-assign-taught${assignDisabled}>Assign to ${escapeHtml(displayName)}</button></section><section class="bot-program-editor"><b>Assigned JSON</b><p data-bot-edit-status>${escapeHtml(edit.status || 'Edit JSON, or adjust the DSL cards and accept them.')}</p><textarea data-bot-json-editor spellcheck="false">${escapeHtml(tpl)}</textarea><button type="button" data-save-json>Save JSON + refresh Bot ${bot.id}</button><div class="bot-card-flow-head"><b>DSL card flow</b><button type="button" data-add-loop-step>Add loop</button></div><ol class="teach-steps bot-program-steps" data-bot-program-steps>${editSteps}</ol><button type="button" data-accept-dsl-cards>Accept card flow + refresh Bot ${bot.id}</button></section><button data-add>Add bot to chat</button>`;
     this.placeMenu(el,x,y);
     this.bindTeachStepControls(el.querySelector('.menu-teach-steps'));
     this.bindBotProgramEditControls(el, bot, x, y);
@@ -4511,10 +4704,10 @@ export class Game {
     });
     el.querySelector('[data-edit-bot-name]')?.addEventListener('click', () => this.beginBotMenuNameEdit(bot, x, y));
     el.querySelector('[data-menu-bot-name]')?.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); this.saveBotMenuName(bot, x, y, el.querySelector('[data-menu-bot-name]')?.value || ''); } });
-    el.querySelector('[data-add]').onclick=()=>{this.chat.insertAtCursor(`Bot ${bot.id} `); this.hideMenus();};
+    el.querySelector('[data-add]').onclick=()=>{this.chat.insertAtCursor(`Bot ${bot.id} `);};
     el.querySelector('[data-stop-workflow]')?.addEventListener('click',()=>{ bot.paused = !bot.paused; bot.message = bot.paused ? `Paused ${bot.program} workflow.` : `Resumed ${bot.program} workflow.`; this.showBotMenu(bot, x, y); });
     el.querySelector('[data-teach-record]').onclick=()=>{ this.recorder.recording ? this.stopTeachRecording() : this.startTeachRecording(bot.id); this.showBotMenu(bot, x, y); };
-    el.querySelector('[data-assign-taught]')?.addEventListener('click',()=>{ this.assignRecordedLoopToBot(bot.id); this.hideMenus(); });
+    el.querySelector('[data-assign-taught]')?.addEventListener('click',()=>{ this.assignRecordedLoopToBot(bot.id); this.showBotMenu(bot, x, y, { refreshEdit: true }); });
     if (edit.nameEditing) requestAnimationFrame(() => {
       const input = el.querySelector('[data-menu-bot-name]');
       if (!input) return;
@@ -4524,8 +4717,8 @@ export class Game {
   }
   showStructureMenu(s, x, y) {
     const el = this.dom.structureMenu;
-    const processing = s.processing ? `<br>processing ${escapeHtml(s.processing.label)} · ${Math.max(0, s.processing.remaining).toFixed(1)}s left` : '';
-    const storage = (s.type === 'throne' ? `<br>owner ${s.ownerLabel || s.ownerId || 'none'} · HP ${Math.max(0, s.hp || 0)}/${s.maxHp || THRONE_HP}` : s.type === 'defensetower' ? `<br>range ${s.rangedAttack?.range || DEFENSE_TOWER_ATTACK.range} · damage ${s.rangedAttack?.damage || 1} · cooldown ${s.rangedAttack?.cooldown || 1}s${s.rangedAttack?.targetRef ? ` · target ${s.rangedAttack.targetRef}` : ''}` : STORAGE_STRUCTURE_TYPES.includes(s.type) ? `<br>locked type ${s.storageType || 'empty/unlocked'} · stored ${s.stored || 0}/${s.capacity || 0}` : s.type === 'workbench' ? `<br>sticks ${s.sticks||0} · stones ${s.stones||0} · output ${escapeHtml(itemLabel(workbenchRecipe(s)))} · made A${s.axes||0} P${s.pickaxes||0} S${s.shovels||0} H${s.hammers||0}` : s.type === 'smithery' ? `<br>sticks ${s.sticks||0} · planks ${s.planks||0} · mode ${escapeHtml(itemLabel(smitheryRecipe(s)))} · made swords ${s.swords||0} shields ${s.shields||0}` : s.type === 'bowmaker' ? `<br>sticks ${s.sticks||0}/2 · hemp ${s.hemps||0}/3 · made bows ${s.bows||0}` : s.type === 'factory' ? `<br>logs ${s.logs||0} · planks ${s.planks||0} · poles ${s.poles||0} · seeds ${s.tree_seeds||0}` : s.type === 'assembler' ? `<br>planks ${s.planks||0}/2 · poles ${s.poles||0}/1 · output ${escapeHtml(itemLabel(assemblerRecipe(s)))}` : `<br>logs ${s.logs||0} · planks ${s.planks||0} · poles ${s.poles||0}`) + processing;
+    const processing = s.processing ? `<br>processing ${escapeHtml(s.processing.label)} Â· ${Math.max(0, s.processing.remaining).toFixed(1)}s left` : '';
+    const storage = (s.type === 'throne' ? `<br>owner ${s.ownerLabel || s.ownerId || 'none'} Â· HP ${Math.max(0, s.hp || 0)}/${s.maxHp || THRONE_HP}` : s.type === 'defensetower' ? `<br>range ${s.rangedAttack?.range || DEFENSE_TOWER_ATTACK.range} Â· damage ${s.rangedAttack?.damage || 1} Â· cooldown ${s.rangedAttack?.cooldown || 1}s${s.rangedAttack?.targetRef ? ` Â· target ${s.rangedAttack.targetRef}` : ''}` : STORAGE_STRUCTURE_TYPES.includes(s.type) ? `<br>locked type ${s.storageType || 'empty/unlocked'} Â· stored ${s.stored || 0}/${s.capacity || 0}` : s.type === 'workbench' ? `<br>sticks ${s.sticks||0} Â· stones ${s.stones||0} Â· output ${escapeHtml(itemLabel(workbenchRecipe(s)))} Â· made A${s.axes||0} P${s.pickaxes||0} S${s.shovels||0} H${s.hammers||0}` : s.type === 'smithery' ? `<br>sticks ${s.sticks||0} Â· planks ${s.planks||0} Â· mode ${escapeHtml(itemLabel(smitheryRecipe(s)))} Â· made swords ${s.swords||0} shields ${s.shields||0}` : s.type === 'bowmaker' ? `<br>sticks ${s.sticks||0}/2 Â· hemp ${s.hemps||0}/3 Â· made bows ${s.bows||0}` : s.type === 'factory' ? `<br>logs ${s.logs||0} Â· planks ${s.planks||0} Â· poles ${s.poles||0} Â· seeds ${s.tree_seeds||0}` : s.type === 'assembler' ? `<br>planks ${s.planks||0}/2 Â· poles ${s.poles||0}/1 Â· output ${escapeHtml(itemLabel(assemblerRecipe(s)))}` : `<br>logs ${s.logs||0} Â· planks ${s.planks||0} Â· poles ${s.poles||0}`) + processing;
     const insertButton = STORAGE_STRUCTURE_TYPES.includes(s.type) ? '<button data-insert-nearby>Insert nearby item</button>' : '<button data-add-radius>Add small radius</button>';
     const demolishButton = this.canDemolishStructure(s) ? '<button data-demolish-structure>Demolish with hammer</button>' : '';
     const disassembleButton = this.canDisassembleStructure(s) ? '<button data-disassemble-structure>Disassemble into kit</button>' : '';
@@ -4533,7 +4726,7 @@ export class Game {
     const selector = s.type === 'workbench' ? `<section class="tool-selector" aria-label="Tool bench output"><b>Produce:</b> ${WORKBENCH_TOOL_RECIPES.map(type => `<button type="button" data-select-tool="${type}"${type === selectedRecipe ? ' aria-pressed="true" class="is-active"' : ' aria-pressed="false"'}>${escapeHtml(itemLabel(type))}</button>`).join('')}</section>` : s.type === 'smithery' ? `<section class="tool-selector" aria-label="Smithery production mode"><b>Production mode:</b> <button type="button" data-switch-smithery>${escapeHtml(itemLabel(smitheryRecipe(s)))} (switch)</button></section>` : s.type === 'assembler' ? `<section class="tool-selector" aria-label="Assembler building kit output"><b>Assemble:</b> ${BUILDING_KIT_ITEM_TYPES.map(type => `<button type="button" data-select-kit="${type}"${type === assemblerRecipe(s) ? ' aria-pressed="true" class="is-active"' : ' aria-pressed="false"'}>${escapeHtml(itemLabel(type))}</button>`).join('')}</section>` : '';
     const info = STRUCTURE_INFO[s.type] || 'Building.';
     const visibleType = BUILDING_TYPES[s.type]?.category || s.type;
-    el.innerHTML = `<b>${escapeHtml(s.name)}</b><button data-close>×</button><p>${escapeHtml(s.label)} · type <code>${escapeHtml(visibleType)}</code> · ref <code>${escapeHtml(s.ref)}</code>${storage}<br><b>Info:</b> ${escapeHtml(info)}<br><b>Recipe:</b> ${escapeHtml(structureRecipeText(s))}</p>${selector}${demolishButton}${disassembleButton}<button data-add-name>Add name</button><button data-add-ref>Add ref</button>${insertButton}`;
+    el.innerHTML = `<b>${escapeHtml(s.name)}</b><button data-close>Ã—</button><p>${escapeHtml(s.label)} Â· type <code>${escapeHtml(visibleType)}</code> Â· ref <code>${escapeHtml(s.ref)}</code>${storage}<br><b>Info:</b> ${escapeHtml(info)}<br><b>Recipe:</b> ${escapeHtml(structureRecipeText(s))}</p>${selector}${demolishButton}${disassembleButton}<button data-add-name>Add name</button><button data-add-ref>Add ref</button>${insertButton}`;
     this.placeMenu(el,x,y);
     el.querySelector('[data-close]').onclick=()=>this.hideMenus();
     el.querySelectorAll('[data-select-tool]').forEach(btn => btn.addEventListener('click', () => {
@@ -4568,17 +4761,9 @@ export class Game {
     const displayName = this.treeDisplayName(tree);
     const searchState = tree.searchReservedBy ? `reserved by ${tree.searchReservedBy}` : 'unreserved';
     const hpLine = tree.stump ? 'stump' : `HP ${Math.max(0, tree.hp || 0)}/${tree.maxHp || 1}`;
-    el.innerHTML = `<b>${escapeHtml(displayName)}</b><button data-close>×</button><p>Resource type <code>tree</code> · ref <code>${escapeHtml(tree.ref || `tree:${tree.id}`)}</code><br>${escapeHtml(hpLine)} · stage ${escapeHtml(tree.growthStage || 'grown_tree')}<br>search ${escapeHtml(searchState)}</p><button data-tree-chop>Chop tree</button><button data-tree-search>Search tree</button><button data-add-tree-name>Add name</button><button data-add-tree-ref>Add ref</button><button data-add-tree-radius>Add small radius</button>`;
+    el.innerHTML = `<b>${escapeHtml(displayName)}</b><button data-close>×</button><p>Resource type <code>tree</code> · ref <code>${escapeHtml(tree.ref || `tree:${tree.id}`)}</code><br>${escapeHtml(hpLine)} · stage ${escapeHtml(tree.growthStage || 'grown_tree')}<br>search ${escapeHtml(searchState)}</p><button data-add-tree-name>Add name</button><button data-add-tree-ref>Add ref</button><button data-add-tree-radius>Add small radius</button>`;
     this.placeMenu(el, x, y);
     el.querySelector('[data-close]').onclick = () => this.hideMenus();
-    el.querySelector('[data-tree-chop]')?.addEventListener('click', () => {
-      this.queuePlayerResourceAction(tree, 'chop_tree');
-      this.hideMenus();
-    });
-    el.querySelector('[data-tree-search]')?.addEventListener('click', () => {
-      this.queuePlayerTreeSearch(tree);
-      this.hideMenus();
-    });
     el.querySelector('[data-add-tree-name]')?.addEventListener('click', () => {
       this.chat.insertAtCursor(displayName);
       this.hideMenus();
@@ -4591,11 +4776,10 @@ export class Game {
       this.chat.insertAtCursor(`small area around ${displayName}`);
       this.hideMenus();
     });
-  }
-  showHoleMenu(hole, x, y) {
+  }  showHoleMenu(hole, x, y) {
     const el = this.dom.structureMenu;
     const canPlant = this.player.inventory?.type === 'tree_seed' && !hole.planted;
-    el.innerHTML = `<b>${escapeHtml(hole.planted ? 'planted hole' : 'dug hole')}</b><button data-close>×</button><p>Resource type <code>dug_hole</code> · ref <code>${escapeHtml(hole.ref || `hole:${hole.id}`)}</code><br>${hole.planted ? 'already planted' : 'open for tree seed'}${hole.reservedBy ? ` · reserved by ${escapeHtml(String(hole.reservedBy))}` : ''}</p>${canPlant ? '<button data-plant-seed>Plant tree seed</button>' : ''}<button data-add-hole-name>Add name</button><button data-add-hole-ref>Add ref</button><button data-add-hole-radius>Add small radius</button>`;
+    el.innerHTML = `<b>${escapeHtml(hole.planted ? 'planted hole' : 'dug hole')}</b><button data-close>Ã—</button><p>Resource type <code>dug_hole</code> Â· ref <code>${escapeHtml(hole.ref || `hole:${hole.id}`)}</code><br>${hole.planted ? 'already planted' : 'open for tree seed'}${hole.reservedBy ? ` Â· reserved by ${escapeHtml(String(hole.reservedBy))}` : ''}</p>${canPlant ? '<button data-plant-seed>Plant tree seed</button>' : ''}<button data-add-hole-name>Add name</button><button data-add-hole-ref>Add ref</button><button data-add-hole-radius>Add small radius</button>`;
     this.placeMenu(el, x, y);
     el.querySelector('[data-close]').onclick = () => this.hideMenus();
     el.querySelector('[data-plant-seed]')?.addEventListener('click', () => {
@@ -4619,7 +4803,7 @@ export class Game {
     const list = this.dom.zoneList;
     if (!list) return;
     if (!this.zones.length) { list.innerHTML = '<p class="empty">No zones yet.</p>'; return; }
-    list.innerHTML = this.zones.map(z => `<div class="zone-card${z.hidden ? ' is-hidden' : ''}" data-zone-id="${escapeHtml(z.id)}"><div><b>${escapeHtml(z.name)}</b><p>${escapeHtml(z.id)} · ${escapeHtml(z.kind === 'radius' ? `radius ${Math.round(z.radius || DEFAULT_RESOURCE_RADIUS)}px` : `${Math.round(z.w || 0)}×${Math.round(z.h || 0)}`)}${z.hidden ? ' · hidden' : ''}</p></div><div class="zone-card-actions"><button type="button" data-rename-zone="${escapeHtml(z.id)}">Rename</button><button type="button" data-toggle-zone-hidden="${escapeHtml(z.id)}">${z.hidden ? 'Show' : 'Hide'}</button><button type="button" data-add-zone-name="${escapeHtml(z.id)}">Add name</button></div></div>`).join('');
+    list.innerHTML = this.zones.map(z => `<div class="zone-card${z.hidden ? ' is-hidden' : ''}" data-zone-id="${escapeHtml(z.id)}"><div><b>${escapeHtml(z.name)}</b><p>${escapeHtml(z.id)} Â· ${escapeHtml(z.kind === 'radius' ? `radius ${Math.round(z.radius || DEFAULT_RESOURCE_RADIUS)}px` : `${Math.round(z.w || 0)}Ã—${Math.round(z.h || 0)}`)}${z.hidden ? ' Â· hidden' : ''}</p></div><div class="zone-card-actions"><button type="button" data-rename-zone="${escapeHtml(z.id)}">Rename</button><button type="button" data-toggle-zone-hidden="${escapeHtml(z.id)}">${z.hidden ? 'Show' : 'Hide'}</button><button type="button" data-add-zone-name="${escapeHtml(z.id)}">Add name</button></div></div>`).join('');
     list.querySelectorAll('[data-rename-zone]').forEach(btn => btn.addEventListener('click', () => this.promptRenameZone(this.zones.find(z => z.id === btn.dataset.renameZone))));
     list.querySelectorAll('[data-toggle-zone-hidden]').forEach(btn => btn.addEventListener('click', () => { const z = this.zones.find(zone => zone.id === btn.dataset.toggleZoneHidden); if (z) this.setZoneHidden(z, !z.hidden); }));
     list.querySelectorAll('[data-add-zone-name]').forEach(btn => btn.addEventListener('click', () => { const z = this.zones.find(zone => zone.id === btn.dataset.addZoneName); if (z) this.chat.insertAtCursor(z.name); }));
@@ -4644,8 +4828,8 @@ export class Game {
   showZoneMenu(z, x, y) {
     const el = this.dom.structureMenu;
     const text = this.zoneText(z);
-    const size = z.kind === 'radius' ? `radius ${Math.round(z.radius || DEFAULT_RESOURCE_RADIUS)} px` : `${Math.round(z.w || 0)}×${Math.round(z.h || 0)} px`;
-    el.innerHTML = `<b>${escapeHtml(z.name)}</b><button data-close>×</button><p>Zone ref <code>${escapeHtml(z.id)}</code><br>${escapeHtml(size)}<br><code>${escapeHtml(text)}</code></p><button data-add-rect>Add zone coords</button><button data-add-name>Add zone name</button><button data-add-ref>Add zone ref</button><button data-rename-zone>Rename</button><button data-hide-zone>Hide zone</button>`;
+    const size = z.kind === 'radius' ? `radius ${Math.round(z.radius || DEFAULT_RESOURCE_RADIUS)} px` : `${Math.round(z.w || 0)}Ã—${Math.round(z.h || 0)} px`;
+    el.innerHTML = `<b>${escapeHtml(z.name)}</b><button data-close>Ã—</button><p>Zone ref <code>${escapeHtml(z.id)}</code><br>${escapeHtml(size)}<br><code>${escapeHtml(text)}</code></p><button data-add-rect>Add zone coords</button><button data-add-name>Add zone name</button><button data-add-ref>Add zone ref</button><button data-rename-zone>Rename</button><button data-hide-zone>Hide zone</button>`;
     this.placeMenu(el,x,y);
     el.querySelector('[data-close]').onclick=()=>this.hideMenus();
     el.querySelector('[data-add-rect]').onclick=()=>{this.chat.insertAtCursor(text); this.hideMenus();};
@@ -4658,7 +4842,7 @@ export class Game {
   hideMenus(){ this.dom.botMenu.hidden=true; this.dom.structureMenu.hidden=true; }
 
   syncBuildUi() { if (!this.dom.buildStatus) return; this.dom.buildStatus.textContent = this.placementType ? `Click map to place ${BUILDING_TYPES[this.placementType].label}.` : 'Choose a building, then click the map.'; for (const b of this.dom.buildPanel.querySelectorAll('[data-build]')) b.classList.toggle('is-active', b.dataset.build === this.placementType); }
-  updateUI(dt) { this.dom.sawLogs.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0); this.dom.sawPlanks.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0); if (this.dom.sawPoles) this.dom.sawPoles.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0); this.dom.factoryPlanks.textContent = this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0); if (this.dom.factoryRecipe) this.dom.factoryRecipe.textContent = this.structures.filter(s=>s.type==='factory').map(s=>`L${s.logs||0} P${s.planks||0} Po${s.poles||0} S${s.tree_seeds||0}`).join(' · '); this.dom.looseLogs.textContent = this.countItems('log'); this.dom.loosePlanks.textContent = this.countItems('plank'); if (this.dom.looseBase) this.dom.looseBase.textContent = `sticks ${this.countItems('stick')} · stones ${this.countItems('stone')} · seeds ${this.countItems('tree_seed')} · poles ${this.countItems('pole')} · axes ${this.countItems('crude_axe')} · pickaxes ${this.countItems('crude_pickaxe')} · shovels ${this.countItems('crude_shovel')} · hammers ${this.countItems('crude_hammer')} · swords ${this.countItems('wooden_sword')} · shields ${this.countItems('wooden_shield')}`; if (this.dom.paletteItems) this.dom.paletteItems.textContent = this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0); this.dom.statline.innerHTML = `<span>FPS <b>${this.fps} / ${this.targetFps}</b></span><span>Bots <b>${this.bots.length} / ${this.maxBots}</b></span><span>Buildings <b>${this.structures.length}</b></span><span>Zones <b>${this.zones.length}</b></span>`; this.dom.rendererStatus.textContent = `Renderer: ${this.renderer.text}`; this.lastBotListUpdate += dt; if (this.lastBotListUpdate > .35) { this.lastBotListUpdate=0; this.syncBotDrawerUi(); } }
+  updateUI(dt) { this.dom.sawLogs.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0); this.dom.sawPlanks.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0); if (this.dom.sawPoles) this.dom.sawPoles.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0); this.dom.factoryPlanks.textContent = this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0); if (this.dom.factoryRecipe) this.dom.factoryRecipe.textContent = this.structures.filter(s=>s.type==='factory').map(s=>`L${s.logs||0} P${s.planks||0} Po${s.poles||0} S${s.tree_seeds||0}`).join(' Â· '); this.dom.looseLogs.textContent = this.countItems('log'); this.dom.loosePlanks.textContent = this.countItems('plank'); if (this.dom.looseBase) this.dom.looseBase.textContent = `sticks ${this.countItems('stick')} Â· stones ${this.countItems('stone')} Â· seeds ${this.countItems('tree_seed')} Â· poles ${this.countItems('pole')} Â· axes ${this.countItems('crude_axe')} Â· pickaxes ${this.countItems('crude_pickaxe')} Â· shovels ${this.countItems('crude_shovel')} Â· hammers ${this.countItems('crude_hammer')} Â· swords ${this.countItems('wooden_sword')} Â· shields ${this.countItems('wooden_shield')}`; if (this.dom.paletteItems) this.dom.paletteItems.textContent = this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0); this.dom.statline.innerHTML = `<span>FPS <b>${this.fps} / ${this.targetFps}</b></span><span>Bots <b>${this.bots.length} / ${this.maxBots}</b></span><span>Buildings <b>${this.structures.length}</b></span><span>Zones <b>${this.zones.length}</b></span>`; this.dom.rendererStatus.textContent = `Renderer: ${this.renderer.text}`; this.lastBotListUpdate += dt; if (this.lastBotListUpdate > .35) { this.lastBotListUpdate=0; this.syncBotDrawerUi(); } }
 
   getRenderState() { return createRenderState(this); }
   draw() { this.renderBackend?.draw?.(this.getRenderState()); }
@@ -4677,5 +4861,5 @@ export class Game {
     ...this.rocks.map(r=>({ id:r.ref, numericId:r.id, kind:'resource', type:'stone_deposit', name:'stone deposit', x:Math.round(r.x), y:Math.round(r.y), hp:r.hp, maxHp:r.maxHp, depleted:!!r.depleted })),
     ...this.bots.map(b=>({ id:b.ref, numericId:b.id, kind:'bot', name:this.botDisplayName(b), status:b.status||'worker', managerKnowledgePacks:b.managerKnowledgePacks||[], x:Math.round(b.x), y:Math.round(b.y), hp:b.hp, maxHp:b.maxHp, hostile:!!b.hostile, equipment:this.equipmentSummary(b), program:b.program, teamId:b.teamId||null, teamName:this.botTeam(b)?.name||null }))
   ]; }
-  getState(){ return { gameMode:this.gameMode||this.multiplayer?.mapMode||'test', map:{...this.map}, mapFeatures:clone(this.mapFeatures || []), paused:!!this.paused, fps:Math.round(this.fps||0), targetFps:this.targetFps, dynamicShadowsEnabled:!!this.dynamicShadowsEnabled, lightingEffectsEnabled:this.lightingEffectsEnabled!==false, showFpsOverlay:this.showFpsOverlay!==false, dayNight:this.getDayNightState(), fogOfWar:getFogStats(this.fogOfWar), nightSpawns:clone(this.nightSpawns||{}), multiplayer:this.getMultiplayerSnapshot(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), customTemplates:clone(this.customTemplates || []), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),status:b.status||'worker',managerKnowledgePacks:b.managerKnowledgePacks||[],knowledgePacks:b.managerKnowledgePacks||[],teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,customTemplateName:b.customTemplateName||'',paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,label:s.label,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,hammers:s.hammers||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:z.kind==='rect'?Math.round(z.w):undefined,h:z.kind==='rect'?Math.round(z.h):undefined,radius:z.kind==='radius'?Math.round(z.radius||DEFAULT_RESOURCE_RADIUS):undefined})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, webgpuAvailable:this.renderer.webgpu, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
+  getState(){ return { gameMode:this.gameMode||this.multiplayer?.mapMode||'test', map:{...this.map}, mapFeatures:clone(this.mapFeatures || []), paused:!!this.paused, fps:Math.round(this.fps||0), targetFps:this.targetFps, dynamicShadowsEnabled:!!this.dynamicShadowsEnabled, lightingEffectsEnabled:this.lightingEffectsEnabled!==false, showFpsOverlay:this.showFpsOverlay!==false, dayNight:this.getDayNightState(), fogOfWar:getFogStats(this.fogOfWar), nightSpawns:clone(this.nightSpawns||{}), multiplayer:this.getMultiplayerSnapshot(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null,targetQueue:(this.player.targetQueue||[]).map(target=>({...target,x:Math.round(target.x),y:Math.round(target.y)}))}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), customTemplates:clone(this.customTemplates || []), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),status:b.status||'worker',managerKnowledgePacks:b.managerKnowledgePacks||[],knowledgePacks:b.managerKnowledgePacks||[],teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,customTemplateName:b.customTemplateName||'',paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,label:s.label,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,hammers:s.hammers||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:z.kind==='rect'?Math.round(z.w):undefined,h:z.kind==='rect'?Math.round(z.h):undefined,radius:z.kind==='radius'?Math.round(z.radius||DEFAULT_RESOURCE_RADIUS):undefined})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, webgpuAvailable:this.renderer.webgpu, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
 }

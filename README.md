@@ -107,7 +107,7 @@ No build step, npm install, bundler, or framework is required.
 - `Enter` opens/focuses chat when it is closed; `L` toggles chat visibility.
 - Frontend settings default to Paul-compatible local Ollama names: `gemma4:12b` selected, `gemma4-26b-a4b-local:latest`, `bonsai8b-q1:latest`, and `llama3:latest` available as fallbacks.
 - Backend Ollama now has Gemma4 12B Q4 plus small models installed and old Gemma3 models removed.
-- Voice settings now offer two Sherpa modes: Zipformer live partials + Whisper finalizer, or Whisper direct with no Zipformer and final-only transcript after stop.
+- Voice settings now offer Sherpa live modes plus a browser Whisper mode that downloads a local model once and transcribes on-device, in addition to Whisper direct and faster-whisper server upload.
 
 ## v3 interaction/UI additions
 
@@ -200,7 +200,21 @@ The **Local Ollama / Benchmark** panel supports:
 - Mock parser vs Local Ollama mode
 - JSON tool-call benchmark button
 - Latency and token/eval count display when Ollama returns those fields
+- Semantic pack routing runs in a Web Worker and narrows each request to the closest knowledge/action pack bundle before the prompt is built.
+- The semantic router can be trained from the current chat draft when a request lands in the wrong pack or needs calibration.
 - OpenAI/ChatGPT relay was intentionally skipped in this build because the server has no OpenAI API key configured; a ChatGPT subscription alone is not enough for server API relay.
+
+### Assistant eval corpus
+
+The repo now includes a compact assistant-evaluation corpus at `tests/assistant-eval-corpus.json` plus a runner:
+
+```bash
+node scripts/run-assistant-eval.mjs --provider=mock
+node scripts/run-assistant-eval.mjs --provider=ollama --endpoint=http://127.0.0.1:11434 --model=gemma4:12b
+node scripts/run-assistant-eval.mjs --provider=tabbyapi --endpoint=http://127.0.0.1:5000/v1 --model=Qwen2.5-Coder-7B-Instruct-exl2-6_5
+```
+
+The report includes first-pass validity, repaired validity, semantic correctness against normalized expected assignments, latency, and token counts when the provider returns them.
 
 Expected Ollama setup example:
 
@@ -312,6 +326,8 @@ wss://docs.pau1.cloud/asr/ws?mode=faster_whisper
 ```
 
 The Settings → Voice mode `faster_whisper` uses the server-side `faster-whisper` model already cached for Telegram voice messages. In the browser it records with `MediaRecorder`, uploads the finished clip, and inserts the returned final transcript:
+
+The same Voice tab now also includes a browser Whisper model picker and download UI. `browser_whisper` caches the selected Whisper model in the browser and transcribes locally with no server upload.
 
 ```text
 POST https://docs.pau1.cloud/asr/transcribe?mode=faster_whisper

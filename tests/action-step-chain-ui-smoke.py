@@ -43,7 +43,7 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             loop_row = next(row for row in rows if row["op"] == "loop")
             assert loop_row["dslSnippet"] == '{"op":"loop"}', loop_row
             assert any(row["op"] == "use_held_item" and "Normalizer-only" in row["notes"] for row in rows), rows
-            assert any(row["op"] == "wait" and "custom/taught loops" in row["notes"] for row in rows), rows
+            assert any(row["op"] == "wait" and row["backend"] == "built-in template + custom/taught loop" for row in rows), rows
 
             page.evaluate("window.uiDebug.setSettingsOpen(true); window.uiDebug.setSettingsTab('step-chain')")
             table = page.locator("#actionStepChainTable table")

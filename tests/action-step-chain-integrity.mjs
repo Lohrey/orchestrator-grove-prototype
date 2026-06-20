@@ -7,13 +7,14 @@ import {
   ACTION_STEPS,
   ALLOWED_OPS,
   ASSISTANT_KNOWLEDGE_PACKS,
+  DEFAULT_ASSISTANT_LOADOUT,
   DSL_ACTION_WIKI,
   PROGRAMS,
   PROGRAM_TEMPLATES,
   getActionStepChainRows
 } from '../src/data.js';
 import { ACTION_STEP_ORDER, ACTION_STEP_REGISTRY, actionStepDetailsForOps, actionStepOpsForPack } from '../src/action-steps.js';
-import { normalizeAssistantKnowledgePack, normalizeAssistantPackCatalog, summarizeAssistantLoadout } from '../src/assistant.js';
+import { ASSISTANT_PROTOCOL_KERNEL, buildOllamaPrompt, normalizeAssistantKnowledgePack, normalizeAssistantPackCatalog, summarizeAssistantLoadout } from '../src/assistant.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relativePath => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
@@ -34,6 +35,11 @@ for (const action of DSL_ACTION_WIKI.actions) {
   const registered = ACTION_STEPS[action.op];
   assert.deepEqual(action.args, registered.args || [], `${action.op} wiki args must match registry`);
   assert.equal(action.description, registered.description, `${action.op} wiki description must match registry`);
+  assert.ok(Array.isArray(registered.aliases?.step), `${action.op} must expose step aliases in the registry`);
+  assert.ok(registered.aliases.step.length > 0, `${action.op} must expose at least one step alias`);
+  for (const arg of registered.args || []) {
+    assert.ok(Array.isArray(registered.aliases?.args?.[arg]), `${action.op}.${arg} must expose arg aliases in the registry`);
+  }
 }
 
 for (const pack of Object.values(ASSISTANT_KNOWLEDGE_PACKS)) {
@@ -56,16 +62,57 @@ const customPack = normalizeAssistantKnowledgePack({
   name: 'Tree courier',
   custom: true,
   unlockedOps: ['pick_up', 'not_real_op', 'deposit_to_player'],
-  contextVariables: ['availableBotNames']
+  contextVariables: ['availableBotNames'],
+  actionPartAliases: {
+    pick_up: {
+      step: ['collect thing'],
+      args: {
+        type: ['loot type'],
+        zone: ['search patch']
+      }
+    }
+  }
 });
 assert.deepEqual(customPack.unlockedOps, ['pick_up', 'deposit_to_player'], 'custom pack ops must be filtered through the registry');
 assert.deepEqual(customPack.actions.map(action => action.op), customPack.unlockedOps, 'custom pack action details must match selected valid ops only');
 assert.deepEqual(customPack.actions[0].validVariables, ACTION_STEPS.pick_up.args, 'custom pack action variables derive from registry args');
 assert.ok(customPack.actions[0].dslSnippet.includes('"type":"$type"'), 'custom pack action snippets derive from registry snippets');
+assert.deepEqual(customPack.actionPartAliases.pick_up.step, ['collect thing'], 'custom pack must persist custom step aliases');
+assert.deepEqual(customPack.actions[0].partAliases.step, ['collect thing'], 'custom action details must expose customized step aliases');
+assert.ok(customPack.vocabulary.includes('collect thing'), 'custom pack vocabulary must include action aliases');
+assert.ok(customPack.vocabulary.includes('loot type'), 'custom pack vocabulary must include arg aliases');
 const customCatalog = normalizeAssistantPackCatalog({ ...ASSISTANT_KNOWLEDGE_PACKS, [customPack.id]: customPack });
 const customSummary = summarizeAssistantLoadout([customPack.id], customCatalog);
 assert.deepEqual(customSummary.unlockedOps, customPack.unlockedOps, 'custom loadout unlocks selected custom ops only');
 assert.equal(customSummary.packs[0].actions.length, 2, 'custom loadout includes per-pack action details');
+
+const promptGame = {
+  bots: [{ id: 1, ref: 'bot 1', name: 'Bot 1', status: 'worker', program: 'idle' }],
+  structures: [{ id: 1, ref: 'sawbench 1', name: 'Sawbench 1', type: 'sawbench' }],
+  zones: [],
+  customTemplates: [],
+  monsters: [],
+  player: { inventory: null }
+};
+const starterPrompt = buildOllamaPrompt('bot 1 bring me a log', promptGame, { loadout: ['starter_automation'] });
+assert.deepEqual(JSON.parse(starterPrompt.systemPrompt), ASSISTANT_PROTOCOL_KERNEL, 'system prompt must be the domain-free protocol kernel JSON');
+assert.doesNotMatch(starterPrompt.systemPrompt, /pick_up|log|tree|sawbench|tool_calls/, 'protocol kernel must not contain domain actions, objects, or legacy output shapes');
+assert.deepEqual(ASSISTANT_PROTOCOL_KERNEL.responseSchema.properties.dsl_assignments.items.required, ['program'], 'protocol kernel assignments must require only program and allow botId or assignee selection');
+assert.equal(ASSISTANT_PROTOCOL_KERNEL.responseSchema.properties.dsl_assignments.items.properties.assignee.required[0], 'strategy', 'protocol kernel assignee selector must require strategy');
+assert.deepEqual(ASSISTANT_PROTOCOL_KERNEL.responseSchema.properties.dsl_assignments.items.properties.program.required, ['repeat', 'steps'], 'protocol kernel program contract must require repeat and steps');
+const starterPayload = JSON.parse(starterPrompt.userPrompt);
+assert.deepEqual(Object.keys(starterPayload), ['capabilities', 'symbols', 'lockedRequestHints', 'request'], 'user payload must separate capabilities, symbols, availability hints, and request');
+assert.equal(starterPayload.request, 'bot 1 bring me a log', 'request appears once in the user payload');
+const starterActionOps = starterPayload.capabilities.actions.map(action => action.op);
+assert.equal(starterActionOps.length, new Set(starterActionOps).size, 'each selected action contract appears exactly once');
+assert.deepEqual(starterActionOps, actionStepOpsForPack('starter_automation'), 'capability actions must match the selected pack');
+assert.ok(starterPayload.symbols.bots?.some(bot => bot.id === 1), 'request-relevant bot symbol must be included');
+assert.deepEqual(starterPayload.symbols.itemTypes, ['log'], 'only the request-relevant item type must be included');
+assert.ok(starterPayload.capabilities.recipes.some(recipe => recipe.intent === 'bot 1 bring log to me'), 'request-relevant domain recipe must be included');
+assert.doesNotMatch(starterPrompt.finalPrompt, /tool_calls|assignBotProgram/, 'model prompt must not advertise legacy tool calls');
+assert.ok(starterPrompt.finalPrompt.length < 8000, `starter prompt must stay compact, got ${starterPrompt.finalPrompt.length} characters`);
+const fullPrompt = buildOllamaPrompt('bot 1 bring me a log', promptGame, { loadout: DEFAULT_ASSISTANT_LOADOUT });
+assert.ok(fullPrompt.finalPrompt.length < 16000, `full built-in loadout prompt must stay within the compact budget, got ${fullPrompt.finalPrompt.length} characters`);
 
 assertSameSet(Object.keys(PROGRAM_TEMPLATES), PROGRAMS, 'PROGRAMS and PROGRAM_TEMPLATES must match');
 for (const [templateId, template] of Object.entries(PROGRAM_TEMPLATES)) {
@@ -87,6 +134,8 @@ for (const row of rows) {
     assert.equal(snippet[arg], `$${arg}`, `${row.op} DSL snippet must expose ${arg} placeholder`);
   }
   assert.ok(row.promptSignature, `${row.op} needs a prompt signature`);
+  assert.ok(Array.isArray(row.aliasVocabulary), `${row.op} needs flattened alias vocabulary`);
+  assert.ok(row.aliasVocabulary.length >= row.args.length, `${row.op} alias vocabulary should cover the step and its parts`);
   if (row.packs.length && !row.customLoop && !row.notes) {
     throw new Error(`${row.op} is exposed to knowledge packs without custom-loop support or an explicit registry note`);
   }
@@ -114,17 +163,20 @@ for (const [op, step] of Object.entries(ACTION_STEPS)) {
 }
 
 const assistantSource = read('src/assistant.js');
-assert.match(assistantSource, /runtimeDslSignaturesForOps/, 'assistant prompt signatures must use the action-step registry helper');
-assert.match(assistantSource, /return runtimeDslSignaturesForOps\(unlockedOps\)/, 'runtimeSignaturesForOps must delegate to registry signatures');
+assert.match(assistantSource, /ASSISTANT_PROTOCOL_KERNEL/, 'assistant must define an always-present protocol kernel');
+assert.match(assistantSource, /compactCapabilities/, 'assistant prompt must compile deduplicated selected-pack capabilities');
 
 const mainSource = read('src/main.js');
 assert.match(mainSource, /getActionStepChainRows/, 'main UI must render registry-backed step-chain rows');
 assert.match(mainSource, /DSL snippet/, 'settings step-chain table must label the DSL snippet column');
 assert.match(mainSource, /row\.dslSnippet/, 'settings step-chain table must render row.dslSnippet');
+assert.match(mainSource, /customPackAliasEditor/, 'main UI must wire the custom pack alias editor');
+assert.match(mainSource, /data-action-alias-step/, 'main UI must render editable step alias inputs');
 assert.match(mainSource, /window\.allowedProgramOps = ALLOWED_OPS\.slice\(\)/, 'public allowedProgramOps must expose ALLOWED_OPS');
 
 const indexSource = read('index.html');
 assert.match(indexSource, /actionStepChainTable/, 'settings UI must contain the action step chain table host');
+assert.match(indexSource, /customPackAliasEditor/, 'knowledge pack UI must contain the alias editor host');
 
 const agentsSource = read('AGENTS.md');
 assert.match(agentsSource, /Action Step Mechanism Chain/, 'AGENTS.md must define the step-chain rule');

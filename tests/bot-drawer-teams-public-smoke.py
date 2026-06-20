@@ -43,6 +43,10 @@ with sync_playwright() as p:
     page.locator("#botSearch").fill("")
     page.wait_for_function("() => [...document.querySelectorAll('#botList [data-bot-card]')].length >= 4")
 
+    page.locator("#botList [data-bot-id='2'] [data-open-bot-menu='2']").last.click()
+    page.wait_for_function("() => document.querySelector('#botMenu .bot-menu-title b')?.textContent === 'Miner Beta'")
+    assert page.locator("#botMenu [data-bot-json-editor]").count() == 1
+
     page.locator("#botTeamName").fill("Forestry")
     page.locator("#botTeamColor").evaluate("el => { el.value = '#2f6f5d'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
     page.locator("#botTeamCreate").click()

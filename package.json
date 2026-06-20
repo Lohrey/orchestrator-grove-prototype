@@ -7,6 +7,7 @@
     "start": "node server.mjs",
     "smoke": "python3 tests/multiplayer-smoke.py",
     "test:steps": "node tests/action-step-chain-integrity.mjs",
+    "test:semantic-router": "node tests/semantic-router-unit.mjs",
     "build:ui": "vite build",
     "build:wasm": "cargo build --manifest-path wasm/sim-core/Cargo.toml --release --target wasm32-unknown-unknown && mkdir -p src/sim/wasm && cp wasm/sim-core/target/wasm32-unknown-unknown/release/sim_core.wasm src/sim/wasm/sim_core.wasm",
     "test:sim-worker": "python3 tests/sim-worker-smoke.py",
@@ -14,11 +15,14 @@
     "test:camera": "python3 tests/camera-shift-speed-smoke.py && python3 tests/mobile-touch-camera-bounds-smoke.py",
     "test:zoom-culling": "node tests/zoom-culling-focused.mjs",
     "build:sim-worker": "esbuild src/sim/sim-worker.ts --bundle --format=esm --outfile=src/sim/sim-worker.js --target=es2022",
-    "build:architecture": "npm run build:wasm && npm run build:sim-worker && npm run build:ui"
+    "build:architecture": "npm run build:wasm && npm run build:sim-worker && npm run build:ui",
+    "postinstall": "node scripts/copy-onnx-wasm.mjs && node scripts/copy-browser-stt-vendor.mjs"
   },
   "dependencies": {
     "@socket.io/admin-ui": "^0.5.1",
+    "@huggingface/transformers": "4.1.0",
     "express": "^4.19.2",
+    "onnxruntime-web": "1.25.0-dev.20260212-1a71a5f46e",
     "socket.io": "^4.7.5"
   },
   "devDependencies": {

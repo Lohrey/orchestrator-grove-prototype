@@ -1,4 +1,124 @@
 const freezeList = values => Object.freeze([...values]);
+const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value || {}, key);
+
+const GENERIC_ARG_ALIASES = Object.freeze({
+  zone: ['area', 'region', 'location', 'nearby area'],
+  type: ['item', 'resource', 'item type', 'kind'],
+  target: ['target', 'destination', 'building', 'structure'],
+  source: ['source', 'origin', 'from', 'storage source'],
+  recipe: ['recipe', 'craft recipe', 'blueprint'],
+  radius: ['range', 'search radius', 'guard radius'],
+  points: ['waypoints', 'checkpoints', 'route points'],
+  distance: ['spacing', 'follow distance', 'escort distance'],
+  targetKind: ['target type', 'resource kind', 'thing to use tool on'],
+  goto: ['step index', 'jump target', 'goto step'],
+  bot: ['bot', 'bot id', 'bot name'],
+  templateName: ['template', 'saved loop', 'recording name'],
+  name: ['bot name', 'display name', 'label'],
+  knowledgePacks: ['packs', 'knowledge packs', 'manager packs'],
+  recipient: ['manager', 'manager bot', 'recipient bot'],
+  message: ['instruction', 'order', 'task'],
+  seconds: ['delay', 'time', 'pause length']
+});
+
+const DEFAULT_STEP_ALIASES_BY_OP = Object.freeze({
+  chop_tree: ['cut tree', 'fell tree', 'harvest wood'],
+  search_tree: ['inspect tree', 'forage tree', 'look in tree'],
+  chop_hemp: ['cut hemp', 'harvest hemp'],
+  search_hemp: ['inspect hemp', 'forage hemp'],
+  mine_stone: ['quarry stone', 'mine rock'],
+  dig_hole: ['shovel hole', 'make hole'],
+  pick_up: ['pickup', 'collect', 'grab', 'take item'],
+  pick_up_from_storage: ['take from storage', 'withdraw', 'fetch from palette'],
+  pick_up_specific: ['pick exact item', 'grab selected item'],
+  deliver_to_sawbench: ['bring to sawbench', 'feed sawbench'],
+  process_sawbench: ['run sawbench', 'operate sawbench'],
+  process_poles: ['make poles', 'run pole process'],
+  fetch_plank_from_sawbench: ['get plank from sawbench', 'collect plank'],
+  fetch_pole_from_sawbench: ['get pole from sawbench', 'collect pole'],
+  deliver_to_workbench: ['bring to workbench', 'feed workbench'],
+  craft_workbench: ['craft at tool bench', 'make tool'],
+  craft_smithery: ['forge weapon', 'craft sword', 'craft shield'],
+  craft_bowmaker: ['make bow', 'craft bow'],
+  deliver_to_factory: ['bring to factory', 'feed factory'],
+  assemble_bot: ['build bot', 'make bot'],
+  idle_parking: ['park', 'go idle', 'stand by'],
+  wait: ['pause', 'delay'],
+  loop: ['repeat', 'repeat forever', 'keep doing'],
+  assign_template: ['assign recording', 'assign saved loop'],
+  rename_bot: ['name bot', 'call bot'],
+  promote_to_manager: ['make manager', 'set as manager'],
+  delegate_to_manager: ['ask manager', 'send order to manager'],
+  follow: ['escort', 'trail'],
+  guard_area: ['hold position', 'defend area', 'guard zone'],
+  patrol_route: ['patrol', 'walk route'],
+  attack: ['fight', 'engage', 'hunt target'],
+  equip_item: ['arm', 'equip weapon'],
+  move_to_structure: ['go to building', 'walk to structure'],
+  deposit_to_structure: ['deliver', 'bring to structure', 'store in building'],
+  drop_item: ['put down', 'leave on ground'],
+  deploy_building_kit: ['place kit', 'build from kit', 'deploy kit'],
+  disassemble_building_to_kit: ['pack up building', 'tear down building'],
+  find_dug_hole: ['find planting hole', 'find open hole'],
+  plant_seed: ['sow seed', 'plant tree seed'],
+  use_held_item: ['use tool', 'use held tool', 'use carried item'],
+  deposit_to_player: ['bring to player', 'give to me', 'deliver to player'],
+  take_from_player: ['take from player', 'take from me', 'collect from player']
+});
+
+function normalizeAliasList(values) {
+  const list = Array.isArray(values) ? values : typeof values === 'string' ? values.split(/[\n,]+/) : [];
+  const seen = new Set();
+  return list
+    .map(value => String(value || '').trim().toLowerCase())
+    .filter(Boolean)
+    .filter(value => !seen.has(value) && seen.add(value));
+}
+
+function derivedStepNameAliases(op = '', label = '') {
+  const values = [
+    String(op || '').replace(/_/g, ' ').trim().toLowerCase(),
+    String(label || '').trim().toLowerCase()
+  ];
+  const compact = values[0].replace(/\s+/g, '');
+  if (compact && compact !== values[0]) values.push(compact);
+  return normalizeAliasList(values);
+}
+
+function normalizeActionStepAliases(value = {}, args = []) {
+  const argSource = value && typeof value.args === 'object' && value.args ? value.args : {};
+  return Object.freeze({
+    step: freezeList(normalizeAliasList(value.step)),
+    args: Object.freeze(Object.fromEntries(args.map(arg => {
+      const raw = hasOwn(argSource, arg) ? argSource[arg] : (hasOwn(value, arg) ? value[arg] : []);
+      return [arg, freezeList(normalizeAliasList(raw))];
+    })))
+  });
+}
+
+function finalizeActionStepAliases(op, step) {
+  const args = step.args || [];
+  const registryAliases = normalizeActionStepAliases(step.aliases || {}, args);
+  const stepAliases = normalizeAliasList([
+    ...derivedStepNameAliases(op, step.label),
+    ...(DEFAULT_STEP_ALIASES_BY_OP[op] || []),
+    ...(registryAliases.step || [])
+  ]);
+  return Object.freeze({
+    step: freezeList(stepAliases),
+    args: Object.freeze(Object.fromEntries(args.map(arg => [arg, freezeList(normalizeAliasList([
+      ...(GENERIC_ARG_ALIASES[arg] || []),
+      ...((registryAliases.args && registryAliases.args[arg]) || [])
+    ]))])))
+  });
+}
+
+function flattenAliasMetadata(aliases = {}) {
+  return normalizeAliasList([
+    ...((aliases.step || [])),
+    ...Object.values(aliases.args || {}).flatMap(list => list || [])
+  ]);
+}
 
 export const KNOWLEDGE_PACK_IDS = freezeList(['starter_automation', 'woodworking', 'logistics', 'farming', 'mining_tools', 'combat']);
 
@@ -40,7 +160,7 @@ function step(definition) {
   });
 }
 
-export const ACTION_STEP_REGISTRY = Object.freeze({
+const RAW_ACTION_STEP_REGISTRY = Object.freeze({
   find_nearest_tree: step({
     label: 'Find nearest tree',
     args: ['zone'],
@@ -284,7 +404,7 @@ export const ACTION_STEP_REGISTRY = Object.freeze({
     signature: 'wait(seconds) - pause briefly before advancing',
     packs: ['starter_automation'],
     templates: true,
-    customLoopNote: 'Known gap: custom/taught loops currently advance wait immediately.',
+    customLoop: true,
     uiCard: 'numeric seconds field'
   }),
   loop: step({
@@ -484,6 +604,18 @@ export const ACTION_STEP_REGISTRY = Object.freeze({
   })
 });
 
+export const ACTION_STEP_REGISTRY = Object.freeze(Object.fromEntries(ACTION_STEP_ORDER.map(op => {
+  const step = RAW_ACTION_STEP_REGISTRY[op];
+  const args = freezeList(step?.args || []);
+  const packs = freezeList(step?.packs || []);
+  return [op, Object.freeze({
+    ...step,
+    args,
+    packs,
+    aliases: finalizeActionStepAliases(op, { ...step, args })
+  })];
+})));
+
 export function actionStepList() {
   return ACTION_STEP_ORDER.map(op => ({ op, ...ACTION_STEP_REGISTRY[op] }));
 }
@@ -507,6 +639,26 @@ export function validActionStepOps(ops = []) {
     .filter(op => ACTION_STEP_REGISTRY[op] && !seen.has(op) && seen.add(op));
 }
 
+export function normalizeActionStepAliasOverrides(overrides = {}, ops = ACTION_STEP_ORDER) {
+  return Object.fromEntries(validActionStepOps(ops)
+    .filter(op => hasOwn(overrides, op))
+    .map(op => [op, normalizeActionStepAliases(overrides[op], ACTION_STEP_REGISTRY[op]?.args || [])]));
+}
+
+export function resolveActionStepAliases(op, override = null) {
+  const base = ACTION_STEP_REGISTRY[op]?.aliases || { step: [], args: {} };
+  if (!override) return base;
+  const normalizedOverride = normalizeActionStepAliases(override, ACTION_STEP_REGISTRY[op]?.args || []);
+  const rawArgOverride = override && typeof override.args === 'object' && override.args ? override.args : {};
+  return Object.freeze({
+    step: freezeList(hasOwn(override, 'step') ? normalizedOverride.step : base.step),
+    args: Object.freeze(Object.fromEntries((ACTION_STEP_REGISTRY[op]?.args || []).map(arg => {
+      const hasArgOverride = hasOwn(rawArgOverride, arg) || hasOwn(override, arg);
+      return [arg, freezeList(hasArgOverride ? normalizedOverride.args[arg] : ((base.args || {})[arg] || []))];
+    })))
+  });
+}
+
 export function runtimeDslSignaturesForOps(ops = []) {
   return validActionStepOps(ops).map(op => ACTION_STEP_REGISTRY[op]?.signature).filter(Boolean);
 }
@@ -517,10 +669,11 @@ function actionStepDslSnippet(step) {
   return JSON.stringify(snippet);
 }
 
-export function actionStepDetailsForOps(ops = []) {
+export function actionStepDetailsForOps(ops = [], { actionPartAliases = {} } = {}) {
   return validActionStepOps(ops).map(op => {
     const step = ACTION_STEP_REGISTRY[op];
     const args = step.args || [];
+    const aliases = resolveActionStepAliases(op, actionPartAliases?.[op]);
     return {
       op,
       label: step.label,
@@ -528,7 +681,9 @@ export function actionStepDetailsForOps(ops = []) {
       args,
       validVariables: args,
       dslSnippet: step.dslSnippet || actionStepDslSnippet({ op, ...step }),
-      promptSignature: step.signature || ''
+      promptSignature: step.signature || '',
+      partAliases: aliases,
+      aliasVocabulary: flattenAliasMetadata(aliases)
     };
   });
 }
@@ -568,7 +723,9 @@ export function actionStepChainRows({ programTemplates = {}, knowledgePacks = {}
       uiCard: step.uiCard,
       dslSnippet: step.dslSnippet || actionStepDslSnippet(step),
       promptSignature: step.signature || '',
-      notes: step.customLoopNote || ''
+      notes: step.customLoopNote || '',
+      aliases: step.aliases,
+      aliasVocabulary: flattenAliasMetadata(step.aliases)
     };
   });
 }

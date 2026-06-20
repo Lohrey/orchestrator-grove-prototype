@@ -1099,6 +1099,7 @@ function drawPlayerActor(game, c, now) {
 }
 
 function drawPlayerTarget(game, c) {
+  const queuedTargets = game.player.targetQueue || [];
   c.save();
   c.strokeStyle = '#86b6d6';
   c.lineWidth = 2;
@@ -1113,6 +1114,21 @@ function drawPlayerTarget(game, c) {
     const done = 1 - Math.max(0, game.player.target.remaining || 0) / total;
     drawBar(c, game.player.target.x - 24, game.player.target.y - 34, 48, 7, done, '#d3a95f');
     drawNameTag(c, game.player.target.processLabel || 'working', game.player.target.x, game.player.target.y - 42);
+  }
+  if (queuedTargets.length) {
+    c.strokeStyle = '#9abf8f';
+    c.fillStyle = '#9abf8f';
+    let prev = game.player.target;
+    for (const target of queuedTargets) {
+      c.beginPath();
+      c.moveTo(prev.x, prev.y);
+      c.lineTo(target.x, target.y);
+      c.stroke();
+      c.beginPath();
+      c.arc(target.x, target.y, 10, 0, Math.PI * 2);
+      c.stroke();
+      prev = target;
+    }
   }
   c.restore();
 }

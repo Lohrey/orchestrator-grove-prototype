@@ -43,6 +43,10 @@ def submit_chat(page, text: str) -> None:
     page.click("#askButton")
 
 
+def parse_prompt_preview(page):
+    return page.evaluate("JSON.parse(document.getElementById('assistantPromptPreview').textContent)")
+
+
 with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, directory=str(ROOT))) as server:
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -67,24 +71,33 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             knowledge_class = page.locator('[data-settings-panel="knowledge"]').get_attribute("class") or ""
             assert "is-active" in knowledge_class, knowledge_class
             assert page.locator("#knowledgePackList [data-knowledge-pack]").count() == len(packs)
+            foldouts = page.locator("details.prompt-foldout")
+            assert foldouts.count() == 3, foldouts.count()
+            assert page.locator("details.prompt-foldout[open]").count() == 0
+            page.locator("details.prompt-foldout").nth(2).locator("summary").click()
+            assert page.locator("details.prompt-foldout[open]").count() == 1
             debug = page.evaluate("window.getAssistantLoadoutDebug()")
             assert "mine_stone" in debug["unlockedOps"], debug
             assert "Mining + Tools" in page.locator("#knowledgePackList").inner_text()
             prompt_before = page.evaluate("window.getAssistantPromptPreview()")
-            assert "SYSTEM:" in prompt_before and "USER:" in prompt_before, prompt_before
-            assert "[current user request will appear here]" in prompt_before, prompt_before
-            assert '"id":"mining_tools"' in prompt_before, prompt_before
+            prompt_before_json = parse_prompt_preview(page)
+            assert prompt_before.strip().startswith("{"), prompt_before
+            assert prompt_before_json["systemPrompt"]["role"] == "command_compiler", prompt_before_json
+            assert prompt_before_json["userPrompt"]["request"] == "[current user request will appear here]", prompt_before_json
+            assert prompt_before_json["messages"][1]["content"]["request"] == "[current user request will appear here]", prompt_before_json
+            assert any(action["op"] == "mine_stone" for action in prompt_before_json["knowledge"]["capabilities"]["actions"]), prompt_before_json
             page.fill("#chatInput", "bot 1 feed sawbench with logs")
             prompt_with_request = page.evaluate("window.getAssistantPromptPreview()")
-            assert "Request: bot 1 feed sawbench with logs" in prompt_with_request, prompt_with_request
+            prompt_with_request_json = parse_prompt_preview(page)
+            assert prompt_with_request_json["messages"][1]["content"]["request"] == "bot 1 feed sawbench with logs", prompt_with_request_json
             page.uncheck('[data-knowledge-pack="mining_tools"]')
             stored = page.evaluate("localStorage.getItem('orchestratorGrove.assistantLoadout.v1')")
             assert "mining_tools" not in stored, stored
             debug = page.evaluate("window.getAssistantLoadoutDebug()")
             assert "mine_stone" not in debug["unlockedOps"], debug
-            prompt_after = page.locator("#assistantPromptPreview").inner_text()
-            assert '"id":"mining_tools"' not in prompt_after, prompt_after
-            assert "Request: bot 1 feed sawbench with logs" in prompt_after, prompt_after
+            prompt_after_json = parse_prompt_preview(page)
+            assert not any(action["op"] == "mine_stone" for action in prompt_after_json["knowledge"]["capabilities"]["actions"]), prompt_after_json
+            assert prompt_after_json["messages"][1]["content"]["request"] == "bot 1 feed sawbench with logs", prompt_after_json
             mining_parse = page.evaluate("window.generateAssistantDsl('bot 1 mine stone')")
             assert not mining_parse.get("dslAssignments"), mining_parse
 
@@ -101,7 +114,8 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             assert custom_debug["unlockedOps"] == ["pick_up", "deposit_to_player"], custom_debug
             page.fill("#chatInput", "bot 1 bring log to me")
             custom_prompt = page.evaluate("window.getAssistantPromptPreview()")
-            assert '"id":"custom_player_courier_test"' in custom_prompt, custom_prompt
+            custom_prompt_json = parse_prompt_preview(page)
+            assert any(action["op"] == "deposit_to_player" for action in custom_prompt_json["knowledge"]["capabilities"]["actions"]), custom_prompt_json
             custom_knowledge = page.evaluate("JSON.parse(document.getElementById('assistantLoadoutView').textContent)")
             custom_pack = custom_knowledge["equippedPacks"][0]
             custom_ops = [action["op"] for action in custom_pack["actions"]]
@@ -132,10 +146,11 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             page.evaluate("window.setAssistantLoadout(['starter_automation'])")
             page.fill("#chatInput", "make bot 1 pick up crude_axe and chop tree")
             starter_prompt = page.evaluate("window.getAssistantPromptPreview()")
-            assert '"lockedRequestHints"' in starter_prompt, starter_prompt
-            assert '"op":"chop_tree"' in starter_prompt, starter_prompt
-            assert "use_held_item(targetKind" in starter_prompt, starter_prompt
-            assert "never use for trees/resources" in starter_prompt, starter_prompt
+            starter_prompt_json = parse_prompt_preview(page)
+            assert "lockedRequestHints" in starter_prompt_json["knowledge"], starter_prompt_json
+            assert any(hint["op"] == "chop_tree" for hint in starter_prompt_json["knowledge"]["lockedRequestHints"]), starter_prompt_json
+            assert any(action["op"] == "use_held_item" and "targetKind" in action["args"] for action in starter_prompt_json["knowledge"]["capabilities"]["actions"]), starter_prompt_json
+            assert any(hint["op"] == "chop_tree" and "trees are resources" in hint["reason"] for hint in starter_prompt_json["knowledge"]["lockedRequestHints"]), starter_prompt_json
             bad_validation = page.evaluate(
                 """
                 () => {
@@ -175,8 +190,9 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
 
             page.evaluate("window.setAssistantLoadout(['starter_automation', 'woodworking'])")
             woodworking_prompt = page.evaluate("window.getAssistantPromptPreview()")
-            assert '"name":"Chop trees"' in woodworking_prompt, woodworking_prompt
-            assert '"op":"use_held_item"' in woodworking_prompt, woodworking_prompt
+            woodworking_prompt_json = parse_prompt_preview(page)
+            assert any(action["op"] == "chop_tree" for action in woodworking_prompt_json["knowledge"]["capabilities"]["actions"]), woodworking_prompt_json
+            assert any(action["op"] == "use_held_item" for action in woodworking_prompt_json["knowledge"]["capabilities"]["actions"]), woodworking_prompt_json
             good_validation = page.evaluate(
                 """
                 () => window.validateAssistantDslAssignments([{ botId: 1, program: { steps: [
@@ -228,6 +244,14 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             bot2 = page.evaluate("window.getGameState().bots.find(b => b.id === 2)")
             assert bot2["taughtLoop"][0]["op"] == "pick_up", bot2
             assert bot2["taughtLoop"][1]["op"] == "deposit_to_structure", bot2
+
+            anybot_parse = page.evaluate("window.generateAssistantDsl('someone bring me a log')")
+            anybot_assignment = anybot_parse["dslAssignments"][0]
+            assert anybot_assignment["assignee"]["strategy"] == "any_eligible", anybot_parse
+            anybot_assigned = page.evaluate("assignment => window.assignCustomDslProgram(assignment)", anybot_assignment)
+            assert anybot_assigned["ok"] is True, anybot_assigned
+            assert anybot_assigned["bot"]["status"] == "worker", anybot_assigned
+            assert anybot_assigned["bot"]["program"] == "taught_loop", anybot_assigned
 
             browser.close()
     finally:

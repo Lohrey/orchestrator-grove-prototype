@@ -128,12 +128,13 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             assert captured, "Ollama request was not captured"
             system_prompt = captured[0]["messages"][0]["content"]
             user_prompt = captured[0]["messages"][1]["content"]
-            assert "strict JSON compiler" in system_prompt
-            assert "Preferred shape" in system_prompt
-            assert "never output markdown or JavaScript" in system_prompt
-            assert '"equippedPacks"' in user_prompt
-            assert '"id":"starter_automation"' in user_prompt
-            assert "deposit_to_structure" in user_prompt
+            protocol = json.loads(system_prompt)
+            prompt_payload = json.loads(user_prompt)
+            assert protocol["role"] == "command_compiler", protocol
+            assert protocol["responseSchema"]["required"] == ["dsl_assignments"], protocol
+            assert "tool_calls" not in system_prompt, system_prompt
+            assert "equippedPacks" not in user_prompt, user_prompt
+            assert any(action["op"] == "deposit_to_structure" for action in prompt_payload["capabilities"]["actions"]), prompt_payload
 
             page.evaluate("window.setAssistantLoadout(['starter_automation'])")
             page.fill("#chatInput", "locked-dsl-debug please")
@@ -142,13 +143,12 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             bot2 = page.evaluate("window.getGameState().bots.find(b => b.id === 2)")
             assert bot2["program"] != "taught_loop", bot2
             starter_user_prompt = captured[-1]["messages"][1]["content"]
-            assert '"id":"starter_automation"' in starter_user_prompt, starter_user_prompt
-            assert '"id":"woodworking"' not in starter_user_prompt, starter_user_prompt
-            assert '"unlockedOps":["pick_up","drop_item","deploy_building_kit","move_to_structure","disassemble_building_to_kit","use_held_item","assign_template","rename_bot","promote_to_manager","delegate_to_manager","follow","deposit_to_player","take_from_player","loop","wait"]' in starter_user_prompt, starter_user_prompt
-            assert "deposit_to_structure(type" not in starter_user_prompt, starter_user_prompt
-            assert "chop_tree(zone" not in starter_user_prompt, starter_user_prompt
-            assert "use_held_item(targetKind" in starter_user_prompt, starter_user_prompt
-            assert '"op":"deposit_to_structure"' not in starter_user_prompt, starter_user_prompt
+            starter_payload = json.loads(starter_user_prompt)
+            starter_ops = [action["op"] for action in starter_payload["capabilities"]["actions"]]
+            assert starter_ops == ["pick_up", "drop_item", "deploy_building_kit", "move_to_structure", "disassemble_building_to_kit", "use_held_item", "assign_template", "rename_bot", "promote_to_manager", "delegate_to_manager", "follow", "deposit_to_player", "take_from_player", "loop", "wait"], starter_payload
+            assert "deposit_to_structure" not in starter_ops, starter_payload
+            assert "chop_tree" not in starter_ops, starter_payload
+            assert "use_held_item" in starter_ops, starter_payload
             locked_tool_error = page.evaluate(
                 """
                 () => {

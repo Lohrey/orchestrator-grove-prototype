@@ -1,6 +1,7 @@
 import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, ALLOWED_OPS, formatDslActionWiki, getActionStepChainRows } from './data.js?v=t_building_kits_0618';
 import { createChatController } from './chat.js?v=20260613-player-tools';
 import { createAudioController } from './audio.js?v=t_3ef6c5ab_menu_polish';
+import { createBrowserSttController, DEFAULT_BROWSER_STT_MODEL } from './browser-stt.js';
 import { Game } from './world.js?v=t_building_kits_0618';
 import { createSaveGameManager, GAME_MODE_LABELS, normalizeGameMode } from './savegames.js?v=t_777178b3';
 import { createMultiplayerController } from './multiplayer.js?v=t_f62dde4d_modes';
@@ -8,6 +9,8 @@ import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f'
 import { createRenderBackend } from './renderers/index.js?v=t_building_kits_0618';
 import { createSimWorkerClient } from './sim/sim-worker-client.js?v=t_building_kits_0618';
 import { LOCAL_AI_PROVIDERS, buildOllamaRequestBody, buildOpenAiCompatibleRequestBody, defaultOllamaEndpoint, formatOllamaFinalPrompt, getDefaultProviderConfig, normalizeAssistantLoadout, normalizeAssistantKnowledgePack, normalizeAssistantPackCatalog, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, summarizeAssistantLoadout, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_building_kits_0618';
+import { createAssistantSemanticRouter } from './assistant-router.js?v=t_building_kits_0618';
+import { formatSemanticRouteSummary } from './semantic-router.js?v=t_building_kits_0618';
 import { escapeHtml } from './utils.js?v=20260613-player-tools';
 
 export async function startGame() {
@@ -17,15 +20,15 @@ export async function startGame() {
     botList: $('botList'), statline: $('statline'), rendererStatus: $('rendererStatus'), targetFps: $('targetFps'), targetFpsValue: $('targetFpsValue'), maxBots: $('maxBots'), maxBotsValue: $('maxBotsValue'), performanceProfile: $('performanceProfile'), applyAutoPerformance: $('applyAutoPerformance'), fogOfWarToggle: $('fogOfWarToggle'), lightingEffects: $('lightingEffects'), dynamicShadows: $('dynamicShadows'), showFpsOverlay: $('showFpsOverlay'), detectedGpu: $('detectedGpu'), detectedVram: $('detectedVram'), detectedProfile: $('detectedProfile'), recommendedBots: $('recommendedBots'), recommendedFps: $('recommendedFps'), performanceNotes: $('performanceNotes'),
     teachPanel: $('teachPanel'), teachCloseBtn: $('teachCloseBtn'), teachRecordBtn: $('teachRecordBtn'), teachAssignBtn: $('teachAssignBtn'), teachBotId: $('teachBotId'), teachStatus: $('teachStatus'), teachSteps: $('teachSteps'),
     sawLogs: $('sawLogs'), sawPlanks: $('sawPlanks'), sawPoles: $('sawPoles'), factoryPlanks: $('factoryPlanks'), factoryRecipe: $('factoryRecipe'), looseLogs: $('looseLogs'), loosePlanks: $('loosePlanks'), looseBase: $('looseBase'), paletteItems: $('paletteItems'), programSelect: $('programSelect'), programView: $('programView'),
-    llmMode: $('llmMode'), templateRouting: $('templateRouting'), ollamaEndpoint: $('ollamaEndpoint'), ollamaModel: $('ollamaModel'), refreshModels: $('refreshModels'), benchmarkBtn: $('benchmarkBtn'), ollamaStatus: $('ollamaStatus'), llmProviderLabel: $('llmProviderLabel'), serverOllamaBtn: $('serverOllamaBtn'), localOllamaBtn: $('localOllamaBtn'), localTabbyBtn: $('localTabbyBtn'), localOllamaWindowsHelp: $('localOllamaWindowsHelp'), localTabbyHelp: $('localTabbyHelp'), asrMode: $('asrMode'), asrModeHelp: $('asrModeHelp'),
+    llmMode: $('llmMode'), templateRouting: $('templateRouting'), semanticRouting: $('semanticRouting'), semanticRouterStatus: $('semanticRouterStatus'), semanticRouterPackSelect: $('semanticRouterPackSelect'), semanticRouterTrainBtn: $('semanticRouterTrainBtn'), ollamaEndpoint: $('ollamaEndpoint'), ollamaModel: $('ollamaModel'), refreshModels: $('refreshModels'), benchmarkBtn: $('benchmarkBtn'), ollamaStatus: $('ollamaStatus'), llmProviderLabel: $('llmProviderLabel'), serverOllamaBtn: $('serverOllamaBtn'), localOllamaBtn: $('localOllamaBtn'), localTabbyBtn: $('localTabbyBtn'), localOllamaWindowsHelp: $('localOllamaWindowsHelp'), localTabbyHelp: $('localTabbyHelp'), asrMode: $('asrMode'), asrModeHelp: $('asrModeHelp'), browserSttModel: $('browserSttModel'), browserSttDownloadBtn: $('browserSttDownloadBtn'), browserSttUnloadBtn: $('browserSttUnloadBtn'), browserSttStatus: $('browserSttStatus'), browserSttProgress: $('browserSttProgress'), browserSttProgressText: $('browserSttProgressText'),
     buildPanel: $('buildPanel'), buildStatus: $('buildStatus'), buildDrawer: $('buildDrawer'), buildDrawerToggle: $('buildDrawerToggle'), zonesPanel: $('zonesPanel'), zonesDrawer: $('zonesDrawer'), zonesDrawerToggle: $('zonesDrawerToggle'), zoneList: $('zoneList'), drawZoneDrawerButton: $('drawZoneDrawerButton'), botMenu: $('botMenu'), structureMenu: $('structureMenu'), templateDrawer: $('templateDrawer'), templateDrawerToggle: $('templateDrawerToggle'), templateSaveForm: $('templateSaveForm'), templateName: $('templateName'), templateStatus: $('templateStatus'), templateList: $('templateList'),
     settingsOverlay: $('settingsOverlay'), settingsClose: $('settingsClose'), chatOverlay: $('chatOverlay'), chatToggle: $('chatToggle'), chatCollapse: $('chatCollapse'), assignmentToast: $('assignmentToast'),
     aiLog: $('aiLog'), dslWikiView: $('dslWikiView'), botDrawer: $('botDrawer'), botDrawerToggle: $('botDrawerToggle'), botSearch: $('botSearch'), botTeamForm: $('botTeamForm'), botTeamName: $('botTeamName'), botTeamColor: $('botTeamColor'), botTeamCreate: $('botTeamCreate'),
     multiplayerDrawer: $('multiplayerDrawer'), multiplayerDrawerToggle: $('multiplayerDrawerToggle'), multiplayerHostBtn: $('multiplayerHostBtn'), multiplayerJoinCode: $('multiplayerJoinCode'), multiplayerJoinBtn: $('multiplayerJoinBtn'), multiplayerSaveBtn: $('multiplayerSaveBtn'), multiplayerStatus: $('multiplayerStatus'), multiplayerSessionLink: $('multiplayerSessionLink'),
     mainMenuOverlay: $('mainMenuOverlay'), mainMenuCampaignBtn: $('mainMenuCampaignBtn'), mainMenuNewBtn: $('mainMenuNewBtn'), mainMenuModeChoices: $('mainMenuModeChoices'), mainMenuModeLayer: $('mainMenuModeLayer'), mainMenuOnlineLayer: $('mainMenuOnlineLayer'), mainMenuHostLayer: $('mainMenuHostLayer'), mainMenuStartSelectedBtn: $('mainMenuStartSelectedBtn'), mainMenuLoadBtn: $('mainMenuLoadBtn'), mainMenuBackBtn: $('mainMenuBackBtn'), mainMenuLocalAiBtn: $('mainMenuLocalAiBtn'), mainMenuHostBtn: $('mainMenuHostBtn'), mainMenuOnlineHostBtn: $('mainMenuOnlineHostBtn'), mainMenuOnlineBackBtn: $('mainMenuOnlineBackBtn'), mainMenuHostNewBtn: $('mainMenuHostNewBtn'), mainMenuHostLoadBtn: $('mainMenuHostLoadBtn'), mainMenuHostBackBtn: $('mainMenuHostBackBtn'), mainMenuJoinCode: $('mainMenuJoinCode'), mainMenuJoinBtn: $('mainMenuJoinBtn'), mainMenuStatus: $('mainMenuStatus'),
     campaignIntroOverlay: $('campaignIntroOverlay'), campaignIntroKicker: $('campaignIntroKicker'), campaignIntroTitle: $('campaignIntroTitle'), campaignIntroText: $('campaignIntroText'), campaignIntroSceneNo: $('campaignIntroSceneNo'), campaignIntroNextBtn: $('campaignIntroNextBtn'), campaignIntroSkipBtn: $('campaignIntroSkipBtn'),
-    resumeGameBtn: $('resumeGameBtn'), pauseGameBtn: $('pauseGameBtn'), saveGameBtn: $('saveGameBtn'), loadGameBtn: $('loadGameBtn'), quitToMainMenuBtn: $('quitToMainMenuBtn'), quitSavePrompt: $('quitSavePrompt'), saveAndQuitBtn: $('saveAndQuitBtn'), quitWithoutSaveBtn: $('quitWithoutSaveBtn'), cancelQuitBtn: $('cancelQuitBtn'), saveGameStatus: $('saveGameStatus'), saveSlotSelect: $('saveSlotSelect'), saveSlotName: $('saveSlotName'), saveName: $('saveName'), saveEntrySelect: $('saveEntrySelect'), renameSlotBtn: $('renameSlotBtn'), deleteSlotBtn: $('deleteSlotBtn'), renameSaveBtn: $('renameSaveBtn'), deleteSaveBtn: $('deleteSaveBtn'), deleteKeepCount: $('deleteKeepCount'), deleteOldSavesBtn: $('deleteOldSavesBtn'),
-    knowledgePackList: $('knowledgePackList'), knowledgePackStatus: $('knowledgePackStatus'), assistantLoadoutView: $('assistantLoadoutView'), assistantBasePromptView: $('assistantBasePromptView'), assistantPromptPreview: $('assistantPromptPreview'), resetKnowledgePacks: $('resetKnowledgePacks'), actionStepChainTable: $('actionStepChainTable'), customPackId: $('customPackId'), customPackName: $('customPackName'), customPackContextVariables: $('customPackContextVariables'), customPackConcepts: $('customPackConcepts'), customPackVocabulary: $('customPackVocabulary'), customPackExamples: $('customPackExamples'), customPackActionList: $('customPackActionList'), saveCustomPack: $('saveCustomPack'), clearCustomPackForm: $('clearCustomPackForm'),
+    resumeGameBtn: $('resumeGameBtn'), pauseGameBtn: $('pauseGameBtn'), fullscreenToggleBtn: $('fullscreenToggleBtn'), fullscreenStatus: $('fullscreenStatus'), saveGameBtn: $('saveGameBtn'), loadGameBtn: $('loadGameBtn'), quitToMainMenuBtn: $('quitToMainMenuBtn'), quitSavePrompt: $('quitSavePrompt'), saveAndQuitBtn: $('saveAndQuitBtn'), quitWithoutSaveBtn: $('quitWithoutSaveBtn'), cancelQuitBtn: $('cancelQuitBtn'), saveGameStatus: $('saveGameStatus'), saveSlotSelect: $('saveSlotSelect'), saveSlotName: $('saveSlotName'), saveName: $('saveName'), saveEntrySelect: $('saveEntrySelect'), renameSlotBtn: $('renameSlotBtn'), deleteSlotBtn: $('deleteSlotBtn'), renameSaveBtn: $('renameSaveBtn'), deleteSaveBtn: $('deleteSaveBtn'), deleteKeepCount: $('deleteKeepCount'), deleteOldSavesBtn: $('deleteOldSavesBtn'),
+    knowledgePackList: $('knowledgePackList'), knowledgePackStatus: $('knowledgePackStatus'), assistantLoadoutView: $('assistantLoadoutView'), assistantBasePromptView: $('assistantBasePromptView'), assistantPromptPreview: $('assistantPromptPreview'), resetKnowledgePacks: $('resetKnowledgePacks'), actionStepChainTable: $('actionStepChainTable'), customPackId: $('customPackId'), customPackName: $('customPackName'), customPackContextVariables: $('customPackContextVariables'), customPackConcepts: $('customPackConcepts'), customPackVocabulary: $('customPackVocabulary'), customPackExamples: $('customPackExamples'), customPackActionList: $('customPackActionList'), customPackAliasEditor: $('customPackAliasEditor'), saveCustomPack: $('saveCustomPack'), clearCustomPackForm: $('clearCustomPackForm'),
     audioSfxToggle: $('audioSfxToggle'), audioSfxVolume: $('audioSfxVolume'), audioSfxTest: $('audioSfxTest'),
     widgetRoster: $('widgetRoster'), widgetRosterHandle: $('widgetRosterHandle'), radioWidgetToggle: $('radioWidgetToggle'), radioWidgetPanel: $('radioWidgetPanel'), radioStationButtons: $('radioStationButtons'), audioMusicStart: $('radioMusicStart'), audioMusicStop: $('radioMusicStop'), audioMusicVolume: $('radioMusicVolume'), audioMusicStatus: $('radioMusicStatus'),
     mobileControls: $('mobileControls'), mobileSettingsBtn: $('mobileSettingsBtn'), mobileBuildBtn: $('mobileBuildBtn'), mobileChatBtn: $('mobileChatBtn'), mobileInteractBtn: $('mobileInteractBtn'), mobileDropBtn: $('mobileDropBtn'), mobileZoomInBtn: $('mobileZoomInBtn'), mobileZoomOutBtn: $('mobileZoomOutBtn')
@@ -43,6 +46,27 @@ export async function startGame() {
   function stringifyLog(value) {
     try { return typeof value === 'string' ? value : JSON.stringify(value, null, 2); }
     catch { return String(value); }
+  }
+  function parseJsonPreview(value) {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    if (!trimmed) return value;
+    try { return JSON.parse(trimmed); }
+    catch { return value; }
+  }
+  function formatAssistantPromptPreview(prompt) {
+    return JSON.stringify({
+      systemPrompt: parseJsonPreview(prompt.systemPrompt),
+      userPrompt: parseJsonPreview(prompt.userPrompt),
+      messages: (prompt.messages || []).map(message => ({
+        role: message.role,
+        content: parseJsonPreview(message.content)
+      })),
+      loadoutKnowledge: prompt.loadoutKnowledge,
+      equippedPacks: prompt.equippedPacks,
+      unlockedOps: prompt.unlockedOps,
+      knowledge: prompt.knowledge
+    }, null, 2);
   }
   function sentFinalPrompt(sent) {
     return sent?.finalPrompt || (sent?.body?.messages ? formatOllamaFinalPrompt(sent.body.messages) : 'Not available.');
@@ -70,6 +94,7 @@ export async function startGame() {
   }
   const ASR_MODE_KEY = 'orchestratorGrove.asrMode';
   const TEMPLATE_ROUTING_KEY = 'orchestratorGrove.templateRoutingEnabled';
+  const SEMANTIC_ROUTING_KEY = 'orchestratorGrove.semanticRoutingEnabled';
   const ASSISTANT_LOADOUT_KEY = 'orchestratorGrove.assistantLoadout.v1';
   const CUSTOM_ACTION_PACKS_KEY = 'orchestratorGrove.customActionPacks.v1';
   const SETTINGS_KEY = 'orchestratorGrove.settings.v1';
@@ -123,6 +148,10 @@ export async function startGame() {
     faster_whisper: {
       status: 'Voice: faster-whisper server STT. Browser recording uploads after stop.',
       help: 'Records in the browser with MediaRecorder, uploads the audio to /asr/transcribe?mode=faster_whisper, then inserts the returned final transcript.'
+    },
+    browser_whisper: {
+      status: 'Voice: browser Whisper local inference. Download once, then transcribe on-device.',
+      help: 'download once into the browser cache, then record locally and run inference on your machine with no server upload.'
     }
   };
   const storageGet = key => { try { return localStorage.getItem(key); } catch { return null; } };
@@ -148,6 +177,7 @@ export async function startGame() {
     const settings = {
       llmMode: dom.llmMode?.value || 'mock',
       templateRouting: getTemplateRoutingEnabled(),
+      semanticRouting: getSemanticRoutingEnabled(),
       asrMode: getAsrMode(),
       performanceProfile: dom.performanceProfile?.value || 'auto',
       targetFps: Number(dom.targetFps?.value || game?.targetFps || 60),
@@ -156,6 +186,7 @@ export async function startGame() {
       lightingEffects: getLightingEffectsEnabled(),
       dynamicShadows: getDynamicShadowsEnabled(),
       showFpsOverlay: getShowFpsOverlayEnabled(),
+      browserSttModel: dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL,
       ai: getCurrentLocalAiConfig()
     };
     return storageSet(SETTINGS_KEY, JSON.stringify(settings));
@@ -194,6 +225,34 @@ export async function startGame() {
   function setPerformanceProfileValue(profile) {
     if (!dom.performanceProfile) return;
     dom.performanceProfile.value = dom.performanceProfile.querySelector(`option[value="${profile}"]`) ? profile : 'custom';
+  }
+  const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+  function syncFullscreenUi(message = '') {
+    const active = !!fullscreenElement();
+    if (dom.fullscreenToggleBtn) dom.fullscreenToggleBtn.textContent = active ? 'Exit fullscreen' : 'Enter fullscreen';
+    if (dom.fullscreenStatus) dom.fullscreenStatus.textContent = message || `Fullscreen is ${active ? 'on' : 'off'}.`;
+    return active;
+  }
+  async function toggleFullscreen() {
+    const active = !!fullscreenElement();
+    try {
+      if (active) {
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      } else {
+        const root = document.documentElement;
+        if (root.requestFullscreen) await root.requestFullscreen();
+        else if (root.webkitRequestFullscreen) root.webkitRequestFullscreen();
+        else {
+          syncFullscreenUi('Fullscreen is not supported by this browser.');
+          return false;
+        }
+      }
+      return syncFullscreenUi();
+    } catch (err) {
+      syncFullscreenUi(`Fullscreen failed: ${err.message || 'browser denied the request'}.`);
+      return active;
+    }
   }
   function syncPerformanceUi(message = '') {
     const recommendation = getRendererRecommendation();
@@ -251,6 +310,29 @@ export async function startGame() {
     if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean);
     return String(value || '').split(/[\n,]+/).map(item => item.trim()).filter(Boolean);
   }
+  function flattenPartAliases(partAliases = {}) {
+    return [
+      ...((partAliases.step || [])),
+      ...Object.values(partAliases.args || {}).flatMap(values => values || [])
+    ];
+  }
+  function actionRowsByOp() {
+    return Object.fromEntries(getActionStepChainRows().map(row => [row.op, row]));
+  }
+  function defaultPackActionAliases(selectedOps = [], source = {}) {
+    const rowsByOp = actionRowsByOp();
+    return Object.fromEntries(selectedOps.map(op => {
+      const sourceAliases = source?.[op];
+      const rowAliases = rowsByOp[op]?.aliases || { step: [], args: {} };
+      return [op, {
+        step: [...(sourceAliases?.step || rowAliases.step || [])],
+        args: Object.fromEntries((rowsByOp[op]?.args || []).map(arg => [arg, [...(sourceAliases?.args?.[arg] || rowAliases.args?.[arg] || [])]]))
+      }];
+    }));
+  }
+  function readAliasTextValue(value) {
+    return [...new Set(splitPackText(value).map(item => item.toLowerCase()))];
+  }
   function packIdFromName(name = '') {
     return `custom_${String(name || 'action_pack').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48) || 'action_pack'}`;
   }
@@ -278,6 +360,8 @@ export async function startGame() {
     storageSet(ASSISTANT_LOADOUT_KEY, JSON.stringify(assistantLoadout));
     renderKnowledgePackSelector(ok ? message : 'Custom action pack changed, but browser storage is unavailable.');
     game?.setManagerKnowledgePackCatalog?.(getActionPackCatalog());
+    semanticRouter.syncCatalog(getActionPackCatalog(), getAssistantLoadout()).catch(() => {});
+    updateSemanticRouterUi(semanticRouter.getLastRoute?.());
     return customActionPacks;
   }
   function readAssistantLoadout() {
@@ -288,6 +372,77 @@ export async function startGame() {
   }
   let assistantLoadout = readAssistantLoadout();
   const getAssistantLoadout = () => assistantLoadout.slice();
+  const semanticRouter = createAssistantSemanticRouter();
+  let semanticRouteTimer = null;
+  semanticRouter.onStateChange(state => {
+    updateSemanticRouterUi(state?.lastRoute || semanticRouter.getLastRoute?.());
+    if (state?.lastRoute?.requestText && state.lastRoute.requestText === getChatDraftText()) {
+      updateAssistantPromptPreview();
+    }
+  });
+  function getSemanticRoutingEnabled() {
+    return dom.semanticRouting?.checked !== false;
+  }
+  function getChatDraftText() {
+    return String(dom.chatInput?.value || '').trim();
+  }
+  function renderSemanticRouterPackSelector(selectedPackId = '') {
+    if (!dom.semanticRouterPackSelect) return;
+    const catalog = getActionPackCatalog();
+    const packs = Object.values(catalog);
+    const previousValue = dom.semanticRouterPackSelect.value;
+    dom.semanticRouterPackSelect.innerHTML = packs.map(pack => `<option value="${escapeHtml(pack.id)}">${escapeHtml(pack.name || pack.id)}</option>`).join('');
+    const route = semanticRouter.getLastRoute?.();
+    const nextSelected = selectedPackId || previousValue || route?.bestId || assistantLoadout[0] || '';
+    if (nextSelected) dom.semanticRouterPackSelect.value = nextSelected;
+  }
+  function updateSemanticRouterUi(route = semanticRouter.getLastRoute?.()) {
+    if (dom.semanticRouterStatus) {
+      if (!getSemanticRoutingEnabled()) {
+        dom.semanticRouterStatus.textContent = 'Semantic routing disabled. The assistant uses the full equipped loadout.';
+      } else if (!route) {
+        dom.semanticRouterStatus.textContent = 'Semantic router idle. Type in chat to route the request before parsing.';
+      } else {
+        dom.semanticRouterStatus.textContent = formatSemanticRouteSummary(route);
+      }
+    }
+    if (dom.semanticRouterTrainBtn) dom.semanticRouterTrainBtn.disabled = !getSemanticRoutingEnabled();
+    renderSemanticRouterPackSelector(route?.bestId || '');
+    return route;
+  }
+  function scheduleSemanticRoutePreview() {
+    if (semanticRouteTimer) clearTimeout(semanticRouteTimer);
+    if (!getSemanticRoutingEnabled()) {
+      updateSemanticRouterUi(semanticRouter.getLastRoute?.());
+      return;
+    }
+    const text = getChatDraftText();
+    if (!text) {
+      updateSemanticRouterUi(semanticRouter.getLastRoute?.());
+      return;
+    }
+    semanticRouteTimer = setTimeout(async () => {
+      try {
+        await semanticRouter.route(text, { knowledgePacks: getActionPackCatalog(), loadout: getAssistantLoadout() });
+        updateSemanticRouterUi(semanticRouter.getLastRoute?.());
+        updateAssistantPromptPreview();
+      } catch (error) {
+        if (dom.semanticRouterStatus) dom.semanticRouterStatus.textContent = `Semantic router error: ${error.message}`;
+      }
+    }, 140);
+  }
+  async function getRoutedAssistantLoadout(text, { loadout = getAssistantLoadout(), knowledgePacks = getActionPackCatalog() } = {}) {
+    if (!getSemanticRoutingEnabled()) return { route: null, loadout };
+    try {
+      const route = await semanticRouter.route(text, { knowledgePacks, loadout });
+      const routedLoadout = route?.useRecommendedLoadout && route?.selectedLoadout?.length ? route.selectedLoadout : loadout;
+      updateSemanticRouterUi(route);
+      return { route, loadout: routedLoadout };
+    } catch (error) {
+      if (dom.semanticRouterStatus) dom.semanticRouterStatus.textContent = `Semantic router failed: ${error.message}`;
+      return { route: null, loadout };
+    }
+  }
   function getAssistantLoadoutDebug() {
     const catalog = getActionPackCatalog();
     const summary = summarizeAssistantLoadout(assistantLoadout, catalog);
@@ -304,19 +459,24 @@ export async function startGame() {
   function updateAssistantPromptPreview() {
     if (!dom.assistantPromptPreview) return '';
     if (!game) {
-      dom.assistantPromptPreview.textContent = 'Prompt preview will appear after the world loads.';
+      dom.assistantPromptPreview.textContent = JSON.stringify({ status: 'Prompt preview will appear after the world loads.' }, null, 2);
       return dom.assistantPromptPreview.textContent;
     }
     const requestText = (dom.chatInput?.value || '').trim() || '[current user request will appear here]';
     const { provider, model } = getCurrentLocalAiConfig();
     const knowledgePacks = getActionPackCatalog();
+    const lastRoute = semanticRouter.getLastRoute?.();
+    const routedLoadout = getSemanticRoutingEnabled() && lastRoute?.requestText === requestText && lastRoute?.useRecommendedLoadout && lastRoute?.selectedLoadout?.length
+      ? lastRoute.selectedLoadout
+      : getAssistantLoadout();
     const { prompt } = provider === 'tabbyapi'
-      ? buildOpenAiCompatibleRequestBody(requestText, game, { model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), knowledgePacks, temperature: 0.1 })
-      : buildOllamaRequestBody(requestText, game, { model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), knowledgePacks });
+      ? buildOpenAiCompatibleRequestBody(requestText, game, { model, enableTemplates: getTemplateRoutingEnabled(), loadout: routedLoadout, knowledgePacks, temperature: 0.1 })
+      : buildOllamaRequestBody(requestText, game, { model, enableTemplates: getTemplateRoutingEnabled(), loadout: routedLoadout, knowledgePacks });
     if (dom.assistantBasePromptView) dom.assistantBasePromptView.textContent = prompt.systemPrompt;
-    if (dom.assistantLoadoutView) dom.assistantLoadoutView.textContent = JSON.stringify(prompt.knowledge, null, 2);
-    dom.assistantPromptPreview.textContent = prompt.finalPrompt;
-    return prompt.finalPrompt;
+    if (dom.assistantLoadoutView) dom.assistantLoadoutView.textContent = JSON.stringify(prompt.loadoutKnowledge, null, 2);
+    const previewText = formatAssistantPromptPreview(prompt);
+    dom.assistantPromptPreview.textContent = previewText;
+    return previewText;
   }
   function updateAssistantLoadoutDebug(message = '') {
     const debug = getAssistantLoadoutDebug();
@@ -324,6 +484,47 @@ export async function startGame() {
     updateAssistantPromptPreview();
     if (dom.knowledgePackStatus) dom.knowledgePackStatus.textContent = message || `${debug.selectedPackIds.length} knowledge/action pack(s) equipped · ${debug.unlockedOps.length} DSL op(s) unlocked.`;
     return debug;
+  }
+  let customPackAliasDraft = {};
+  function readCustomPackAliasEditor(selectedOps = null) {
+    const ops = selectedOps || [...(dom.customPackActionList?.querySelectorAll('[data-action-pack-op]:checked') || [])].map(input => input.dataset.actionPackOp);
+    if (!dom.customPackAliasEditor) return defaultPackActionAliases(ops, customPackAliasDraft);
+    const defaults = defaultPackActionAliases(ops, customPackAliasDraft);
+    return Object.fromEntries(ops.map(op => {
+      const card = dom.customPackAliasEditor.querySelector(`[data-action-alias-card="${op}"]`);
+      if (!card) return [op, defaults[op]];
+      const row = actionRowsByOp()[op];
+      return [op, {
+        step: readAliasTextValue(card.querySelector('[data-action-alias-step]')?.value || ''),
+        args: Object.fromEntries((row?.args || []).map(arg => [arg, readAliasTextValue(card.querySelector(`[data-action-alias-arg="${arg}"]`)?.value || '')]))
+      }];
+    }));
+  }
+  function renderCustomPackAliasEditor(selectedOps = [], sourceAliases = {}) {
+    if (!dom.customPackAliasEditor) return;
+    const rowsByOp = actionRowsByOp();
+    const aliasesByOp = defaultPackActionAliases(selectedOps, sourceAliases);
+    if (!selectedOps.length) {
+      dom.customPackAliasEditor.innerHTML = '<p class="small">Select action steps to review and tweak default alias wording per step part.</p>';
+      return;
+    }
+    dom.customPackAliasEditor.innerHTML = selectedOps.map(op => {
+      const row = rowsByOp[op];
+      const aliases = aliasesByOp[op] || { step: [], args: {} };
+      return `
+        <section class="knowledge-pack-card" data-action-alias-card="${escapeHtml(op)}">
+          <p class="small"><b>${escapeHtml(row.label)}</b> <code>${escapeHtml(op)}</code></p>
+          <label>Action words
+            <textarea data-action-alias-step rows="2" placeholder="comma or newline separated">${escapeHtml((aliases.step || []).join('\n'))}</textarea>
+          </label>
+          ${(row.args || []).map(arg => `
+            <label>${escapeHtml(arg)} aliases
+              <textarea data-action-alias-arg="${escapeHtml(arg)}" rows="2" placeholder="comma or newline separated">${escapeHtml(((aliases.args || {})[arg] || []).join('\n'))}</textarea>
+            </label>
+          `).join('')}
+        </section>
+      `;
+    }).join('');
   }
   function renderCustomPackActionSelector(selectedOps = []) {
     if (!dom.customPackActionList) return;
@@ -343,18 +544,23 @@ export async function startGame() {
     if (dom.customPackConcepts) dom.customPackConcepts.value = (pack.concepts || []).join('\n');
     if (dom.customPackVocabulary) dom.customPackVocabulary.value = (pack.vocabulary || []).join('\n');
     if (dom.customPackExamples) dom.customPackExamples.value = Array.isArray(pack.examples) ? pack.examples.map(example => typeof example === 'string' ? example : JSON.stringify(example)).join('\n') : '';
-    renderCustomPackActionSelector(pack.unlockedOps || []);
+    const selectedOps = pack.unlockedOps || [];
+    customPackAliasDraft = defaultPackActionAliases(selectedOps, pack.actionPartAliases || {});
+    renderCustomPackActionSelector(selectedOps);
+    renderCustomPackAliasEditor(selectedOps, customPackAliasDraft);
   }
   function readCustomPackForm() {
     const name = String(dom.customPackName?.value || '').trim();
     const rawId = String(dom.customPackId?.value || '').trim();
     const id = (rawId || packIdFromName(name)).toLowerCase().replace(/[^a-z0-9_:-]/g, '_');
     const unlockedOps = [...(dom.customPackActionList?.querySelectorAll('[data-action-pack-op]:checked') || [])].map(input => input.dataset.actionPackOp);
+    const actionPartAliases = readCustomPackAliasEditor(unlockedOps);
     return normalizeAssistantKnowledgePack({
       id,
       name: name || id,
       custom: true,
       unlockedOps,
+      actionPartAliases,
       contextVariables: splitPackText(dom.customPackContextVariables?.value || ''),
       concepts: splitPackText(dom.customPackConcepts?.value || ''),
       vocabulary: splitPackText(dom.customPackVocabulary?.value || ''),
@@ -383,7 +589,10 @@ export async function startGame() {
   }
   function renderKnowledgePackSelector(message = '') {
     if (!dom.knowledgePackList) return updateAssistantLoadoutDebug(message);
-    if (dom.customPackActionList && !dom.customPackActionList.children.length) renderCustomPackActionSelector();
+    if (dom.customPackActionList && !dom.customPackActionList.children.length) {
+      renderCustomPackActionSelector();
+      renderCustomPackAliasEditor([], {});
+    }
     const selected = new Set(assistantLoadout);
     const catalog = getActionPackCatalog();
     dom.knowledgePackList.innerHTML = Object.values(catalog).map(pack => `
@@ -397,6 +606,7 @@ export async function startGame() {
         <p class="small"><b>Context variables:</b> ${escapeHtml((pack.contextVariables || pack.optionalContext || []).join(', ') || 'none')}</p>
         <p class="small"><b>Ops:</b> ${pack.unlockedOps.map(op => `<code>${escapeHtml(op)}</code>`).join(' ')}</p>
         <p class="small"><b>Injected action details:</b> ${(pack.actions || []).map(action => `<code>${escapeHtml(`${action.op} ${action.dslSnippet}`)}</code>`).join(' ')}</p>
+        <p class="small"><b>Alias context:</b> ${(pack.actions || []).map(action => `<code>${escapeHtml(`${action.op}: ${(flattenPartAliases(action.partAliases || {})).join(', ') || 'none'}`)}</code>`).join(' ')}</p>
         ${pack.custom ? `<div class="knowledge-pack-actions"><button type="button" data-edit-custom-pack="${escapeHtml(pack.id)}">Edit</button><button type="button" data-delete-custom-pack="${escapeHtml(pack.id)}">Delete</button></div>` : ''}
       </article>
     `).join('');
@@ -421,6 +631,7 @@ export async function startGame() {
             <th>Templates</th>
             <th>Recorder</th>
             <th>UI card</th>
+            <th>Aliases</th>
             <th>Prompt signature</th>
           </tr>
         </thead>
@@ -435,6 +646,7 @@ export async function startGame() {
               <td>${inlineList(row.templates, 'none')}</td>
               <td>${row.recordable ? '<span class="chain-ok">recordable</span>' : '<span class="muted-cell">not recorded</span>'}</td>
               <td>${escapeHtml(row.uiCard || 'generic DSL card')}</td>
+              <td>${inlineList(row.aliasVocabulary || [], 'none')}</td>
               <td><code>${escapeHtml(row.promptSignature || 'not in prompt')}</code></td>
             </tr>
           `).join('')}
@@ -448,6 +660,8 @@ export async function startGame() {
     const ok = storageSet(ASSISTANT_LOADOUT_KEY, JSON.stringify(assistantLoadout));
     renderKnowledgePackSelector(ok ? 'Knowledge pack loadout saved to this browser.' : 'Knowledge pack loadout changed, but browser storage is unavailable.');
     game?.setManagerKnowledgePackCatalog?.(getActionPackCatalog());
+    semanticRouter.syncCatalog(getActionPackCatalog(), getAssistantLoadout()).catch(() => {});
+    updateSemanticRouterUi(semanticRouter.getLastRoute?.());
     return assistantLoadout;
   }
   const getAsrMode = () => (ASR_MODES[dom.asrMode?.value] ? dom.asrMode.value : 'zipformer_whisper');
@@ -460,6 +674,32 @@ export async function startGame() {
     const cfg = ASR_MODES[getAsrMode()];
     if (dom.asrStatus) dom.asrStatus.textContent = cfg.status;
     if (dom.asrModeHelp) dom.asrModeHelp.textContent = cfg.help;
+    syncBrowserSttUi();
+  }
+  function syncBrowserSttUi(message = '') {
+    if (!browserStt) return;
+    const state = browserStt.getState?.() || {};
+    const model = state.model || browserStt.getModel?.(state.modelId || DEFAULT_BROWSER_STT_MODEL) || { label: state.modelId || DEFAULT_BROWSER_STT_MODEL, sizeMb: 0 };
+    const isActiveMode = getAsrMode() === 'browser_whisper';
+    if (dom.browserSttModel) dom.browserSttModel.disabled = state.status === 'downloading' || state.status === 'processing';
+    if (dom.browserSttDownloadBtn) dom.browserSttDownloadBtn.textContent = state.status === 'downloading' ? 'Downloading...' : (browserStt.hasLoadedModel?.(state.modelId) ? 'Reload model' : 'Download model');
+    if (dom.browserSttDownloadBtn) dom.browserSttDownloadBtn.disabled = state.status === 'downloading' || state.status === 'processing';
+    if (dom.browserSttUnloadBtn) dom.browserSttUnloadBtn.disabled = !browserStt.hasLoadedModel?.(state.modelId) || state.status === 'downloading';
+    if (dom.browserSttStatus) {
+      const base = message || state.message || (browserStt.hasLoadedModel?.(state.modelId) ? `${model.label} loaded.` : `${model.label} not loaded yet.`);
+      dom.browserSttStatus.textContent = isActiveMode ? base : `${base} Switch Voice mode to Browser Whisper to use it from the mic button.`;
+    }
+    if (dom.browserSttProgress) {
+      dom.browserSttProgress.value = Number(state.progress || 0);
+      dom.browserSttProgress.max = 100;
+    }
+    if (dom.browserSttProgressText) {
+      dom.browserSttProgressText.textContent = state.status === 'downloading'
+        ? `${Number(state.progress || 0)}%`
+        : browserStt.hasLoadedModel?.(state.modelId)
+          ? 'ready'
+          : '0%';
+    }
   }
 
   let game;
@@ -467,14 +707,32 @@ export async function startGame() {
   const storedSettings = readJson(SETTINGS_KEY, null);
   const storedPerformanceProfile = storedSettings?.performanceProfile || 'auto';
   const storedAsrMode = storedSettings?.asrMode || storageGet(ASR_MODE_KEY);
+  const storedBrowserSttModel = storedSettings?.browserSttModel || DEFAULT_BROWSER_STT_MODEL;
   if (ASR_MODES[storedAsrMode] && dom.asrMode) dom.asrMode.value = storedAsrMode;
+  if (dom.browserSttModel) dom.browserSttModel.value = dom.browserSttModel.querySelector(`option[value="${storedBrowserSttModel}"]`) ? storedBrowserSttModel : DEFAULT_BROWSER_STT_MODEL;
   if (dom.templateRouting) dom.templateRouting.checked = typeof storedSettings?.templateRouting === 'boolean' ? storedSettings.templateRouting : storageGet(TEMPLATE_ROUTING_KEY) === 'true';
+  if (dom.semanticRouting) dom.semanticRouting.checked = typeof storedSettings?.semanticRouting === 'boolean' ? storedSettings.semanticRouting : storageGet(SEMANTIC_ROUTING_KEY) !== 'false';
+  const browserStt = createBrowserSttController({ defaultModelId: dom.browserSttModel?.value || storedBrowserSttModel });
   syncAsrModeUi();
-  const chat = createChatController({ chatInput: dom.chatInput, chatForm: dom.chatForm, micButton: dom.micButton, asrStatus: dom.asrStatus, quickCommands: dom.quickCommands, getAsrMode, onSubmit: text => handleAssistant(text) });
+  browserStt.onStateChange(() => syncBrowserSttUi());
+  const chat = createChatController({
+    chatInput: dom.chatInput,
+    chatForm: dom.chatForm,
+    micButton: dom.micButton,
+    asrStatus: dom.asrStatus,
+    quickCommands: dom.quickCommands,
+    getAsrMode,
+    getBrowserSttModel: () => dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL,
+    browserStt,
+    onSubmit: text => handleAssistant(text)
+  });
   const rendererMode = params.get('renderer') || storedSettings?.rendererMode || 'pixi';
   const renderBackend = await createRenderBackend({ canvas: dom.canvas, mode: rendererMode });
   game = new Game({ canvas: dom.canvas, chat, dom, isChatActive: () => isChatOpen(), renderBackend });
   game.setManagerKnowledgePackCatalog(getActionPackCatalog());
+  semanticRouter.syncCatalog(getActionPackCatalog(), getAssistantLoadout()).then(() => updateSemanticRouterUi(semanticRouter.getLastRoute?.())).catch(error => {
+    if (dom.semanticRouterStatus) dom.semanticRouterStatus.textContent = `Semantic router unavailable: ${error.message}`;
+  });
   game.getDefaultManagerKnowledgePacks = () => getAssistantLoadout();
   game.managerMessageHandler = ({ manager, sender, message }) => handleManagerMessage(manager, message, { source: 'delegate_to_manager', sender });
   game.renderer = { text: renderBackend.text || renderBackend.kind || 'Renderer ready', webgpu: false, reason: 'active backend', backend: renderBackend.kind };
@@ -980,9 +1238,10 @@ export async function startGame() {
         addChat('error', escapeHtml(res.error));
         continue;
       }
-      const message = `Generated DSL for <b>Bot ${assignment.botId}</b>: <code>${escapeHtml(res.program.name)}</code>${dslStepsHtml(res.steps)}`;
+      const assignedBotId = res.bot?.id || assignment.botId;
+      const message = `Generated DSL for <b>Bot ${assignedBotId}</b>: <code>${escapeHtml(res.program.name)}</code>${dslStepsHtml(res.steps)}`;
       addChat('assistant', message);
-      showAssignmentToast(`Generated DSL for <b>Bot ${assignment.botId}</b>.`);
+      showAssignmentToast(`Generated DSL for <b>Bot ${assignedBotId}</b>.`);
     }
     for (const assignment of parsed.templateAssignments || []) {
       const res = game.assignTemplateToBot(assignment.arguments.botId, assignment.arguments.templateName, assignment.arguments);
@@ -1015,17 +1274,21 @@ export async function startGame() {
 
   async function handleAssistant(text) {
     addChat('user', escapeHtml(text));
+    const knowledgePacks = getActionPackCatalog();
+    const routed = await getRoutedAssistantLoadout(text, { loadout: getAssistantLoadout(), knowledgePacks });
+    const assistantLoadoutForRequest = routed.loadout;
+    const semanticRoute = routed.route;
     if (dom.llmMode.value === 'ollama' || dom.llmMode.value === 'tabbyapi') {
       const { provider, endpoint, model } = getCurrentLocalAiConfig();
       const parsed = provider === 'tabbyapi'
-        ? await parseWithOpenAiCompatible(text, game, { endpoint, model, providerLabel: LOCAL_AI_PROVIDERS.tabbyapi.backendLabel, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() })
-        : await parseWithOllama(text, game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
+        ? await parseWithOpenAiCompatible(text, game, { endpoint, model, providerLabel: LOCAL_AI_PROVIDERS.tabbyapi.backendLabel, enableTemplates: getTemplateRoutingEnabled(), loadout: assistantLoadoutForRequest, knowledgePacks })
+        : await parseWithOllama(text, game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout: assistantLoadoutForRequest, knowledgePacks });
       const { debug, ...parsedForLog } = parsed;
-      logChatAi({ mode: provider === 'tabbyapi' ? LOCAL_AI_PROVIDERS.tabbyapi.backendLabel : 'ollama', sent: debug?.sent || { endpoint, model, text, loadout: getAssistantLoadout() }, returned: debug?.returned || parsedForLog });
+      logChatAi({ mode: provider === 'tabbyapi' ? LOCAL_AI_PROVIDERS.tabbyapi.backendLabel : 'ollama', sent: debug?.sent || { endpoint, model, text, loadout: assistantLoadoutForRequest, semanticRoute }, returned: debug?.returned || parsedForLog });
       return handleParsed(parsed);
     } else {
-      const parsed = parseAssistantRequest(text, game, { enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
-      logChatAi({ mode: 'mock parser', sent: { text, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout() }, returned: parsed });
+      const parsed = parseAssistantRequest(text, game, { enableTemplates: getTemplateRoutingEnabled(), loadout: assistantLoadoutForRequest, knowledgePacks });
+      logChatAi({ mode: 'mock parser', sent: { text, enableTemplates: getTemplateRoutingEnabled(), loadout: assistantLoadoutForRequest, semanticRoute }, returned: parsed });
       return handleParsed(parsed);
     }
   }
@@ -1037,23 +1300,26 @@ export async function startGame() {
     const clean = game.sanitizeManagerMessage?.(message) || String(message || '').trim();
     if (!clean) return { ok: false, error: 'Manager message is empty' };
     const loadout = game.normalizeManagerKnowledgePacks(manager.managerKnowledgePacks || manager.knowledgePacks || [], ['starter_automation']);
+    const routed = await getRoutedAssistantLoadout(clean, { loadout, knowledgePacks: getActionPackCatalog() });
+    const managerLoadoutForRequest = routed.loadout;
+    const semanticRoute = routed.route;
     const managerText = `Manager ${game.botDisplayName(manager)} (${manager.ref}, status manager) received a delegation from ${sender ? game.botDisplayName(sender) : source}: ${clean}`;
     addChat('user', `<b>${escapeHtml(game.botDisplayName(manager))} manager:</b> ${escapeHtml(clean)}`);
     let parsed;
     if (dom.llmMode.value === 'ollama' || dom.llmMode.value === 'tabbyapi') {
       const { provider, endpoint, model } = getCurrentLocalAiConfig();
       parsed = provider === 'tabbyapi'
-        ? await parseWithOpenAiCompatible(managerText, game, { endpoint, model, providerLabel: `${LOCAL_AI_PROVIDERS.tabbyapi.backendLabel} manager`, enableTemplates: getTemplateRoutingEnabled(), loadout, knowledgePacks: getActionPackCatalog() })
-        : await parseWithOllama(managerText, game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout, knowledgePacks: getActionPackCatalog() });
+        ? await parseWithOpenAiCompatible(managerText, game, { endpoint, model, providerLabel: `${LOCAL_AI_PROVIDERS.tabbyapi.backendLabel} manager`, enableTemplates: getTemplateRoutingEnabled(), loadout: managerLoadoutForRequest, knowledgePacks: getActionPackCatalog() })
+        : await parseWithOllama(managerText, game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout: managerLoadoutForRequest, knowledgePacks: getActionPackCatalog() });
       const { debug, ...parsedForLog } = parsed;
-      logChatAi({ mode: provider === 'tabbyapi' ? `${LOCAL_AI_PROVIDERS.tabbyapi.backendLabel} manager` : 'ollama manager', sent: debug?.sent || { endpoint, model, text: managerText, loadout }, returned: debug?.returned || parsedForLog });
+      logChatAi({ mode: provider === 'tabbyapi' ? `${LOCAL_AI_PROVIDERS.tabbyapi.backendLabel} manager` : 'ollama manager', sent: debug?.sent || { endpoint, model, text: managerText, loadout: managerLoadoutForRequest, semanticRoute }, returned: debug?.returned || parsedForLog });
     } else {
-      parsed = parseAssistantRequest(managerText, game, { enableTemplates: getTemplateRoutingEnabled(), loadout, knowledgePacks: getActionPackCatalog() });
-      logChatAi({ mode: 'mock manager parser', sent: { text: managerText, loadout, managerBotId: manager.id }, returned: parsed });
+      parsed = parseAssistantRequest(managerText, game, { enableTemplates: getTemplateRoutingEnabled(), loadout: managerLoadoutForRequest, knowledgePacks: getActionPackCatalog() });
+      logChatAi({ mode: 'mock manager parser', sent: { text: managerText, loadout: managerLoadoutForRequest, managerBotId: manager.id, semanticRoute }, returned: parsed });
     }
     const results = handleParsed(parsed);
-    manager.lastManagerMessage = { text: clean, source, at: Date.now(), loadout };
-    return { ok: true, managerId: manager.id, loadout, parsed, results };
+    manager.lastManagerMessage = { text: clean, source, at: Date.now(), loadout: managerLoadoutForRequest };
+    return { ok: true, managerId: manager.id, loadout: managerLoadoutForRequest, parsed, results };
   }
 
   function setRadioWidgetOpen(open) {
@@ -1152,6 +1418,7 @@ export async function startGame() {
   dom.programSelect.addEventListener('change', renderProgram); renderProgram();
   if (dom.dslWikiView) dom.dslWikiView.textContent = formatDslActionWiki();
   renderKnowledgePackSelector();
+  updateSemanticRouterUi(semanticRouter.getLastRoute?.());
   renderActionStepChainTable();
   game.syncTemplateDrawerUi?.();
   initAudioUi();
@@ -1256,9 +1523,62 @@ export async function startGame() {
   });
   dom.ollamaEndpoint.addEventListener('input', () => { syncProviderUi(); updateAssistantPromptPreview(); saveBrowserSettings(); });
   dom.ollamaModel?.addEventListener('change', () => { updateAssistantPromptPreview(); saveBrowserSettings(); });
-  dom.chatInput?.addEventListener('input', updateAssistantPromptPreview);
+  dom.chatInput?.addEventListener('input', () => { updateAssistantPromptPreview(); scheduleSemanticRoutePreview(); });
   dom.asrMode?.addEventListener('change', () => { storageSet(ASR_MODE_KEY, getAsrMode()); syncAsrModeUi(); saveBrowserSettings(); });
+  dom.browserSttModel?.addEventListener('change', () => {
+    browserStt.setSelectedModel(dom.browserSttModel.value);
+    syncBrowserSttUi();
+    saveBrowserSettings();
+  });
+  dom.browserSttDownloadBtn?.addEventListener('click', async () => {
+    try {
+      browserStt.setSelectedModel(dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL);
+      syncBrowserSttUi('Loading browser STT model...');
+      await browserStt.loadModel(dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL, { backend: 'auto' });
+      syncBrowserSttUi();
+      saveBrowserSettings();
+    } catch (e) {
+      syncBrowserSttUi(`Could not load browser STT model: ${e.message}`);
+    }
+  });
+  dom.browserSttUnloadBtn?.addEventListener('click', () => {
+    browserStt.unload(dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL);
+    syncBrowserSttUi();
+    saveBrowserSettings();
+  });
   dom.templateRouting?.addEventListener('change', () => { storageSet(TEMPLATE_ROUTING_KEY, String(getTemplateRoutingEnabled())); updateAssistantPromptPreview(); saveBrowserSettings(); });
+  dom.semanticRouting?.addEventListener('change', () => { storageSet(SEMANTIC_ROUTING_KEY, String(getSemanticRoutingEnabled())); updateSemanticRouterUi(semanticRouter.getLastRoute?.()); updateAssistantPromptPreview(); scheduleSemanticRoutePreview(); saveBrowserSettings(); });
+  dom.semanticRouterPackSelect?.addEventListener('change', () => updateSemanticRouterUi(semanticRouter.getLastRoute?.()));
+  dom.semanticRouterTrainBtn?.addEventListener('click', async () => {
+    const text = getChatDraftText();
+    const packId = dom.semanticRouterPackSelect?.value || semanticRouter.getLastRoute?.()?.bestId || assistantLoadout[0];
+    if (!text) {
+      if (dom.semanticRouterStatus) dom.semanticRouterStatus.textContent = 'Type a request in chat before training the semantic router.';
+      return;
+    }
+    if (!packId) {
+      if (dom.semanticRouterStatus) dom.semanticRouterStatus.textContent = 'No pack is available to train.';
+      return;
+    }
+    try {
+      const result = await semanticRouter.train(text, packId, { knowledgePacks: getActionPackCatalog(), loadout: getAssistantLoadout() });
+      updateSemanticRouterUi(semanticRouter.getLastRoute?.());
+      updateAssistantPromptPreview();
+      if (dom.semanticRouterStatus) dom.semanticRouterStatus.textContent = `Trained "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}" into ${result.packName}.`;
+    } catch (error) {
+      if (dom.semanticRouterStatus) dom.semanticRouterStatus.textContent = `Semantic router training failed: ${error.message}`;
+    }
+  });
+  dom.customPackActionList?.addEventListener('change', e => {
+    if (!e.target.matches('[data-action-pack-op]')) return;
+    customPackAliasDraft = readCustomPackAliasEditor();
+    const selectedOps = [...dom.customPackActionList.querySelectorAll('[data-action-pack-op]:checked')].map(input => input.dataset.actionPackOp);
+    customPackAliasDraft = defaultPackActionAliases(selectedOps, customPackAliasDraft);
+    renderCustomPackAliasEditor(selectedOps, customPackAliasDraft);
+  });
+  dom.customPackAliasEditor?.addEventListener('input', () => {
+    customPackAliasDraft = readCustomPackAliasEditor();
+  });
   dom.knowledgePackList?.addEventListener('change', e => {
     if (!e.target.matches('[data-knowledge-pack]')) return;
     const ids = [...dom.knowledgePackList.querySelectorAll('[data-knowledge-pack]:checked')].map(input => input.dataset.knowledgePack);
@@ -1289,6 +1609,9 @@ export async function startGame() {
     const serverProxy = location.hostname === 'docs.pau1.cloud' ? '/ollama-proxy' : 'https://docs.pau1.cloud/ollama-proxy';
     setLocalAiProvider('ollama', { endpoint: serverProxy, status: 'Server proxy selected. Click Refresh to load VPS Ollama models.' });
   });
+  dom.fullscreenToggleBtn?.addEventListener('click', () => { toggleFullscreen(); });
+  document.addEventListener('fullscreenchange', () => syncFullscreenUi());
+  document.addEventListener('webkitfullscreenchange', () => syncFullscreenUi());
   dom.localOllamaBtn?.addEventListener('click', () => {
     setLocalAiProvider('ollama', { endpoint: 'http://127.0.0.1:11434', status: 'Local Ollama selected. Start Ollama on your machine with CORS for https://docs.pau1.cloud, then click Refresh.' });
   });
@@ -1299,9 +1622,10 @@ export async function startGame() {
     const { provider, endpoint, model } = getCurrentLocalAiConfig();
     const started = performance.now();
     try {
+      const benchmarkRoute = await getRoutedAssistantLoadout('Bot 1 chop wood', { loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
       const parsed = provider === 'tabbyapi'
-        ? await parseWithOpenAiCompatible('Bot 1 chop wood', game, { endpoint, model, providerLabel: LOCAL_AI_PROVIDERS.tabbyapi.backendLabel, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() })
-        : await parseWithOllama('Bot 1 chop wood', game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
+        ? await parseWithOpenAiCompatible('Bot 1 chop wood', game, { endpoint, model, providerLabel: LOCAL_AI_PROVIDERS.tabbyapi.backendLabel, enableTemplates: getTemplateRoutingEnabled(), loadout: benchmarkRoute.loadout, knowledgePacks: getActionPackCatalog() })
+        : await parseWithOllama('Bot 1 chop wood', game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout: benchmarkRoute.loadout, knowledgePacks: getActionPackCatalog() });
       dom.ollamaStatus.textContent = `${parsed.meta || 'Benchmark'} valid calls=${parsed.calls?.length || 0}, total=${Math.round(performance.now()-started)}ms`;
     } catch (e) {
       dom.ollamaStatus.textContent = `Benchmark failed: ${e.message}`;
@@ -1309,6 +1633,7 @@ export async function startGame() {
   });
   if (!dom.ollamaEndpoint.value) dom.ollamaEndpoint.value = defaultOllamaEndpoint();
   syncProviderUi();
+  syncFullscreenUi();
   updateAssistantPromptPreview();
   dom.settingsClose.addEventListener('click', () => setSettingsOpen(false));
   dom.resumeGameBtn?.addEventListener('click', () => setSettingsOpen(false));
@@ -1409,6 +1734,13 @@ export async function startGame() {
   window.getAssistantLoadoutText = () => JSON.stringify(getAssistantLoadoutDebug(), null, 2);
   window.getAssistantPromptPreview = updateAssistantPromptPreview;
   window.setAssistantLoadout = ids => persistAssistantLoadout(ids);
+  window.semanticRouterDebug = {
+    getState: () => semanticRouter.getStatus(),
+    getLastRoute: () => semanticRouter.getLastRoute?.(),
+    route: (text, options = {}) => semanticRouter.route(text, { knowledgePacks: options.knowledgePacks || getActionPackCatalog(), loadout: options.loadout || getAssistantLoadout() }),
+    train: (text, packId, options = {}) => semanticRouter.train(text, packId, { knowledgePacks: options.knowledgePacks || getActionPackCatalog(), loadout: options.loadout || getAssistantLoadout() }),
+    syncCatalog: () => semanticRouter.syncCatalog(getActionPackCatalog(), getAssistantLoadout())
+  };
   window.getCustomActionPacks = () => JSON.parse(JSON.stringify(customActionPacks));
   window.createCustomActionPack = pack => upsertCustomActionPack(pack);
   window.updateCustomActionPack = (id, patch = {}) => upsertCustomActionPack({ ...(customActionPacks[id] || {}), ...patch, id });
@@ -1432,7 +1764,7 @@ export async function startGame() {
   };
   window.getGameState = () => game.getState();
   window.gameMenuDebug = { save: saveGameToCache, load: loadGameFromCache, saveLibrary: () => saveGames.snapshot(), selectMenuMode: mode => setMainMenuLayer(normalizeGameMode(mode) === 'online_lakes' ? 'online-actions' : 'mode-actions', mode), startCampaign: startCampaignFromMenu, startTest: () => startNewGameFromMenu('test'), startNew: startNewGameFromMenu, openMainMenu: () => setMainMenuOpen(true), closeMainMenu: () => setMainMenuOpen(false), quitToMainMenu, showQuitSavePrompt: () => setQuitSavePromptOpen(true), hideQuitSavePrompt: () => setQuitSavePromptOpen(false), hasSavedGame, wasSavedRecently, getLastSaveAgeMs, setLastSaveAgeSeconds: seconds => { lastSuccessfulSaveAt = Number.isFinite(Number(seconds)) ? Date.now() - (Number(seconds) * 1000) : 0; return getLastSaveAgeMs(); }, isPaused: () => !!game.paused, campaignIntroActive: () => campaignIntroActive, campaignIntroScene: () => ({ active: campaignIntroActive, index: campaignIntroSceneIndex, total: CAMPAIGN_INTRO_SCENES.length }), advanceCampaignIntro, skipCampaignIntro: () => finishCampaignIntro('skip') };
-  window.getCameraState = () => ({ camera: { ...game.camera }, player: { x: game.player.x, y: game.player.y, target: game.player.target ? { ...game.player.target } : null }, map: { ...game.map } });
+  window.getCameraState = () => ({ camera: { ...game.camera }, player: { x: game.player.x, y: game.player.y, target: game.player.target ? { ...game.player.target } : null, targetQueue: (game.player.targetQueue || []).map(target => ({ ...target })) }, map: { ...game.map } });
   window.getWorldObjects = () => game.getObjectRegistry();
   window.getHoverState = () => game.getHoverState();
   window.beginZoneDrawing = () => game.beginZoneDrawing();
@@ -1462,7 +1794,7 @@ export async function startGame() {
     assignBotTeam: (botId, teamId) => { game.assignBotToTeam(botId, teamId); return window.getGameState(); },
     setBotInventory: (botId, type) => { const bot = game.findBot(botId); if (!bot) return null; bot.inventory = type ? { type, count: 1 } : null; return window.getGameState(); },
     setBotEquipment: (botId, type) => { const bot = game.findBot(botId); if (!bot) return null; if (type) game.equipActor(bot, type); else bot.equipment = null; return window.getGameState(); },
-    movePlayerTo: (x, y) => { game.player.x = x; game.player.y = y; game.player.target = null; return window.getGameState(); },
+    movePlayerTo: (x, y) => { game.player.x = x; game.player.y = y; game.player.target = null; game.player.targetQueue = []; return window.getGameState(); },
     setInventory: type => { game.player.inventory = type ? { type, count: 1 } : null; return window.getGameState(); },
     equipPlayer: type => { if (type) game.equipActor(game.player, type); else game.player.equipment = null; return window.getGameState(); },
     spawnItem: (type, x, y, count = 1) => { game.spawnItem(type, x, y, count); return window.getGameState(); },
@@ -1491,7 +1823,26 @@ export async function startGame() {
   };
   window.validateAssistantToolCalls = raw => validateToolCalls(raw, game, { loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
   window.validateAssistantDslAssignments = raw => validateDslAssignments(raw, game, { loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
-  window.voiceInputDebug = { applyStreamingTranscript: chat.applyTranscript, insertTextAtChatCursor: chat.insertAtCursor, defaultAsrWsUrl: chat.wsUrl, transcribeUrl: chat.transcribeUrl, getChatSelection: chat.getSelection, getAsrMode };
+  window.voiceInputDebug = {
+    applyStreamingTranscript: chat.applyTranscript,
+    insertTextAtChatCursor: chat.insertAtCursor,
+    defaultAsrWsUrl: chat.wsUrl,
+    transcribeUrl: chat.transcribeUrl,
+    getChatSelection: chat.getSelection,
+    getAsrMode,
+    getBrowserSttState: () => browserStt.getState?.(),
+    loadBrowserSttModel: (modelId = dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL) => browserStt.loadModel(modelId, { backend: 'auto' }),
+    transcribeBrowserAudio: (audio, sampleRate = 16000, modelId = dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL) => browserStt.transcribe(audio, sampleRate, { modelId, backend: 'auto' })
+  };
+  window.browserSttDebug = {
+    getCatalog: () => browserStt.getCatalog?.(),
+    getState: () => browserStt.getState?.(),
+    loadModel: (modelId = dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL) => browserStt.loadModel(modelId, { backend: 'auto' }),
+    unload: (modelId = dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL) => browserStt.unload(modelId),
+    setModel: modelId => browserStt.setSelectedModel(modelId),
+    describeModel: modelId => browserStt.describeModel?.(modelId),
+    concatAudio: chunks => browserStt.concatAudio?.(chunks)
+  };
   window.audioDebug = { controller: audio, play: name => audio.play(name, { cooldownKey: `debug:${name}`, minGapMs: 0 }), startMusic: station => audio.startMusic(station), stopMusic: () => audio.stopMusic(), state: () => ({ enabled: audio.state.enabled, sfxVolume: audio.state.sfxVolume, musicVolume: audio.state.musicVolume, station: audio.state.station, musicPlaying: audio.isMusicPlaying(), stations: Object.keys(audio.stations) }) };
 
   const simWorkerLabel = () => simWorker.ready ? 'Rust/WASM sim worker ready' : `sim worker ${simWorker.status || 'pending'}`;

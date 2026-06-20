@@ -1,0 +1,89 @@
+[
+  {
+    "id": "bring_log_once",
+    "text": "bot 1 bring me a log",
+    "loadout": ["starter_automation"],
+    "expected": {
+      "botId": 1,
+      "program": {
+        "repeat": false,
+        "steps": [
+          { "op": "pick_up", "type": "log" },
+          { "op": "deposit_to_player", "type": "log" }
+        ]
+      }
+    }
+  },
+  {
+    "id": "feed_sawbench_repeat",
+    "text": "bot 1 keep sawbench full of logs",
+    "loadout": ["starter_automation", "woodworking"],
+    "expected": {
+      "botId": 1,
+      "program": {
+        "repeat": true,
+        "steps": [
+          { "op": "pick_up", "type": "log" },
+          { "op": "deposit_to_structure", "type": "log", "structureType": "sawbench" }
+        ]
+      }
+    }
+  },
+  {
+    "id": "rename_once",
+    "text": "rename bot 2 to guard",
+    "loadout": ["starter_automation"],
+    "expected": {
+      "botId": 2,
+      "program": {
+        "repeat": false,
+        "steps": [
+          { "op": "rename_bot", "name": "guard" }
+        ]
+      }
+    }
+  },
+  {
+    "id": "anyone_bring_log_once",
+    "text": "someone bring me a log",
+    "loadout": ["starter_automation"],
+    "expected": {
+      "assignee": { "strategy": "any_eligible" },
+      "program": {
+        "repeat": false,
+        "steps": [
+          { "op": "pick_up", "type": "log" },
+          { "op": "deposit_to_player", "type": "log" }
+        ]
+      }
+    }
+  },
+  {
+    "id": "mine_repeat",
+    "text": "bot 1 mine stone",
+    "loadout": ["mining_tools"],
+    "expected": {
+      "botId": 1,
+      "program": {
+        "repeat": true,
+        "steps": [
+          { "op": "mine_stone" }
+        ]
+      }
+    }
+  },
+  {
+    "id": "craft_shield_once",
+    "text": "bot 1 craft shield at smithery 1",
+    "loadout": ["combat"],
+    "expected": {
+      "botId": 1,
+      "program": {
+        "repeat": false,
+        "steps": [
+          { "op": "craft_smithery", "recipe": "wooden_shield", "structureType": "smithery" }
+        ]
+      }
+    }
+  }
+]

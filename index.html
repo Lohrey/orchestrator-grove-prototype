@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Orchestrator Grove Prototype v9</title>
   <link rel="icon" href="data:," />
+  <script type="importmap">
+    {
+      "imports": {
+        "@huggingface/transformers": "/vendor/huggingface/transformers.web.js",
+        "onnxruntime-common": "/vendor/onnxruntime-common/dist/esm/index.js",
+        "onnxruntime-web/webgpu": "/vendor/onnxruntime-web/dist/ort.webgpu.bundle.min.mjs"
+      }
+    }
+  </script>
   <link rel="stylesheet" href="styles.css?v=t_8ab80257" />
   <link rel="stylesheet" href="styles-interactions.css?v=t_building_kits_0618" />
   <link rel="stylesheet" href="ui-overlays/orchestrator-grove-prototype.css?v=t_building_kits_0618" />
@@ -383,8 +392,10 @@
         <div class="pause-save-actions">
           <button id="resumeGameBtn" type="button">Resume game</button>
           <button id="pauseGameBtn" type="button">Pause game</button>
+          <button id="fullscreenToggleBtn" type="button">Enter fullscreen</button>
           <button id="quitToMainMenuBtn" type="button" class="danger-action">Quit to main menu</button>
         </div>
+        <p id="fullscreenStatus" class="small status-text">Fullscreen is off.</p>
         <div id="quitSavePrompt" class="quit-save-prompt" role="alertdialog" aria-live="polite" hidden>
           <b>Save before quitting?</b>
           <p class="small status-text">This game has not been saved in the last 30 seconds.</p>
@@ -485,10 +496,31 @@
             <option value="zipformer_whisper" selected>Sherpa Zipformer live + Whisper finalizer</option>
             <option value="whisper_direct">Sherpa Whisper direct (no Zipformer, final-only)</option>
             <option value="faster_whisper">faster-whisper server STT (browser recording upload)</option>
+            <option value="browser_whisper">Browser Whisper (download once, local inference)</option>
           </select>
         </label>
         <p id="asrModeHelp" class="small status-text">Default: live Zipformer partial text while speaking, then Whisper-tiny final text when you stop.</p>
-        <p class="small">Use <b>Whisper direct</b> to bypass Zipformer completely. Use <b>faster-whisper</b> to record audio in the browser, upload it to the server, and insert the returned final transcript.</p>
+        <p class="small">Use <b>Whisper direct</b> to bypass Zipformer completely. Use <b>faster-whisper</b> to record audio in the browser, upload it to the server, and insert the returned final transcript. Use <b>Browser Whisper</b> to keep inference fully local after the first model download.</p>
+        <section class="browser-stt-card" aria-label="Browser STT model controls">
+          <label class="stacked">Browser STT model
+            <select id="browserSttModel">
+              <option value="whisper-tiny.en" selected>Whisper tiny.en</option>
+              <option value="whisper-tiny">Whisper tiny</option>
+              <option value="whisper-base">Whisper base</option>
+              <option value="whisper-small">Whisper small</option>
+            </select>
+          </label>
+          <div class="endpoint-actions" aria-label="Browser STT model actions">
+            <button id="browserSttDownloadBtn" type="button">Download model</button>
+            <button id="browserSttUnloadBtn" type="button">Unload model</button>
+          </div>
+          <p id="browserSttStatus" class="small status-text">Browser model not loaded yet.</p>
+          <div class="browser-stt-progress-row" aria-label="Browser STT download progress">
+            <progress id="browserSttProgress" max="100" value="0"></progress>
+            <span id="browserSttProgressText" class="small browser-stt-progress-text">0%</span>
+          </div>
+          <p class="small">Models download once, then stay cached in your browser for local inference. Use this mode when you want no server upload at all.</p>
+        </section>
       </section>
 
       <section class="settings-section settings-tab-panel" data-settings-panel="audio">
@@ -518,6 +550,18 @@
           Enable legacy workflow-template routing in chat
         </label>
         <p class="small">Off by default so Local AI requests can be tested without keyword template auto-selection. Turn on to restore the mock parser and Ollama fallback templates.</p>
+        <label class="checkline">
+          <input id="semanticRouting" type="checkbox" checked />
+          Enable semantic pack routing in a Web Worker
+        </label>
+        <p class="small">Routes each request to the closest knowledge/action pack bundle before the prompt is built. When the router is unsure, train the current draft into a pack below.</p>
+        <div class="endpoint-actions semantic-router-controls">
+          <label class="stacked">Train into pack
+            <select id="semanticRouterPackSelect"></select>
+          </label>
+          <button id="semanticRouterTrainBtn" type="button">Train current draft</button>
+        </div>
+        <p id="semanticRouterStatus" class="small status-text">Semantic router starting…</p>
         <p id="llmProviderLabel" class="small status-text">Provider: Ollama</p>
         <label class="stacked">Endpoint
           <input id="ollamaEndpoint" type="url" value="/ollama-proxy" />
@@ -599,6 +643,7 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
             <textarea id="customPackExamples" rows="2" placeholder="One example/intent per line."></textarea>
           </label>
           <div id="customPackActionList" class="custom-action-list" aria-label="Action step selector"></div>
+          <div id="customPackAliasEditor" class="custom-pack-alias-editor" aria-label="Action step alias editor"></div>
           <div class="endpoint-actions" aria-label="Custom action pack actions">
             <button id="saveCustomPack" type="button">Save custom pack</button>
             <button id="clearCustomPackForm" type="button">Clear form</button>
@@ -608,15 +653,21 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
           <button id="resetKnowledgePacks" type="button">Reset to default loadout</button>
         </div>
         <p id="knowledgePackStatus" class="small status-text">Loading knowledge packs…</p>
-        <h3>Base system prompt</h3>
-        <p class="small">Minimal fixed instruction sent as the system message. It teaches the required JSON shape; world/name context stays in the user knowledge message below.</p>
-        <pre id="assistantBasePromptView" class="program-view assistant-base-prompt-view">Base prompt preview will appear after the world loads.</pre>
-        <h3>LLM knowledge message</h3>
-        <p class="small">Everything dynamic sent to the model: selected packs, unlocked ops, optional runtime name lists, minimal bot/building/zone context, and the current request.</p>
-        <pre id="assistantLoadoutView" class="program-view assistant-loadout-view"></pre>
-        <h3>Final AI prompt preview</h3>
-        <p class="small">Exact system/user prompt messages generated from the current world context, selected packs, template-routing setting, and the current chat draft (or a placeholder request).</p>
-        <pre id="assistantPromptPreview" class="program-view assistant-prompt-preview">Prompt preview will appear after the world loads.</pre>
+        <details class="prompt-foldout">
+          <summary>Base system prompt</summary>
+          <p class="small">Minimal fixed instruction sent as the system message. It teaches the required JSON shape; world/name context stays in the user knowledge message below.</p>
+          <pre id="assistantBasePromptView" class="program-view assistant-base-prompt-view">Base prompt preview will appear after the world loads.</pre>
+        </details>
+        <details class="prompt-foldout">
+          <summary>LLM knowledge message</summary>
+          <p class="small">Everything dynamic sent to the model: selected packs, unlocked ops, optional runtime name lists, minimal bot/building/zone context, and the current request.</p>
+          <pre id="assistantLoadoutView" class="program-view assistant-loadout-view"></pre>
+        </details>
+        <details class="prompt-foldout">
+          <summary>Final AI prompt preview</summary>
+          <p class="small">Exact system/user prompt messages generated from the current world context, selected packs, template-routing setting, and the current chat draft (or a placeholder request).</p>
+          <pre id="assistantPromptPreview" class="program-view assistant-prompt-preview">Prompt preview will appear after the world loads.</pre>
+        </details>
       </section>
 
       <section class="settings-section settings-tab-panel" data-settings-panel="log">
@@ -640,7 +691,7 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
 
       <section class="settings-section settings-tab-panel" data-settings-panel="step-chain">
         <h3>Action Step Mechanism Chains</h3>
-        <p class="small">Registry-backed view of each action step and its backend, DSL, knowledge-pack, template, recorder, UI-card, and prompt representations.</p>
+        <p class="small">Registry-backed view of each action step and its backend, DSL, knowledge-pack, template, recorder, UI-card, alias words, and prompt representations.</p>
         <div id="actionStepChainTable" class="action-step-chain-wrap"></div>
       </section>
     </section>

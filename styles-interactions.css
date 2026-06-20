@@ -509,6 +509,22 @@
 .bot-team-card:active,
 .bot-team-card.is-dragging { cursor: grabbing; opacity: .72; }
 .bot-card-body { min-width: 0; }
+.bot-card-topline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+.bot-card-menu-button {
+  cursor: pointer;
+  padding: 0;
+}
+.bot-card-inline-action {
+  align-self: center;
+  white-space: nowrap;
+  padding: 7px 10px;
+  font-size: 11px;
+}
 .bot-card-body p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.28; }
 .bot-search-empty,
 .bot-team-hint { padding: 8px 2px; }
@@ -1012,6 +1028,34 @@
   border-top: 0;
   margin-top: 0;
   padding-top: 0;
+}
+.prompt-foldout {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(45, 53, 50, .75);
+  border-radius: 12px;
+  background: rgba(9, 14, 12, .72);
+}
+.prompt-foldout:last-child { margin-bottom: 0; }
+.prompt-foldout summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  color: #e6f0e9;
+  list-style: none;
+}
+.prompt-foldout summary::-webkit-details-marker { display: none; }
+.prompt-foldout summary::after {
+  content: ' ▾';
+  color: #93a79b;
+  font-weight: 400;
+}
+.prompt-foldout[open] summary::after { content: ' ▴'; }
+.prompt-foldout .small {
+  margin: 8px 0 10px;
+}
+.prompt-foldout .program-view {
+  max-height: 32vh;
 }
 .knowledge-pack-list {
   display: grid;

@@ -60,6 +60,11 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
         page.locator("#botSearch").fill("")
         page.wait_for_function("() => [...document.querySelectorAll('#botList [data-bot-card]')].length >= 4")
 
+        # Drawer cards can open the same bot context menu as the canvas.
+        page.locator("#botList [data-bot-id='2'] [data-open-bot-menu='2']").last.click()
+        page.wait_for_function("() => document.querySelector('#botMenu .bot-menu-title b')?.textContent === 'Miner Beta'")
+        assert page.locator("#botMenu [data-bot-json-editor]").count() == 1
+
         # Create a team with a color, then drag a bot card into the team drop zone.
         page.locator("#botTeamName").fill("Forestry")
         page.locator("#botTeamColor").evaluate("el => { el.value = '#2f6f5d'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
