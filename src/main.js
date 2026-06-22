@@ -17,7 +17,7 @@ export async function startGame() {
   const $ = id => document.getElementById(id);
   const dom = {
     canvas: $('game'), gameStage: $('gameStage'), chatLog: $('chatLog'), chatForm: $('chatForm'), chatInput: $('chatInput'), micButton: $('micButton'), asrStatus: $('asrStatus'), quickCommands: $('quickCommands'), drawZoneButton: $('drawZoneButton'),
-    botList: $('botList'), statline: $('statline'), rendererStatus: $('rendererStatus'), targetFps: $('targetFps'), targetFpsValue: $('targetFpsValue'), maxBots: $('maxBots'), maxBotsValue: $('maxBotsValue'), performanceProfile: $('performanceProfile'), applyAutoPerformance: $('applyAutoPerformance'), fogOfWarToggle: $('fogOfWarToggle'), lightingEffects: $('lightingEffects'), dynamicShadows: $('dynamicShadows'), showFpsOverlay: $('showFpsOverlay'), detectedGpu: $('detectedGpu'), detectedVram: $('detectedVram'), detectedProfile: $('detectedProfile'), recommendedBots: $('recommendedBots'), recommendedFps: $('recommendedFps'), performanceNotes: $('performanceNotes'),
+    botList: $('botList'), statline: $('statline'), rendererStatus: $('rendererStatus'), targetFps: $('targetFps'), targetFpsValue: $('targetFpsValue'), maxBots: $('maxBots'), maxBotsValue: $('maxBotsValue'), performanceProfile: $('performanceProfile'), applyAutoPerformance: $('applyAutoPerformance'), fogOfWarToggle: $('fogOfWarToggle'), lightingEffects: $('lightingEffects'), dynamicShadows: $('dynamicShadows'), showFpsOverlay: $('showFpsOverlay'), pixiHighResolution: $('pixiHighResolution'), pixiAntialias: $('pixiAntialias'), detectedGpu: $('detectedGpu'), detectedVram: $('detectedVram'), detectedProfile: $('detectedProfile'), recommendedBots: $('recommendedBots'), recommendedFps: $('recommendedFps'), performanceNotes: $('performanceNotes'),
     teachPanel: $('teachPanel'), teachCloseBtn: $('teachCloseBtn'), teachRecordBtn: $('teachRecordBtn'), teachAssignBtn: $('teachAssignBtn'), teachBotId: $('teachBotId'), teachStatus: $('teachStatus'), teachSteps: $('teachSteps'),
     sawLogs: $('sawLogs'), sawPlanks: $('sawPlanks'), sawPoles: $('sawPoles'), factoryPlanks: $('factoryPlanks'), factoryRecipe: $('factoryRecipe'), looseLogs: $('looseLogs'), loosePlanks: $('loosePlanks'), looseBase: $('looseBase'), paletteItems: $('paletteItems'), programSelect: $('programSelect'), programView: $('programView'),
     llmMode: $('llmMode'), templateRouting: $('templateRouting'), semanticRouting: $('semanticRouting'), semanticRouterStatus: $('semanticRouterStatus'), semanticRouterPackSelect: $('semanticRouterPackSelect'), semanticRouterTrainBtn: $('semanticRouterTrainBtn'), ollamaEndpoint: $('ollamaEndpoint'), ollamaModel: $('ollamaModel'), refreshModels: $('refreshModels'), benchmarkBtn: $('benchmarkBtn'), ollamaStatus: $('ollamaStatus'), llmProviderLabel: $('llmProviderLabel'), serverOllamaBtn: $('serverOllamaBtn'), localOllamaBtn: $('localOllamaBtn'), localTabbyBtn: $('localTabbyBtn'), localOllamaWindowsHelp: $('localOllamaWindowsHelp'), localTabbyHelp: $('localTabbyHelp'), asrMode: $('asrMode'), asrModeHelp: $('asrModeHelp'), browserSttModel: $('browserSttModel'), browserSttDownloadBtn: $('browserSttDownloadBtn'), browserSttUnloadBtn: $('browserSttUnloadBtn'), browserSttStatus: $('browserSttStatus'), browserSttProgress: $('browserSttProgress'), browserSttProgressText: $('browserSttProgressText'),
@@ -115,6 +115,7 @@ export async function startGame() {
   const ASSISTANT_LOADOUT_KEY = 'orchestratorGrove.assistantLoadout.v1';
   const CUSTOM_ACTION_PACKS_KEY = 'orchestratorGrove.customActionPacks.v1';
   const SETTINGS_KEY = 'orchestratorGrove.settings.v1';
+  const DEFAULT_RENDERER_SETTINGS = Object.freeze({ highResolution: true, antialias: true });
   const SAVE_KEY = 'orchestratorGrove.save.v1';
   const SAVE_LIBRARY_KEY = 'orchestratorGrove.saveLibrary.v2';
   const RECENT_SAVE_MS = 30000;
@@ -178,6 +179,12 @@ export async function startGame() {
     if (!raw) return fallback;
     try { return JSON.parse(raw); } catch { return fallback; }
   };
+  function normalizeRendererSettings(settings = null) {
+    return {
+      highResolution: settings?.highResolution !== false,
+      antialias: settings?.antialias !== false
+    };
+  }
   function getSelectedProvider() {
     return dom.llmMode?.value === 'tabbyapi' ? 'tabbyapi' : 'ollama';
   }
@@ -191,6 +198,7 @@ export async function startGame() {
     };
   }
   function saveBrowserSettings() {
+    const rendererSettings = getRendererSettingsFromUi();
     const settings = {
       llmMode: dom.llmMode?.value || 'mock',
       templateRouting: getTemplateRoutingEnabled(),
@@ -203,6 +211,7 @@ export async function startGame() {
       lightingEffects: getLightingEffectsEnabled(),
       dynamicShadows: getDynamicShadowsEnabled(),
       showFpsOverlay: getShowFpsOverlayEnabled(),
+      rendererSettings,
       browserSttModel: dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL,
       ai: getCurrentLocalAiConfig()
     };
@@ -213,6 +222,27 @@ export async function startGame() {
     const max = Number(dom.maxBots?.max || 1000);
     return Math.max(min, Math.min(max, Math.round(Number(value) || min)));
   };
+  function getRendererSettingsFromUi() {
+    return normalizeRendererSettings({
+      highResolution: dom.pixiHighResolution?.checked ?? DEFAULT_RENDERER_SETTINGS.highResolution,
+      antialias: dom.pixiAntialias?.checked ?? DEFAULT_RENDERER_SETTINGS.antialias
+    });
+  }
+  function syncRendererSettingsUi(settings = DEFAULT_RENDERER_SETTINGS) {
+    const normalized = normalizeRendererSettings(settings);
+    if (dom.pixiHighResolution) dom.pixiHighResolution.checked = normalized.highResolution;
+    if (dom.pixiAntialias) dom.pixiAntialias.checked = normalized.antialias;
+    return normalized;
+  }
+  function applyRendererSettings(settings, { save = true, message = '' } = {}) {
+    const normalized = syncRendererSettingsUi(settings);
+    const result = game?.renderBackend?.updateSettings?.(normalized) || { settings: normalized, reloadRequired: false };
+    if (message) {
+      syncPerformanceUi(result.reloadRequired ? `${message} Reload the page to apply the antialiasing change.` : message);
+    }
+    if (save) saveBrowserSettings();
+    return result;
+  }
   function getRendererRecommendation(renderer = game?.renderer) {
     const profile = renderer?.preset || 'balanced';
     const recommendedTargetFps = Number(renderer?.recommendedTargetFps || PERFORMANCE_PRESETS[profile]?.targetFps || PERFORMANCE_PRESETS.balanced.targetFps);
@@ -735,6 +765,7 @@ export async function startGame() {
   let game;
   const params = new URLSearchParams(window.location.search);
   const storedSettings = readJson(SETTINGS_KEY, null);
+  const storedRendererSettings = normalizeRendererSettings(storedSettings?.rendererSettings);
   const storedPerformanceProfile = storedSettings?.performanceProfile || 'auto';
   const storedAsrMode = storedSettings?.asrMode || storageGet(ASR_MODE_KEY);
   const storedBrowserSttModel = storedSettings?.browserSttModel || DEFAULT_BROWSER_STT_MODEL;
@@ -757,7 +788,8 @@ export async function startGame() {
     onSubmit: text => handleAssistant(text)
   });
   const rendererMode = params.get('renderer') || storedSettings?.rendererMode || 'pixi';
-  const renderBackend = await createRenderBackend({ canvas: dom.canvas, mode: rendererMode });
+  syncRendererSettingsUi(storedRendererSettings);
+  const renderBackend = await createRenderBackend({ canvas: dom.canvas, mode: rendererMode, settings: storedRendererSettings });
   game = new Game({ canvas: dom.canvas, chat, dom, isChatActive: () => isChatOpen(), renderBackend });
   game.setManagerKnowledgePackCatalog(getActionPackCatalog());
   semanticRouter.syncCatalog(getActionPackCatalog(), getAssistantLoadout()).then(() => updateSemanticRouterUi(semanticRouter.getLastRoute?.())).catch(error => {
@@ -787,6 +819,7 @@ export async function startGame() {
   if (dom.lightingEffects) dom.lightingEffects.checked = game.lightingEffectsEnabled;
   if (dom.dynamicShadows) dom.dynamicShadows.checked = game.dynamicShadowsEnabled;
   if (dom.showFpsOverlay) dom.showFpsOverlay.checked = game.showFpsOverlay;
+  syncRendererSettingsUi(renderBackend.getSettings?.() || storedRendererSettings);
   const audio = createAudioController();
   const saveGames = createSaveGameManager({ storageGet, storageSet, libraryKey: SAVE_LIBRARY_KEY, legacyKey: SAVE_KEY });
   let selectedMainMenuMode = 'test';
@@ -1603,6 +1636,18 @@ export async function startGame() {
     syncPerformanceUi(game.showFpsOverlay ? 'FPS meter visible in the top-right HUD.' : 'FPS meter hidden.');
     saveBrowserSettings();
   });
+  dom.pixiHighResolution?.addEventListener('change', () => {
+    applyRendererSettings(getRendererSettingsFromUi(), {
+      save: true,
+      message: dom.pixiHighResolution.checked ? 'High-resolution Pixi output enabled.' : 'High-resolution Pixi output disabled for lower GPU cost.'
+    });
+  });
+  dom.pixiAntialias?.addEventListener('change', () => {
+    applyRendererSettings(getRendererSettingsFromUi(), {
+      save: true,
+      message: dom.pixiAntialias.checked ? 'Pixi antialiasing enabled.' : 'Pixi antialiasing disabled for lower GPU cost.'
+    });
+  });
   dom.performanceProfile?.addEventListener('change', () => {
     const selected = dom.performanceProfile.value;
     if (selected === 'custom') {
@@ -2008,7 +2053,7 @@ export async function startGame() {
   };
   window.dispatchEvent(new CustomEvent('orchestrator:ui-ready', { detail: window.orchestratorUiBridge }));
 
-  window.uiDebug = { toggleSettings, setSettingsOpen, toggleChat, setChatOpen, setSettingsTab, toggleBotDrawer, setBotDrawerOpen, toggleBuildDrawer, setBuildDrawerOpen, toggleZonesDrawer, setZonesDrawerOpen, toggleMultiplayerDrawer, setMultiplayerDrawerOpen, setRadioWidgetOpen, setBuildTab, setFogOfWar: value => { if (dom.fogOfWarToggle) dom.fogOfWarToggle.checked = !!value; game.fogOfWar.enabled = !!value; game._lastFogSignature = ''; saveBrowserSettings(); return game.fogOfWar.enabled; }, setLightingEffects: value => { if (dom.lightingEffects) dom.lightingEffects.checked = !!value; game.lightingEffectsEnabled = !!value; saveBrowserSettings(); return game.lightingEffectsEnabled; }, setDynamicShadows: value => { if (dom.dynamicShadows) dom.dynamicShadows.checked = !!value; game.dynamicShadowsEnabled = !!value; saveBrowserSettings(); return game.dynamicShadowsEnabled; }, setFpsOverlay: value => { if (dom.showFpsOverlay) dom.showFpsOverlay.checked = !!value; game.showFpsOverlay = !!value; saveBrowserSettings(); return game.showFpsOverlay; }, showAssignmentToast, hideAssignmentToast };
+  window.uiDebug = { toggleSettings, setSettingsOpen, toggleChat, setChatOpen, setSettingsTab, toggleBotDrawer, setBotDrawerOpen, toggleBuildDrawer, setBuildDrawerOpen, toggleZonesDrawer, setZonesDrawerOpen, toggleMultiplayerDrawer, setMultiplayerDrawerOpen, setRadioWidgetOpen, setBuildTab, setFogOfWar: value => { if (dom.fogOfWarToggle) dom.fogOfWarToggle.checked = !!value; game.fogOfWar.enabled = !!value; game._lastFogSignature = ''; saveBrowserSettings(); return game.fogOfWar.enabled; }, setLightingEffects: value => { if (dom.lightingEffects) dom.lightingEffects.checked = !!value; game.lightingEffectsEnabled = !!value; saveBrowserSettings(); return game.lightingEffectsEnabled; }, setDynamicShadows: value => { if (dom.dynamicShadows) dom.dynamicShadows.checked = !!value; game.dynamicShadowsEnabled = !!value; saveBrowserSettings(); return game.dynamicShadowsEnabled; }, setFpsOverlay: value => { if (dom.showFpsOverlay) dom.showFpsOverlay.checked = !!value; game.showFpsOverlay = !!value; saveBrowserSettings(); return game.showFpsOverlay; }, setPixiHighResolution: value => applyRendererSettings({ ...getRendererSettingsFromUi(), highResolution: !!value }, { save: true }).settings.highResolution, setPixiAntialias: value => applyRendererSettings({ ...getRendererSettingsFromUi(), antialias: !!value }, { save: true }).settings.antialias, showAssignmentToast, hideAssignmentToast };
 
   addChat('assistant', 'Ready. Desktop: WASD/arrows pan, wheel zooms. Mobile: tap the map to move/select, long-press for context actions, drag-pan, pinch or ＋/－ zoom. Main menu offers Campaign mode, Test mode, Local vs AI, and Online Multiplayer.');
   game.syncBuildUi(); game.syncTeachUi(); game.syncZonesUi?.(); game.syncBotDrawerUi?.(); syncSaveUi();

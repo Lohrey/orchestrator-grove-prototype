@@ -17,11 +17,25 @@ import {
 } from '../visual-assets.js?v=t_building_kits_0618';
 
 const LOOSE_ITEM_RENDER_MIN_ZOOM = 0.55;
+const DECORATIVE_DETAIL_RENDER_MIN_ZOOM = 0.55;
 const BOT_RENDER_MIN_ZOOM = 0.30;
 const BOT_HAND_TOOL_TYPES = new Set(['crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer']);
 const LIGHT_OCCLUDER_PAD = 420;
+const MAX_HIGH_RES_DEVICE_PIXEL_RATIO = 2;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function normalizeRendererSettings(settings = {}) {
+  return {
+    highResolution: settings?.highResolution !== false,
+    antialias: settings?.antialias !== false
+  };
+}
+
+function getRendererResolution(settings) {
+  if (!settings.highResolution) return 1;
+  return clamp(window.devicePixelRatio || 1, 1, MAX_HIGH_RES_DEVICE_PIXEL_RATIO);
+}
 
 function fillPath(graphics, color, alpha, draw) {
   draw(graphics);
@@ -39,18 +53,24 @@ function fillAndStrokePath(graphics, { fill = null, fillAlpha = 1, stroke = null
   if (stroke != null) strokePath(graphics, stroke, strokeWidth, strokeAlpha, draw, strokeOptions);
 }
 
-export async function createPixiRenderer({ canvas, capture = false }) {
+export async function createPixiRenderer({ canvas, capture = false, settings = null }) {
   const PIXI = await import('../../vendor/pixi/pixi.mjs');
+  const rendererSettings = normalizeRendererSettings(settings);
   const app = new PIXI.Application();
   await app.init({
     canvas,
     backgroundAlpha: 1,
-    antialias: false,
-    autoDensity: false,
-    resolution: 1,
+    antialias: rendererSettings.antialias,
+    autoDensity: rendererSettings.highResolution,
+    resolution: getRendererResolution(rendererSettings),
     preference: 'webgl',
     preserveDrawingBuffer: !!capture
   });
+  canvas.style.position = 'absolute';
+  canvas.style.inset = '0';
+  canvas.style.display = 'block';
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
   app.ticker.stop();
   app.stage.sortableChildren = true;
 
@@ -89,10 +109,11 @@ export async function createPixiRenderer({ canvas, capture = false }) {
   const backdrop = new PIXI.Sprite();
   backgroundLayer.addChild(backdrop);
 
-  const mapGround = new PIXI.Graphics();
-  const mapFeatures = new PIXI.Container();
-  const mapFeatureGraphics = new Map();
-  worldStaticLayer.addChild(mapGround, mapFeatures);
+  const terrainBaseSprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
+  const terrainDetailSprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
+  const terrainFeatureSprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
+  worldStaticLayer.addChild(terrainBaseSprite, terrainDetailSprite, terrainFeatureSprite);
+  terrainDetailSprite.visible = false;
 
   const playerView = createActorView(PIXI, {
     id: 'player',
@@ -125,6 +146,11 @@ export async function createPixiRenderer({ canvas, capture = false }) {
   let lastViewportWidth = 0;
   let lastViewportHeight = 0;
   let lastMapSignature = '';
+  let terrainTextures = {
+    base: null,
+    details: null,
+    features: null
+  };
 
   function destroyDisplayObject(displayObject) {
     if (displayObject?.destroy) displayObject.destroy({ children: true });
@@ -149,6 +175,71 @@ export async function createPixiRenderer({ canvas, capture = false }) {
       draw(ctx, offscreen);
       return PIXI.Texture.from(offscreen);
     });
+  }
+
+  function roundedCanvasRect(context, x, y, width, height, radius) {
+    const r = Math.min(radius, Math.abs(width) / 2, Math.abs(height) / 2);
+    context.beginPath();
+    if (context.roundRect) {
+      context.roundRect(x, y, width, height, r);
+      return;
+    }
+    context.moveTo(x + r, y);
+    context.lineTo(x + width - r, y);
+    context.quadraticCurveTo(x + width, y, x + width, y + r);
+    context.lineTo(x + width, y + height - r);
+    context.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    context.lineTo(x + r, y + height);
+    context.quadraticCurveTo(x, y + height, x, y + height - r);
+    context.lineTo(x, y + r);
+    context.quadraticCurveTo(x, y, x + r, y);
+  }
+
+  function getNameTagTexture(text) {
+    const label = String(text || '');
+    const font = '700 11px system-ui';
+    const measureCanvas = makeCanvas(2, 2);
+    const measureCtx = measureCanvas.getContext('2d', { alpha: true });
+    measureCtx.font = font;
+    const width = Math.ceil(measureCtx.measureText(label).width + 14);
+    const height = 20;
+    return buildTexture(`nametag:${label}`, width * 2, height * 2, ctx => {
+      ctx.scale(2, 2);
+      ctx.font = font;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 2;
+      ctx.fillStyle = 'rgba(6,10,8,.82)';
+      ctx.strokeStyle = 'rgba(255,244,208,.38)';
+      roundedCanvasRect(ctx, 0, 0, width, height, 999);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#fff4d0';
+      ctx.fillText(label, width / 2, height / 2 + 0.5);
+    });
+  }
+
+  function destroyTerrainTextures() {
+    for (const texture of Object.values(terrainTextures)) {
+      if (texture && texture !== PIXI.Texture.EMPTY) texture.destroy(true);
+    }
+    terrainTextures = { base: null, details: null, features: null };
+  }
+
+  function buildStaticTexture(width, height, draw) {
+    const layer = new PIXI.Container();
+    draw(layer);
+    const texture = PIXI.RenderTexture.create({ width: Math.max(1, Math.ceil(width)), height: Math.max(1, Math.ceil(height)), resolution: 1 });
+    app.renderer.render({ container: layer, target: texture, clear: true });
+    layer.destroy({ children: true });
+    return texture;
+  }
+
+  function createGraphicsLayer(parent, draw) {
+    const graphics = new PIXI.Graphics();
+    parent.addChild(graphics);
+    draw(graphics);
+    return graphics;
   }
 
   function getBackdropTexture(width, height) {
@@ -211,8 +302,11 @@ export async function createPixiRenderer({ canvas, capture = false }) {
     backdrop.texture = getBackdropTexture(width, height);
     backdrop.width = width;
     backdrop.height = height;
-    if (overlayCanvas.width !== width) overlayCanvas.width = width;
-    if (overlayCanvas.height !== height) overlayCanvas.height = height;
+    const resolution = getRendererResolution(rendererSettings);
+    const physicalWidth = Math.max(1, Math.round(width * resolution));
+    const physicalHeight = Math.max(1, Math.round(height * resolution));
+    if (overlayCanvas.width !== physicalWidth) overlayCanvas.width = physicalWidth;
+    if (overlayCanvas.height !== physicalHeight) overlayCanvas.height = physicalHeight;
     overlaySprite.width = width;
     overlaySprite.height = height;
     overlayTexture.source.update();
@@ -238,22 +332,159 @@ export async function createPixiRenderer({ canvas, capture = false }) {
     });
     if (featureSignature === lastMapSignature) return;
     lastMapSignature = featureSignature;
-    mapGround.clear();
-    fillPath(mapGround, 0x25482d, 1, path => path.rect(0, 0, renderState.map.width, renderState.map.height));
-    fillPath(mapGround, 0x325936, 0.45, path => {
-      path.circle(renderState.map.width * 0.18, renderState.map.height * 0.16, Math.max(renderState.map.width, renderState.map.height) * 0.22);
-      path.circle(renderState.map.width * 0.72, renderState.map.height * 0.74, Math.max(renderState.map.width, renderState.map.height) * 0.18);
+    destroyTerrainTextures();
+    terrainTextures.base = buildTerrainBaseTexture(renderState);
+    terrainTextures.details = buildTerrainDetailTexture(renderState);
+    terrainTextures.features = buildTerrainFeatureTexture(renderState);
+    terrainBaseSprite.texture = terrainTextures.base;
+    terrainBaseSprite.width = renderState.map.width;
+    terrainBaseSprite.height = renderState.map.height;
+    terrainDetailSprite.texture = terrainTextures.details;
+    terrainDetailSprite.width = renderState.map.width;
+    terrainDetailSprite.height = renderState.map.height;
+    terrainFeatureSprite.texture = terrainTextures.features;
+    terrainFeatureSprite.width = renderState.map.width;
+    terrainFeatureSprite.height = renderState.map.height;
+  }
+
+  function buildTerrainBaseTexture(renderState) {
+    const width = renderState.map.width;
+    const height = renderState.map.height;
+    return buildStaticTexture(width, height, layer => {
+      const base = createGraphicsLayer(layer, graphics => {
+        fillPath(graphics, 0x15281d, 1, path => path.rect(0, 0, width, height));
+        fillPath(graphics, 0x25482d, 0.95, path => path.rect(0, 0, width, height));
+        fillPath(graphics, 0x325936, 0.36, path => {
+          path.ellipse(width * 0.20, height * 0.16, width * 0.64, height * 0.38);
+          path.ellipse(width * 0.76, height * 0.74, width * 0.44, height * 0.28);
+        });
+        fillPath(graphics, 0x203b27, 0.42, path => {
+          path.ellipse(width * 0.54, height * 0.52, width * 0.84, height * 0.62);
+        });
+        fillPath(graphics, 0x111d16, 0.22, path => {
+          path.ellipse(width * 0.50, height * 0.56, width * 0.98, height * 0.78);
+        });
+      });
+      base.blendMode = 'normal';
+
+      const sunlight = createGraphicsLayer(layer, graphics => {
+        fillPath(graphics, 0xb1d368, 0.18, path => path.ellipse(width * 0.18, height * 0.15, width * 0.64, height * 0.46));
+        fillPath(graphics, 0x6a9c4a, 0.06, path => path.ellipse(width * 0.35, height * 0.40, width * 0.52, height * 0.34));
+      });
+      sunlight.blendMode = 'screen';
+
+      const patches = createGraphicsLayer(layer, graphics => drawPainterlyGroundPatches(graphics, width, height));
+      patches.blendMode = 'normal';
+      const atmosphere = createGraphicsLayer(layer, graphics => drawAtmosphericBands(graphics, width, height));
+      atmosphere.blendMode = 'screen';
     });
+  }
 
-    for (const graphic of mapFeatureGraphics.values()) destroyDisplayObject(graphic);
-    mapFeatures.removeChildren();
-    mapFeatureGraphics.clear();
+  function buildTerrainDetailTexture(renderState) {
+    const width = renderState.map.width;
+    const height = renderState.map.height;
+    return buildStaticTexture(width, height, layer => {
+      const stream = createGraphicsLayer(layer, graphics => drawLushStream(graphics, width, height));
+      stream.blendMode = 'screen';
+      const trail = createGraphicsLayer(layer, graphics => drawGoldenTrail(graphics, width, height));
+      trail.blendMode = 'screen';
+      const details = createGraphicsLayer(layer, graphics => drawTerrainSprites(graphics, width, height));
+      details.blendMode = 'normal';
+    });
+  }
 
-    for (const feature of renderState.mapFeatures || []) {
-      const graphic = new PIXI.Graphics();
-      renderMapFeature(graphic, feature);
-      mapFeatures.addChild(graphic);
-      mapFeatureGraphics.set(feature.id || `${feature.type}:${feature.x}:${feature.y}`, graphic);
+  function buildTerrainFeatureTexture(renderState) {
+    const width = renderState.map.width;
+    const height = renderState.map.height;
+    return buildStaticTexture(width, height, layer => {
+      for (const feature of renderState.mapFeatures || []) {
+        const graphic = new PIXI.Graphics();
+        layer.addChild(graphic);
+        renderMapFeature(graphic, feature);
+      }
+    });
+  }
+
+  function drawAtmosphericBands(graphics, width, height) {
+    fillPath(graphics, 0x0e1712, 0.14, path => path.roundRect(0, 0, width, height, 0));
+    fillPath(graphics, 0x203424, 0.10, path => path.ellipse(width * 0.22, height * 0.18, width * 0.58, height * 0.24));
+    fillPath(graphics, 0x5d8c46, 0.06, path => path.ellipse(width * 0.66, height * 0.72, width * 0.48, height * 0.26));
+  }
+
+  function drawPainterlyGroundPatches(graphics, width, height) {
+    const patches = [
+      [0x4f7d3d, 0.20, 92, 32, -0.25, 28, 128, 176],
+      [0x78a24b, 0.14, 64, 18, 0.38, 82, 154, 218],
+      [0x1b3322, 0.18, 118, 38, -0.12, 140, 214, 284],
+      [0x9aa64f, 0.09, 46, 13, 0.18, 24, 92, 168]
+    ];
+    for (const [color, alpha, rx, ry, rotation, offsetX, stepY, stepX] of patches) {
+      for (let y = offsetX; y < height + 60; y += stepY) {
+        for (let x = (offsetX * 3 + ((y / stepY) % 2) * 67) % stepX; x < width + 80; x += stepX) {
+          const jitter = terrainNoise(x, y) - 0.5;
+          fillPath(graphics, color, alpha, path => {
+            path.ellipse(
+              x + jitter * 28,
+              y + jitter * 22,
+              rx * (0.72 + terrainNoise(y, x) * 0.55),
+              ry * (0.7 + terrainNoise(x + 99, y) * 0.5),
+              rotation + jitter * 0.25
+            );
+          });
+        }
+      }
+    }
+  }
+
+  function drawLushStream(graphics, width, height) {
+    strokePath(graphics, 0x568c82, 58, 0.34, path => {
+      path.moveTo(width * 0.03, height * 0.78);
+      path.bezierCurveTo(width * 0.18, height * 0.60, width * 0.28, height * 0.70, width * 0.42, height * 0.50);
+      path.bezierCurveTo(width * 0.56, height * 0.30, width * 0.70, height * 0.42, width * 0.96, height * 0.16);
+    }, { cap: 'round', join: 'round' });
+    strokePath(graphics, 0xb5e0b2, 8, 0.16, path => {
+      path.moveTo(width * 0.08, height * 0.74);
+      path.bezierCurveTo(width * 0.28, height * 0.62, width * 0.33, height * 0.62, width * 0.48, height * 0.46);
+      path.bezierCurveTo(width * 0.61, height * 0.33, width * 0.76, height * 0.39, width * 0.91, height * 0.22);
+    }, { cap: 'round', join: 'round' });
+  }
+
+  function drawGoldenTrail(graphics, width, height) {
+    strokePath(graphics, 0x977037, 34, 0.22, path => {
+      path.moveTo(80, height - 130);
+      path.bezierCurveTo(350, 520, 640, 760, width - 120, 250);
+    }, { cap: 'round', join: 'round' });
+    strokePath(graphics, 0xe7bc5b, 5, 0.12, path => {
+      path.moveTo(120, height - 155);
+      path.bezierCurveTo(420, 585, 670, 700, width - 170, 285);
+    }, { cap: 'round', join: 'round' });
+  }
+
+  function drawTerrainSprites(graphics, width, height) {
+    for (let y = 34; y < height; y += 66) {
+      for (let x = 24 + ((y / 66) % 2) * 31; x < width; x += 78) {
+        const n = terrainNoise(x, y);
+        if (n < 0.28) continue;
+        const bladeCount = n > 0.82 ? 5 : 3;
+        const bladeColor = n > 0.66 ? 0x98c45c : 0x538f48;
+        const bladeAlpha = n > 0.66 ? 0.34 : 0.28;
+        const bladeWidth = n > 0.72 ? 2 : 1.2;
+        for (let i = 0; i < bladeCount; i++) {
+          const bx = x + (i - 2) * 4 + (terrainNoise(y + i * 17, x) - 0.5) * 9;
+          const by = y + (terrainNoise(x + i * 23, y) - 0.5) * 12;
+          const lean = (terrainNoise(bx, by) - 0.5) * 10;
+          strokePath(graphics, bladeColor, bladeWidth, bladeAlpha, path => {
+            path.moveTo(bx, by + 8);
+            path.quadraticCurveTo(bx + lean * 0.35, by, bx + lean, by - 10 - n * 6);
+          }, { cap: 'round', join: 'round' });
+        }
+        if (n > 0.91) {
+          fillPath(graphics, 0xe8c75b, 0.64, path => path.circle(x + 10, y - 8, 2.3));
+        }
+        if (n > 0.96) {
+          fillPath(graphics, 0xdceaa0, 0.44, path => path.ellipse(x - 14, y + 12, 9, 4, -0.4));
+        }
+      }
     }
   }
 
@@ -292,8 +523,27 @@ export async function createPixiRenderer({ canvas, capture = false }) {
       const width = feature.w || 118;
       const height = feature.h || 58;
       graphics.position.set(feature.x || 0, feature.y || 0);
-      drawRoundedRect(graphics, -width / 2, -height / 2, width, height, 10, 0xedf3ef, 1, 0x17201d, 2, 1);
+      graphics.rotation = feature.rotation || 0;
+      fillPath(graphics, 0x0d1611, 0.24, path => path.ellipse(0, height * 0.20, width * 0.40, height * 0.12));
+      drawRoundedRect(graphics, -width * 0.46, -height * 0.18, width * 0.92, height * 0.42, 12, 0xeef3ef, 1, 0x17201d, 2, 1);
+      drawRoundedRect(graphics, -width * 0.23, -height * 0.33, width * 0.44, height * 0.18, 7, 0xcfd8d3, 1, 0x17201d, 2, 1);
+      drawRoundedRect(graphics, -width * 0.27, -height * 0.12, width * 0.18, height * 0.15, 3, 0x80a9c9, 0.9, 0x17201d, 1.2, 1);
+      drawRoundedRect(graphics, width * 0.02, -height * 0.12, width * 0.18, height * 0.15, 3, 0x80a9c9, 0.9, 0x17201d, 1.2, 1);
+      drawRoundedRect(graphics, -width * 0.03, -height * 0.02, width * 0.13, height * 0.05, 1.5, 0xb7c2ba, 1, 0x17201d, 1, 1);
+      fillPath(graphics, 0x1f2723, 1, path => {
+        path.circle(-width * 0.27, height * 0.24, height * 0.11);
+        path.circle(width * 0.29, height * 0.24, height * 0.11);
+      });
+      fillPath(graphics, 0xcfd8d3, 1, path => {
+        path.circle(-width * 0.27, height * 0.24, height * 0.05);
+        path.circle(width * 0.29, height * 0.24, height * 0.05);
+      });
     }
+  }
+
+  function terrainNoise(x, y) {
+    const value = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+    return value - Math.floor(value);
   }
 
   function moveThroughPoints(graphics, points, dash = 0, gap = 0) {
@@ -375,8 +625,8 @@ export async function createPixiRenderer({ canvas, capture = false }) {
       objectMaps.trees,
       renderState.trees || [],
       tree => tree.id || tree.ref,
-      tree => ({ container: createTreeView(PIXI, tree) }),
-      (view, tree) => updateTreeView(view.container, tree, renderState.mouse.hoverTree === tree),
+      tree => ({ container: createTreeView(PIXI, tree, getNameTagTexture) }),
+      (view, tree) => updateTreeView(view.container, tree, renderState.mouse.hoverTree === tree, getNameTagTexture),
       depthLayer
     );
   }
@@ -627,11 +877,16 @@ export async function createPixiRenderer({ canvas, capture = false }) {
   function resize({ width, height } = {}) {
     const nextWidth = Math.max(1, Math.round(width || canvas.width || 1));
     const nextHeight = Math.max(1, Math.round(height || canvas.height || 1));
+    app.renderer.resolution = getRendererResolution(rendererSettings);
+    app.renderer.autoDensity = rendererSettings.highResolution;
     app.renderer.resize(nextWidth, nextHeight);
     updateBackdrop(nextWidth, nextHeight);
   }
 
-  resize({ width: canvas.width, height: canvas.height });
+  resize({
+    width: canvas.parentElement?.clientWidth || canvas.clientWidth || canvas.width,
+    height: canvas.parentElement?.clientHeight || canvas.clientHeight || canvas.height
+  });
 
   function getWorldViewBounds(renderState) {
     const zoom = Math.max(0.001, renderState.camera?.zoom || 1);
@@ -789,13 +1044,14 @@ export async function createPixiRenderer({ canvas, capture = false }) {
     const occluders = renderState.dynamicShadowsEnabled ? fogLightOccluders(renderState, view) : [];
     overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
     overlayContext.save();
+    const overlayResolution = getRendererResolution(rendererSettings);
     overlayContext.setTransform(
-      renderState.camera?.zoom || 1,
+      (renderState.camera?.zoom || 1) * overlayResolution,
       0,
       0,
-      renderState.camera?.zoom || 1,
-      -(renderState.camera?.x || 0) * (renderState.camera?.zoom || 1),
-      -(renderState.camera?.y || 0) * (renderState.camera?.zoom || 1)
+      (renderState.camera?.zoom || 1) * overlayResolution,
+      -(renderState.camera?.x || 0) * (renderState.camera?.zoom || 1) * overlayResolution,
+      -(renderState.camera?.y || 0) * (renderState.camera?.zoom || 1) * overlayResolution
     );
     if (lighting) drawNightTintOverlay(renderState, overlayContext, view);
     if (lighting) drawStructureLightGlowsOverlay(renderState, overlayContext, view);
@@ -821,12 +1077,27 @@ export async function createPixiRenderer({ canvas, capture = false }) {
     text: 'PixiJS scene renderer',
     webgpu: false,
     app,
+    getSettings() {
+      return { ...rendererSettings };
+    },
+    updateSettings(nextSettings = {}) {
+      const normalized = normalizeRendererSettings(nextSettings);
+      const antialiasChanged = normalized.antialias !== rendererSettings.antialias;
+      rendererSettings.highResolution = normalized.highResolution;
+      rendererSettings.antialias = normalized.antialias;
+      resize({ width: app.screen.width || canvas.clientWidth || canvas.width, height: app.screen.height || canvas.clientHeight || canvas.height });
+      return {
+        settings: { ...rendererSettings },
+        reloadRequired: antialiasChanged
+      };
+    },
     resize,
     draw(renderState) {
       resize({ width: renderState.W, height: renderState.H });
       updateWorldStatic(renderState);
       worldViewport.scale.set(renderState.camera?.zoom || 1);
       worldViewport.position.set(-(renderState.camera?.x || 0) * (renderState.camera?.zoom || 1), -(renderState.camera?.y || 0) * (renderState.camera?.zoom || 1));
+      terrainDetailSprite.visible = (renderState.camera?.zoom || 1) >= DECORATIVE_DETAIL_RENDER_MIN_ZOOM;
 
       updateZones(renderState);
       updateHoles(renderState);
@@ -847,6 +1118,7 @@ export async function createPixiRenderer({ canvas, capture = false }) {
       app.renderer.render(app.stage);
     },
     destroy() {
+      destroyTerrainTextures();
       for (const viewMap of Object.values(objectMaps)) {
         for (const view of viewMap.values()) destroyDisplayObject(view.container || view);
         viewMap.clear();
@@ -859,30 +1131,33 @@ export async function createPixiRenderer({ canvas, capture = false }) {
 }
 
 function createText(PIXI, text, style = {}) {
+  const { resolution, ...textStyle } = style;
   return new PIXI.Text({
     text,
+    resolution: resolution ?? undefined,
     style: {
       fill: '#e6eee8',
       fontFamily: 'system-ui',
-      ...style
+      ...textStyle
     }
   });
 }
 
-function createTreeView(PIXI, tree) {
+function createTreeView(PIXI, tree, getNameTagTexture) {
   const container = new PIXI.Container();
   container.sortableChildren = true;
   container.trunk = new PIXI.Graphics();
   container.foliage = new PIXI.Graphics();
   container.hoverRing = new PIXI.Graphics();
-  container.label = createText(PIXI, '', { fontSize: 11, fontWeight: '700' });
-  container.label.anchor.set(0.5, 1);
+  container.label = new PIXI.Sprite(getNameTagTexture(''));
+  container.label.anchor.set(0.5);
+  container.label.visible = false;
   container.addChild(container.hoverRing, container.trunk, container.foliage, container.label);
-  updateTreeView(container, tree, false);
+  updateTreeView(container, tree, false, getNameTagTexture);
   return container;
 }
 
-  function updateTreeView(container, tree, hover) {
+  function updateTreeView(container, tree, hover, getNameTagTexture) {
   const radius = tree.radius || (tree.stump ? 14 : (tree.growthStage === 'sapling' ? 14 : 22));
   container.position.set(tree.x || 0, tree.y || 0);
   container.zIndex = getDepthAnchorY('tree', tree);
@@ -895,7 +1170,7 @@ function createTreeView(PIXI, tree) {
     if (tree.stump) {
       fillPath(container.trunk, 0x71411f, 1, path => path.ellipse(0, 6, radius, Math.max(6, radius * 0.45)));
       container.label.visible = hover;
-      container.label.text = 'tree stump';
+      container.label.texture = getNameTagTexture('tree stump');
       container.label.position.set(0, -radius - 8);
       return;
     }
@@ -914,7 +1189,7 @@ function createTreeView(PIXI, tree) {
     });
     container.label.visible = hover;
     if (hover) {
-      container.label.text = tree.growthStage === 'sapling' ? 'small sapling' : tree.growthStage === 'small_tree' ? 'small tree' : 'grown tree';
+      container.label.texture = getNameTagTexture(tree.growthStage === 'sapling' ? 'small sapling' : tree.growthStage === 'small_tree' ? 'small tree' : 'grown tree');
       container.label.position.set(0, -radius - 18);
     }
   }

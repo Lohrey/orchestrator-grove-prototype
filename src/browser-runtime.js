@@ -121,10 +121,17 @@ export async function probeRenderer({ userAgent = navigator.userAgent, gpu = nav
 }
 
 export function startGameLoop(game, { requestFrame = requestAnimationFrame } = {}) {
+  let lastTick = 0;
+  let frameDebt = 0;
   const frame = (now = 0) => {
-    const min = 1000 / game.targetFps;
-    if (now - game.lastFrame < min - 0.5) return requestFrame(frame);
-    const dt = Math.min(0.05, (now - game.lastFrame) / 1000 || 0.016);
+    const targetFps = Math.max(1, Number(game.targetFps || 60));
+    const min = 1000 / targetFps;
+    const elapsed = lastTick ? now - lastTick : min;
+    lastTick = now;
+    frameDebt += Math.max(0, Math.min(50, elapsed));
+    if (frameDebt + 0.25 < min) return requestFrame(frame);
+    const dt = Math.min(0.05, frameDebt / 1000);
+    frameDebt %= min;
     game.lastFrame = now;
     game.update(dt);
     game.draw();

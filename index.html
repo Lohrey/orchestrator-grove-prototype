@@ -498,6 +498,14 @@
           <input id="showFpsOverlay" type="checkbox" checked />
           Show FPS meter in top-right HUD
         </label>
+        <label class="checkline">
+          <input id="pixiHighResolution" type="checkbox" checked />
+          High-resolution Pixi output <span class="small">(uses device pixel ratio for sharper rendering)</span>
+        </label>
+        <label class="checkline">
+          <input id="pixiAntialias" type="checkbox" checked />
+          Pixi antialiasing <span class="small">(smoother edges, may require reload after changing)</span>
+        </label>
         <dl class="stores">
           <div><dt>Detected GPU</dt><dd id="detectedGpu">Probing…</dd></div>
           <div><dt>Inferred VRAM</dt><dd id="detectedVram">Unknown</dd></div>
