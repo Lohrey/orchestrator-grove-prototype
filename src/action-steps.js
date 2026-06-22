@@ -40,6 +40,7 @@ const DEFAULT_STEP_ALIASES_BY_OP = Object.freeze({
   craft_workbench: ['craft at tool bench', 'make tool'],
   craft_smithery: ['forge weapon', 'craft sword', 'craft shield'],
   craft_bowmaker: ['make bow', 'craft bow'],
+  craft_arrowmaker: ['fletch arrows', 'make arrow packs', 'craft arrow packs'],
   deliver_to_factory: ['bring to factory', 'feed factory'],
   assemble_bot: ['build bot', 'make bot'],
   idle_parking: ['park', 'go idle', 'stand by'],
@@ -128,7 +129,7 @@ export const KNOWLEDGE_PACK_OP_ORDER = Object.freeze({
   logistics: freezeList(['pick_up_from_storage', 'deposit_to_structure', 'drop_item', 'use_held_item', 'loop']),
   farming: freezeList(['pick_up', 'plant_seed', 'use_held_item', 'search_tree', 'loop']),
   mining_tools: freezeList(['mine_stone', 'chop_hemp', 'use_held_item', 'search_hemp', 'loop']),
-  combat: freezeList(['rename_bot', 'follow', 'guard_area', 'patrol_route', 'attack', 'equip_item', 'craft_smithery', 'craft_bowmaker', 'loop', 'wait'])
+  combat: freezeList(['rename_bot', 'follow', 'guard_area', 'patrol_route', 'attack', 'equip_item', 'craft_smithery', 'craft_bowmaker', 'craft_arrowmaker', 'loop', 'wait'])
 });
 
 export const ACTION_STEP_ORDER = freezeList([
@@ -136,7 +137,7 @@ export const ACTION_STEP_ORDER = freezeList([
   'chop_tree', 'search_tree', 'chop_hemp', 'search_hemp', 'mine_stone', 'dig_hole',
   'pick_up', 'pick_up_from_storage', 'pick_up_specific',
   'deliver_to_sawbench', 'process_sawbench', 'process_poles', 'fetch_plank_from_sawbench', 'fetch_pole_from_sawbench',
-  'deliver_to_workbench', 'craft_workbench', 'craft_smithery', 'craft_bowmaker', 'deliver_to_factory', 'assemble_bot',
+  'deliver_to_workbench', 'craft_workbench', 'craft_smithery', 'craft_bowmaker', 'craft_arrowmaker', 'deliver_to_factory', 'assemble_bot',
   'idle_parking', 'wait', 'loop', 'if_inventory', 'assign_template', 'rename_bot', 'promote_to_manager', 'delegate_to_manager', 'follow', 'guard_area', 'patrol_route', 'attack', 'equip_item',
   'move_to_structure', 'deposit_to_structure', 'drop_item', 'deploy_building_kit', 'disassemble_building_to_kit', 'find_dug_hole', 'plant_seed', 'use_held_item',
   'deposit_to_player', 'take_from_player'
@@ -373,6 +374,15 @@ const RAW_ACTION_STEP_REGISTRY = Object.freeze({
     packs: ['combat'],
     customLoop: true,
     uiCard: 'recipe + bowmaker selector'
+  }),
+  craft_arrowmaker: step({
+    label: 'Craft at arrowmaker',
+    args: ['recipe', 'target'],
+    description: 'Craft the existing arrowmaker recipe. Supported recipe: arrow_pack.',
+    signature: 'craft_arrowmaker(recipe, target?) - craft arrow_pack at an arrowmaker when supplied with sticks and stone',
+    packs: ['combat'],
+    customLoop: true,
+    uiCard: 'recipe + arrowmaker selector'
   }),
   deliver_to_factory: step({
     label: 'Deliver to factory',

@@ -102,6 +102,8 @@ const MANAGER_DELEGATE_THROTTLE_SECONDS = 3;
 const EQUIPMENT_WEAPONS = ['wooden_sword', 'bow'];
 const EQUIPMENT_SHIELDS = ['wooden_shield'];
 const MAX_WEAPON_SETS = 2;
+const DOG_FETCH_SEARCH_RADIUS = 2000;
+const DOG_FETCH_PRAISE_TARGET = 10;
 function createRangedAttackComponent(overrides = {}) {
   const stats = { ...DEFENSE_TOWER_ATTACK, ...overrides };
   return { ...stats, cooldownRemaining: 0, targetRef: null };
@@ -143,8 +145,8 @@ const TREE_GROWTH = {
   grown_tree: { radius: 20, maxHp: 4, next: null, growSeconds: 0 }
 };
 const STORY_ITEM_TYPES = ['camper_van', 'hammock', 'ultrabook', 'solar_panel', 'power_station', 'portable_3d_printer', 'assembler', 'robotics_parts'];
-const ITEM_TYPES = ['log', 'plank', 'pole', 'stick', 'stone', 'tree_seed', 'crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer', 'wooden_sword', 'wooden_shield', 'hemp', 'hemp_seed', 'bow', ...STORY_ITEM_TYPES, ...BUILDING_KIT_ITEM_TYPES];
-const ITEM_LABELS = { log: 'log', plank: 'plank', pole: 'pole', stick: 'stick', stone: 'stone', tree_seed: 'tree seed', crude_axe: 'crude axe', crude_pickaxe: 'crude pickaxe', crude_shovel: 'crude shovel', crude_hammer: 'crude hammer', wooden_sword: 'wooden sword', wooden_shield: 'wooden shield', hemp: 'hemp', hemp_seed: 'hemp seed', bow: 'bow', camper_van: 'white camper van', hammock: 'hammock', ultrabook: 'ultrabook laptop', solar_panel: 'solar panel', power_station: 'power station', portable_3d_printer: 'portable 3d printer', assembler: 'portable assembler', robotics_parts: 'DIY robotics parts' };
+const ITEM_TYPES = ['log', 'plank', 'pole', 'stick', 'stone', 'tree_seed', 'crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer', 'wooden_sword', 'wooden_shield', 'hemp', 'hemp_seed', 'bow', 'arrow_pack', ...STORY_ITEM_TYPES, ...BUILDING_KIT_ITEM_TYPES];
+const ITEM_LABELS = { log: 'log', plank: 'plank', pole: 'pole', stick: 'stick', stone: 'stone', tree_seed: 'tree seed', crude_axe: 'crude axe', crude_pickaxe: 'crude pickaxe', crude_shovel: 'crude shovel', crude_hammer: 'crude hammer', wooden_sword: 'wooden sword', wooden_shield: 'wooden shield', hemp: 'hemp', hemp_seed: 'hemp seed', bow: 'bow', arrow_pack: 'arrow pack', camper_van: 'white camper van', hammock: 'hammock', ultrabook: 'ultrabook laptop', solar_panel: 'solar panel', power_station: 'power station', portable_3d_printer: 'portable 3d printer', assembler: 'portable assembler', robotics_parts: 'DIY robotics parts' };
 const itemLabel = type => isBuildingKitItemType(type) ? buildingKitLabel(type) : (ITEM_LABELS[type] || type);
 const STORAGE_STRUCTURE_TYPES = ['item_palette', 'power_station', 'robotics_parts_bin'];
 const WORKBENCH_TOOL_RECIPES = ['crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer'];
@@ -156,6 +158,7 @@ const PRODUCTION_DEFAULTS = {
   workbench: { crude_axe: 1.1, crude_pickaxe: 1.1, crude_shovel: 1.1, crude_hammer: 1.1 },
   smithery: { wooden_sword: 1.0, wooden_shield: 1.0 },
   bowmaker: { bow: 5.5 },
+  arrowmaker: { arrow_pack: 3.0 },
   factory: { basic_bot: 1.5 },
   assembler: Object.fromEntries(BUILDING_KIT_ITEM_TYPES.map(type => [type, 1.4]))
 };
@@ -165,10 +168,11 @@ const STRUCTURE_INFO = {
   factory: 'Assembles new Basic Bots when stocked.',
   smithery: 'Military building that turns wood into starter weapons.',
   bowmaker: 'Military building that binds sticks and hemp into bows.',
+  arrowmaker: 'Military building that fletches sticks and stone into arrow packs.',
   defensetower: 'Military building with a reusable ranged-attack component. Fires one 1 HP arrow per second at hostile targets in range.',
   item_palette: 'Stores one item type for pickup tasks.',
   throne: 'Multiplayer objective. Destroy the enemy throne to win.',
-  camper_van: 'Simple white camper van: the characterâ€™s mobile base for driving to the childhood lake.',
+  camper_van: "Simple white camper van: the character's mobile base for driving to the childhood lake.",
   hammock_camp: 'Rest camp built around the bought hammock for sleeping by the lake.',
   ultrabook_desk: 'Remote-work field desk with the ultrabook laptop open.',
   solar_array: 'Fold-out solar panels for charging the camp kit.',
@@ -178,13 +182,14 @@ const STRUCTURE_INFO = {
   robotics_parts_bin: 'Parts bin for DIY robotics components.'
 };
 function structureRecipeText(s) {
-  if (s.type === 'sawbench') return '1 log â†’ 2 planks; 1 plank â†’ 2 wood poles. Last depositor works the job.';
-  if (s.type === 'workbench') return `1 stick + 1 stone â†’ 1 selected crude tool. Current: ${itemLabel(workbenchRecipe(s))}. Last depositor works the job.`;
-  if (s.type === 'smithery') return `1 ${smitheryRecipe(s) === 'wooden_sword' ? 'stick' : 'plank'} â†’ 1 ${itemLabel(smitheryRecipe(s))}. Current mode: ${itemLabel(smitheryRecipe(s))}. Last depositor works the job.`;
-  if (s.type === 'bowmaker') return '2 sticks + 3 hemp â†’ 1 bow. Last depositor works the long build.';
+  if (s.type === 'sawbench') return '1 log → 2 planks; 1 plank → 2 wood poles. Last depositor works the job.';
+  if (s.type === 'workbench') return `1 stick + 1 stone → 1 selected crude tool. Current: ${itemLabel(workbenchRecipe(s))}. Last depositor works the job.`;
+  if (s.type === 'smithery') return `1 ${smitheryRecipe(s) === 'wooden_sword' ? 'stick' : 'plank'} → 1 ${itemLabel(smitheryRecipe(s))}. Current mode: ${itemLabel(smitheryRecipe(s))}. Last depositor works the job.`;
+  if (s.type === 'bowmaker') return '2 sticks + 3 hemp → 1 bow. Last depositor works the long build.';
+  if (s.type === 'arrowmaker') return '1 stick + 1 stone → 1 arrow pack. Packs load 10 arrows when equipped. Last depositor works the fletching job.';
   if (s.type === 'defensetower') return 'No recipe: auto-fires arrows at enemies in range; 1 HP damage, 1 arrow per second.';
-  if (s.type === 'factory') return `${Object.entries(FACTORY_BOT_RECIPE).map(([type, cost]) => `${cost} ${itemLabel(type)}${cost === 1 ? '' : 's'}`).join(' + ')} â†’ 1 Basic Bot. Last depositor assembles it.`;
-  if (s.type === 'assembler') return `${Object.entries(ASSEMBLER_KIT_RECIPE).map(([type, cost]) => `${cost} ${itemLabel(type)}${cost === 1 ? '' : 's'}`).join(' + ')} â†’ 1 ${itemLabel(assemblerRecipe(s))}. Current: ${itemLabel(assemblerRecipe(s))}.`;
+  if (s.type === 'factory') return `${Object.entries(FACTORY_BOT_RECIPE).map(([type, cost]) => `${cost} ${itemLabel(type)}${cost === 1 ? '' : 's'}`).join(' + ')} → 1 Basic Bot. Last depositor assembles it.`;
+  if (s.type === 'assembler') return `${Object.entries(ASSEMBLER_KIT_RECIPE).map(([type, cost]) => `${cost} ${itemLabel(type)}${cost === 1 ? '' : 's'}`).join(' + ')} → 1 ${itemLabel(assemblerRecipe(s))}. Current: ${itemLabel(assemblerRecipe(s))}.`;
   if (s.type === 'item_palette') return `No crafting recipe; stores up to ${s.capacity || BUILDING_TYPES.item_palette.capacity || 0} of one item type.`;
   if (s.type === 'power_station') return `No crafting recipe; stores up to ${s.capacity || BUILDING_TYPES.power_station.capacity || 0} power-kit items.`;
   if (s.type === 'robotics_parts_bin') return `No crafting recipe; stores up to ${s.capacity || BUILDING_TYPES.robotics_parts_bin.capacity || 0} robotics parts.`;
@@ -209,6 +214,7 @@ function productionInputNeeds(s) {
   if (s.type === 'workbench') return { stick: 1, stone: 1 };
   if (s.type === 'smithery') return { [smitheryInputFor(smitheryRecipe(s))]: 1 };
   if (s.type === 'bowmaker') return { ...BOW_RECIPE };
+  if (s.type === 'arrowmaker') return { stick: 1, stone: 1 };
   if (s.type === 'factory') return { ...FACTORY_BOT_RECIPE };
   if (s.type === 'assembler') return { ...ASSEMBLER_KIT_RECIPE };
   return null;
@@ -219,6 +225,7 @@ function productionInputCount(s, type) {
   if (s.type === 'workbench') return type === 'stick' ? (s.sticks || 0) : type === 'stone' ? (s.stones || 0) : 0;
   if (s.type === 'smithery') return type === smitheryInputFor(smitheryRecipe(s)) ? ((s[`${type}s`] ?? s[type] ?? 0)) : 0;
   if (s.type === 'bowmaker') return (s[`${type}s`] ?? s[type] ?? 0);
+  if (s.type === 'arrowmaker') return type === 'stick' ? (s.sticks || 0) : type === 'stone' ? (s.stones || 0) : 0;
   if (s.type === 'factory') return (s[`${type}s`] ?? s[type] ?? 0);
   if (s.type === 'assembler') return (s[`${type}s`] ?? s[type] ?? 0);
   return 0;
@@ -231,7 +238,7 @@ export class Game {
     this.map = { ...WORLD_MAP_SIZE };
     this.gameMode = 'test';
     this.camera = { x: 0, y: 0, speed: 520, fastMultiplier: 2.35, zoom: 1, minZoom: CAMERA_MIN_ZOOM, maxZoom: CAMERA_MAX_ZOOM };
-    this.player = { x: 480, y: 410, r: 13, speed: 170, target: null, targetQueue: [], inventory: null, equipment: createEquipment(), attackCooldown: 0, hp: 10, maxHp: 10, facingX: 1, facingY: 0 };
+    this.player = { x: 480, y: 410, r: 13, speed: 170, target: null, targetQueue: [], inventory: null, equipment: createEquipment(), ammunition: 0, attackCooldown: 0, hp: 10, maxHp: 10, facingX: 1, facingY: 0 };
     this.assistant = { x: 452, y: 392, facingX: 1, facingY: 0 };
     this.trees = []; this.hempPlants = []; this.rocks = []; this.holes = []; this.items = []; this.bots = []; this.structures = []; this.monsters = []; this.projectiles = []; this.floaters = []; this.mapFeatures = []; this.mapFeatures = [];
     this.dayNight = { cycleSeconds: DAY_NIGHT_CYCLE_SECONDS };
@@ -245,6 +252,7 @@ export class Game {
     this.draggedTeachStepIndex = null;
     this.botMenuEdit = null;
     this.botMenuEditRoot = null;
+    this.dogPopupState = null;
     this.botSearchQuery = '';
     this.botDrawerDragging = false;
     this.botTeams = [];
@@ -262,7 +270,7 @@ export class Game {
     this.maxBots = 24; this.targetFps = 30; this.dynamicShadowsEnabled = false; this.lightingEffectsEnabled = true; this.showFpsOverlay = true; this.fps = 0; this.frameCount = 0; this.fpsAcc = 0; this.lastFrame = 0; this.worldTime = 0; this._lastFogSignature = '';
     this.mouse = { x: 0, y: 0, screenX: 0, screenY: 0, clientX: 0, clientY: 0, hoverBot: null, hoverStructure: null, hoverMonster: null, hoverTree: null, hoverHole: null, hoverItem: null, hoverHemp: null, hoverZone: null };
     this.placementType = null; this.zoneDraft = null; this.zoneDrag = null; this.zoneResize = null; this.justDrewZone = false; this.justDraggedZone = false;
-    this.renderer = { text: 'Canvas 2D fallback', webgpu: false, reason: 'not probed' };
+    this.renderer = { text: this.renderBackend?.text || 'Renderer pending', webgpu: false, reason: 'not probed', backend: this.renderBackend?.kind || 'canvas2d' };
     this.audio = null;
     this.lastBotListUpdate = 0;
     this.resizeCanvas(false);
@@ -309,6 +317,16 @@ export class Game {
     return {
       x: clamp(screenX / zoom + this.camera.x, 0, this.map.width),
       y: clamp(screenY / zoom + this.camera.y, 0, this.map.height)
+    };
+  }
+  worldToScreen(worldX, worldY) {
+    const zoom = this.camera.zoom || 1;
+    const rect = this.canvas.getBoundingClientRect();
+    const scaleX = rect.width / Math.max(1, this.canvas.width);
+    const scaleY = rect.height / Math.max(1, this.canvas.height);
+    return {
+      x: rect.left + ((worldX - this.camera.x) * zoom * scaleX),
+      y: rect.top + ((worldY - this.camera.y) * zoom * scaleY)
     };
   }
 
@@ -615,6 +633,7 @@ export class Game {
     [[1640,1120],[1785,1225],[1920,1145],[1840,990],[2040,1280]].forEach(([x,y]) => this.spawnMonster(x, y));
     [[470,500],[530,545],[720,565],[905,165],[1025,255],[660,705],[1320,650],[1600,850],[2100,700],[2500,940],[3060,880],[3350,1420],[2700,1760],[1500,1350]].forEach(([x,y]) => this.spawnStoneDeposit(x, y));
     this.createBot(175,250,'idle',true); this.createBot(205,265,'idle',true); this.createBot(235,250,'idle',true); this.createBot(185,290,'idle',true);
+    this.spawnStarterDog(452, 436);
     this.spawnItem('log', 285, 500, 3); this.spawnItem('stick', 410, 500, 5); this.spawnItem('tree_seed', 535, 500, 3); this.spawnItem('crude_axe', 610, 500, STARTING_AXE_COUNT); this.spawnItem('crude_pickaxe', 665, 500, STARTING_PICKAXE_COUNT); this.spawnItem('crude_shovel', 720, 500, STARTING_SHOVEL_COUNT);
   }
 
@@ -626,7 +645,12 @@ export class Game {
     if (this.zoneDraft?.active) return true;
     if (this.placementType) { this.placeStructure(this.placementType, p.x, p.y); return true; }
     if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return true; }
-    const bot = this.botAt(p.x, p.y); if (bot) { this.showBotMenu(bot, p.clientX, p.clientY, { refreshEdit: true }); return true; }
+    const bot = this.botAt(p.x, p.y);
+    if (bot) {
+      if (this.isDogBot(bot)) { this.showDogPopup(bot, bot.inventory ? 'reward' : 'progress'); return true; }
+      this.showBotMenu(bot, p.clientX, p.clientY, { refreshEdit: true });
+      return true;
+    }
     const s = this.structureAt(p.x, p.y); if (s) { this.showStructureMenu(s, p.clientX, p.clientY); return true; }
     const tree = this.treeAt(p.x, p.y); if (tree) { this.showTreeMenu(tree, p.clientX, p.clientY); return true; }
     const hole = this.holeAt(p.x, p.y); if (hole) { this.showHoleMenu(hole, p.clientX, p.clientY); return true; }
@@ -641,7 +665,12 @@ export class Game {
     if (this.placementType) { this.cancelPlacement(); return true; }
     if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return true; }
     const append = this.keys.has('shift');
-    const friendlyBot = this.botAt(p.x, p.y); if (friendlyBot && !this.isHostileTarget(friendlyBot)) { this.showBotMenu(friendlyBot, p.clientX, p.clientY, { refreshEdit: true }); return true; }
+    const friendlyBot = this.botAt(p.x, p.y);
+    if (friendlyBot && !this.isHostileTarget(friendlyBot)) {
+      if (this.isDogBot(friendlyBot)) { this.showDogPopup(friendlyBot, friendlyBot.inventory ? 'reward' : 'progress'); return true; }
+      this.showBotMenu(friendlyBot, p.clientX, p.clientY, { refreshEdit: true });
+      return true;
+    }
     const attackTarget = this.attackTargetAt(p.x, p.y); if (attackTarget && this.queuePlayerAttackTarget(attackTarget, { append })) return true;
     const item = this.itemAt(p.x, p.y);
     if (item) return isBuildingKitItemType(item.type) ? (this.showBuildingKitItemMenu(item, p.clientX, p.clientY), true) : this.queuePlayerItemPickup(item, { append });
@@ -928,8 +957,8 @@ export class Game {
   addStructure(type, x, y, options = {}) {
     const def = BUILDING_TYPES[type]; const id = this.nextStructureId++;
     const countSame = this.structures.filter(s => s.type === type).length + 1;
-    const baseName = type === 'factory' ? 'factory' : type === 'item_palette' ? 'item palette' : type === 'workbench' ? 'tool bench' : type === 'smithery' ? 'smithery' : type === 'bowmaker' ? 'bowmaker' : type === 'defensetower' ? 'defense tower' : type === 'throne' ? 'throne' : type === 'camper_van' ? 'white camper' : type === 'hammock_camp' ? 'hammock camp' : type === 'ultrabook_desk' ? 'ultrabook desk' : type === 'solar_array' ? 'solar array' : type === 'power_station' ? 'power station' : type === 'portable_3d_printer' ? '3d printer' : type === 'assembler' ? 'assembler' : type === 'robotics_parts_bin' ? 'parts bin' : 'sawbench';
-    const s = { id, ref: `structure:${id}`, type, name: `${baseName} ${countSame}`, label: def.label, x, y, w: def.w, h: def.h, placed: !!options.placed, logs: 0, planks: 0, poles: 0, sticks: 0, stones: 0, tree_seeds: 0, axes: 0, pickaxes: 0, shovels: 0, hammers: 0, swords: 0, shields: 0, hemps: 0, bows: 0, timer: 0, processing: null };
+    const baseName = type === 'factory' ? 'factory' : type === 'item_palette' ? 'item palette' : type === 'workbench' ? 'tool bench' : type === 'smithery' ? 'smithery' : type === 'bowmaker' ? 'bowmaker' : type === 'arrowmaker' ? 'arrowmaker' : type === 'defensetower' ? 'defense tower' : type === 'throne' ? 'throne' : type === 'camper_van' ? 'white camper' : type === 'hammock_camp' ? 'hammock camp' : type === 'ultrabook_desk' ? 'ultrabook desk' : type === 'solar_array' ? 'solar array' : type === 'power_station' ? 'power station' : type === 'portable_3d_printer' ? '3d printer' : type === 'assembler' ? 'assembler' : type === 'robotics_parts_bin' ? 'parts bin' : 'sawbench';
+    const s = { id, ref: `structure:${id}`, type, name: `${baseName} ${countSame}`, label: def.label, x, y, w: def.w, h: def.h, placed: !!options.placed, logs: 0, planks: 0, poles: 0, sticks: 0, stones: 0, tree_seeds: 0, axes: 0, pickaxes: 0, shovels: 0, hammers: 0, swords: 0, shields: 0, hemps: 0, bows: 0, arrow_packs: 0, timer: 0, processing: null };
     if (type === 'throne') Object.assign(s, { hp: def.maxHp || THRONE_HP, maxHp: def.maxHp || THRONE_HP, ownerId: null, ownerLabel: 'unclaimed' });
     if (type === 'workbench') s.workbenchRecipe = DEFAULT_WORKBENCH_RECIPE;
     if (type === 'assembler') s.assemblerRecipe = DEFAULT_ASSEMBLER_RECIPE;
@@ -968,7 +997,7 @@ export class Game {
   createBot(x, y, program = 'idle', force = false) {
     if (!force && this.bots.length >= this.maxBots) { this.addFloat(`Max bots ${this.maxBots}`, x, y - 18, '#c86b5f'); return null; }
     const id = this.nextBotId++;
-    const bot = { id, ref: `bot:${id}`, name: `Bot ${id}`, status: 'worker', managerKnowledgePacks: [], teamId: null, x, y, r: 11, speed: 118, program, state: program, message: 'Waiting for assistant.', inventory: null, equipment: createEquipment(), tool: null, hp: 10, maxHp: 10, hostile: false, target: null, targetItemId: null, targetItemPurpose: null, targetHoleId: null, targetStructureId: null, sourceStructureId: null, sourcePaletteId: null, targetFactoryId: null, targetWorkbenchId: null, zoneId: null, zoneSpec: null, pickupItemType: 'log', taughtLoopRepeat: true, timer: 0, runtime: { pc: 0, memory: {}, wait: 0 }, color: ['#80a9c9','#9abf8f','#d3a95f','#c7b683','#8fb9b5'][id % 5] };
+    const bot = { id, ref: `bot:${id}`, name: `Bot ${id}`, kind: 'bot', status: 'worker', managerKnowledgePacks: [], knowledgePacks: [], teamId: null, x, y, r: 11, speed: 118, program, state: program, message: 'Waiting for assistant.', inventory: null, equipment: createEquipment(), ammunition: 0, tool: null, hp: 10, maxHp: 10, hostile: false, target: null, targetItemId: null, targetItemPurpose: null, targetHoleId: null, targetStructureId: null, sourceStructureId: null, sourcePaletteId: null, targetFactoryId: null, targetWorkbenchId: null, zoneId: null, zoneSpec: null, pickupItemType: 'log', taughtLoopRepeat: true, timer: 0, runtime: { pc: 0, memory: {}, wait: 0 }, dogFetchMemory: { praiseCounts: {}, preferredType: null, lastTargetType: null }, dogFetchState: null, color: ['#80a9c9','#9abf8f','#d3a95f','#c7b683','#8fb9b5'][id % 5] };
     this.bots.push(bot); this.addFloat(`Bot ${id} online`, x, y - 18, '#80a9c9'); this.emitSound('bot_online', { cooldownKey: 'bot_online', minGapMs: 120 }); return bot;
   }
   spawnTree(x, y, options = {}) {
@@ -1054,7 +1083,13 @@ export class Game {
   actorMeleeDamage(actor) { return ensureEquipment(actor).weapon === 'wooden_sword' ? 2 : 1; }
   fireActorBow(actor, target, attack) {
     if (!actor || !target || !attack) return false;
+    if ((actor.ammunition || 0) <= 0) {
+      actor.message = 'Out of arrows.';
+      if (actor.x != null && actor.y != null) this.addFloat('Out of arrows', actor.x, actor.y - 34, '#c86b5f');
+      return false;
+    }
     this.projectiles.push(this.createArrowProjectile({ ...actor, ref: actor.ref || 'player:local', ownerRef: actor.ref || 'player:local', rangedAttack: attack }, target));
+    actor.ammunition = Math.max(0, (actor.ammunition || 0) - 1);
     attack.cooldownRemaining = attack.cooldown || BOW_ATTACK.cooldown;
     attack.targetRef = target.ref;
     this.addFloat('Auto shot!', actor.x, actor.y - 34, '#d3a95f');
@@ -1085,10 +1120,11 @@ export class Game {
     this.emitSound('hit', { cooldownKey: `auto:${actor.ref || actor.id}`, minGapMs: 160 });
     return true;
   }
-  isEquipmentItem(type) { return EQUIPMENT_WEAPONS.includes(type) || EQUIPMENT_SHIELDS.includes(type); }
+  isEquipmentItem(type) { return EQUIPMENT_WEAPONS.includes(type) || EQUIPMENT_SHIELDS.includes(type) || type === 'arrow_pack'; }
   isToolItem(type) { return ['crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer'].includes(type); }
   actorAlreadyHasPickupType(actor, type) {
     const eq = ensureEquipment(actor || {});
+    if (type === 'arrow_pack') return (actor?.ammunition || 0) >= 10;
     return actor?.inventory?.type === type || actor?.tool?.type === type || eq.weaponSets.some(set => set.weapon === type || set.shield === type);
   }
   pickupBlockedByHeldTool(actor, type) {
@@ -1097,7 +1133,7 @@ export class Game {
     if (this.isToolItem(type) && actor.tool) return actor.tool.type;
     return null;
   }
-  equipmentSummary(actor = this.player) { const eq = ensureEquipment(actor); return { weapon: eq.weapon, shield: eq.shield, activeWeaponSetId: eq.activeWeaponSetId, weaponSets: clone(eq.weaponSets) }; }
+  equipmentSummary(actor = this.player) { const eq = ensureEquipment(actor); return { weapon: eq.weapon, shield: eq.shield, activeWeaponSetId: eq.activeWeaponSetId, weaponSets: clone(eq.weaponSets), ammunition: Number(actor?.ammunition || 0) }; }
   dropEquipmentItem(actor, type, dx = 0, dy = 18) { if (!actor || !type) return; this.spawnItem(type, actor.x + dx, actor.y + dy, 1); }
   activeWeaponSet(actor) { return syncActiveEquipmentSet(ensureEquipment(actor)); }
   createWeaponSet(eq, kind) {
@@ -1110,6 +1146,7 @@ export class Game {
   canEquipActor(actor, type) {
     if (!actor || !this.isEquipmentItem(type)) return false;
     const eq = ensureEquipment(actor);
+    if (type === 'arrow_pack') return (actor.ammunition || 0) < 10;
     if (type === 'bow') return !eq.weaponSets.find(set => set.weapon === 'bow') && eq.weaponSets.length < MAX_WEAPON_SETS;
     const melee = this.findMeleeWeaponSet(eq);
     if (!melee) return eq.weaponSets.length < MAX_WEAPON_SETS;
@@ -1119,6 +1156,12 @@ export class Game {
   }
   equipActor(actor, type) {
     if (!actor || !this.isEquipmentItem(type)) return false;
+    if (type === 'arrow_pack') {
+      const currentAmmo = Number(actor.ammunition || 0);
+      if (currentAmmo >= 10) return false;
+      actor.ammunition = Math.min(10, currentAmmo + 10);
+      return true;
+    }
     const eq = ensureEquipment(actor);
     let set = null;
     if (type === 'bow') {
@@ -1217,9 +1260,11 @@ export class Game {
     if (!this.isHostileTarget(target)) return false;
     const eq = ensureEquipment(this.player);
     const attack = eq.rangedAttack;
+    if ((this.player.ammunition || 0) <= 0) { this.addFloat('Out of arrows', this.player.x, this.player.y - 34, '#c86b5f'); return false; }
     if (attack.cooldownRemaining > 0) { this.addFloat('Bow reloading', this.player.x, this.player.y - 34, '#c7b683'); return true; }
     if (distXY(this.player.x, this.player.y, target.x, target.y) > (attack.range || BOW_ATTACK.range)) { this.addFloat('Target out of bow range', target.x, target.y - 34, '#c86b5f'); return true; }
     this.projectiles.push(this.createArrowProjectile({ ...this.player, ref: 'player:local', ownerRef: 'player:local', rangedAttack: attack }, target));
+    this.player.ammunition = Math.max(0, (this.player.ammunition || 0) - 1);
     attack.cooldownRemaining = attack.cooldown || BOW_ATTACK.cooldown;
     this.player.manualAttackLock = Math.max(this.player.manualAttackLock || 0, attack.cooldownRemaining);
     attack.targetRef = target.ref;
@@ -1415,7 +1460,7 @@ export class Game {
   renderStepLocationControls(index, prefix = 'step', step = {}) {
     const attr = prefix === 'bot-step' ? 'bot-step-location' : 'step-location';
     const menuAttr = prefix === 'bot-step' ? 'bot-step-location-menu' : 'step-location-menu';
-    const options = '<option value="">Locationâ€¦</option><option value="select_zone">Select zone</option><option value="draw_zone">Draw zone</option><option value="draw_radius">Draw radius</option><option value="nearest">Nearest</option>';
+    const options = '<option value="">Location…</option><option value="select_zone">Select zone</option><option value="draw_zone">Draw zone</option><option value="draw_radius">Draw radius</option><option value="nearest">Nearest</option>';
     return `<button class="step-location-pill" type="button" data-${attr}="${index}">${escapeHtml(this.teachStepLocationText(step))}</button><select aria-label="Location mode" data-${menuAttr}="${index}">${options}</select>`;
   }
   renderStepCard(step, index, { mode = 'teach' } = {}) {
@@ -1437,7 +1482,7 @@ export class Game {
     const up = botEdit ? `data-bot-step-up="${index}" aria-label="Move DSL step up"` : `data-step-up="${index}" aria-label="Move step up"`;
     const down = botEdit ? `data-bot-step-down="${index}" aria-label="Move DSL step down"` : `data-step-down="${index}" aria-label="Move step down"`;
     const del = botEdit ? `data-bot-step-delete="${index}" aria-label="Delete DSL step"` : `data-delete-step="${index}" aria-label="Delete step"`;
-    return `<li class="teach-step-card${botEdit ? ' bot-program-step-card' : ''}" draggable="true" ${cardIndexAttr}><div class="step-card-main"><b class="step-card-number">${index + 1}.</b>${editFields}<code>${escapeHtml(this.stepText(step))}</code></div><div class="step-card-actions">${locationControls}<button type="button" ${up}>â†‘</button><button type="button" ${down}>â†“</button><button type="button" ${del}>Delete</button></div></li>`;
+    return `<li class="teach-step-card${botEdit ? ' bot-program-step-card' : ''}" draggable="true" ${cardIndexAttr}><div class="step-card-main"><b class="step-card-number">${index + 1}.</b>${editFields}<code>${escapeHtml(this.stepText(step))}</code></div><div class="step-card-actions">${locationControls}<button type="button" ${up}>↑</button><button type="button" ${down}>↓</button><button type="button" ${del}>Delete</button></div></li>`;
   }
   renderTeachSteps(steps) {
     if (!steps.length) return '<li class="empty">No recorded steps yet.</li>';
@@ -1452,7 +1497,7 @@ export class Game {
     if (!this.dom?.teachStatus) return;
     const steps = this.activeTeachSteps();
     const targetBotText = this.recorder.targetBotId ? ` for Bot ${this.recorder.targetBotId}` : '';
-    const status = this.recorder.recording ? `Recording ${this.recorder.steps.length} step${this.recorder.steps.length === 1 ? '' : 's'}${targetBotText}â€¦` : this.recorder.status;
+    const status = this.recorder.recording ? `Recording ${this.recorder.steps.length} step${this.recorder.steps.length === 1 ? '' : 's'}${targetBotText}…` : this.recorder.status;
     this.dom.teachStatus.textContent = status;
     if (this.dom.teachPanel) this.dom.teachPanel.hidden = !this.teachPanelOpened;
     if (this.dom.teachRecordBtn) this.dom.teachRecordBtn.textContent = this.recorder.recording ? 'Stop Recording' : 'Record Loop';
@@ -1603,6 +1648,7 @@ export class Game {
     return String(message || '').replace(/[\x00-\x1F\x7F]/g, ' ').replace(/[<>`{}]/g, '').replace(/\s+/g, ' ').trim().slice(0, 500);
   }
   isManagerBot(bot) { return !!bot && bot.status === 'manager'; }
+  isDogBot(bot) { return !!bot && bot.kind === 'dog'; }
   setManagerKnowledgePackCatalog(catalog = null) { this.managerKnowledgePackCatalog = catalog && typeof catalog === 'object' ? catalog : null; return this.managerPackCatalogIds(); }
   setManagerKnowledgePacks(botRef, packs = DEFAULT_MANAGER_KNOWLEDGE_PACKS) {
     const bot = botRef && typeof botRef === 'object' ? botRef : this.resolveBotReference(botRef);
@@ -1623,6 +1669,296 @@ export class Game {
     this.addFloat(`${this.botDisplayName(bot)} promoted to manager`, bot.x, bot.y - 34, '#9abf8f');
     this.syncBotDrawerUi?.(true);
     return { ok: true, bot, knowledgePacks: bot.managerKnowledgePacks.slice() };
+  }
+  normalizeDogFetchMemory(memory = null) {
+    const praiseCounts = Object.fromEntries(Object.entries(memory?.praiseCounts || memory?.praises || {})
+      .map(([type, count]) => [this.normalizeItemType(type, null), Math.max(0, Math.floor(Number(count) || 0))])
+      .filter(([type]) => !!type));
+    const preferredType = this.normalizeItemType(memory?.preferredType || memory?.lastTargetType || memory?.targetType || null, null);
+    const lastTargetType = this.normalizeItemType(memory?.lastTargetType || memory?.targetType || null, null);
+    return { praiseCounts, preferredType, lastTargetType };
+  }
+  normalizeDogFetchState(state = null) {
+    if (!state || typeof state !== 'object') return null;
+    const requestedType = this.normalizeItemType(state.requestedType || state.targetType || null, null);
+    const targetType = this.normalizeItemType(state.targetType || requestedType || null, null);
+    const targetItemId = Number.isFinite(Number(state.targetItemId)) ? Number(state.targetItemId) : null;
+    return {
+      requestedText: String(state.requestedText || state.command || '').trim(),
+      requestedType,
+      targetType,
+      targetItemId,
+      awaitingReward: !!state.awaitingReward,
+      source: String(state.source || 'dog menu').trim() || 'dog menu'
+    };
+  }
+  spawnStarterDog(x, y) {
+    const dog = this.createBot(x, y, 'dog_fetch', true);
+    if (!dog) return null;
+    dog.kind = 'dog';
+    dog.knowledgePacks = ['dog_fetch'];
+    dog.dogFetchMemory = this.normalizeDogFetchMemory(dog.dogFetchMemory);
+    dog.dogFetchState = null;
+    dog.program = 'dog_fetch';
+    dog.state = 'dog_fetch';
+    dog.name = 'Dog';
+    dog.message = 'Following the player.';
+    dog.dogFetchState = null;
+    this.syncBotDrawerUi?.(true);
+    return dog;
+  }
+  showDogPopup(bot, mode = null) {
+    if (!bot) return;
+    this.dogPopupState = { botId: bot.id, mode: mode || (bot.inventory ? 'reward' : 'progress') };
+    this.syncDogPopupUi(true);
+  }
+  isDogFetchPraiseAllowed(bot) {
+    if (!bot || !bot.inventory) return false;
+    const request = this.normalizeDogFetchState(bot.dogFetchState);
+    if (!request?.requestedType) return true;
+    return bot.inventory.type === request.requestedType;
+  }
+  dogFetchPraiseProgress(bot) {
+    const memory = this.normalizeDogFetchMemory(bot?.dogFetchMemory);
+    const entries = Object.entries(memory.praiseCounts || {}).filter(([, count]) => Number(count) > 0).sort((a, b) => b[1] - a[1]);
+    return entries.map(([type, count]) => ({ type, count, ratio: Math.min(1, count / DOG_FETCH_PRAISE_TARGET) }));
+  }
+  closeDogPopup() {
+    window.voiceInputDebug?.clearVoiceTargetInput?.();
+    if (this.dom.dogPopup) this.dom.dogPopup.hidden = true;
+    this.dogPopupState = null;
+  }
+  placeDogPopup(el, bot, { above = 52 } = {}) {
+    const point = this.worldToScreen(bot.x, bot.y - (bot.r || 11) - above);
+    const pad = 12;
+    const width = Math.min(320, Math.max(240, el.offsetWidth || 280));
+    const height = Math.min(340, Math.max(120, el.offsetHeight || 160));
+    const x = clamp(point.x, width / 2 + pad, Math.max(width / 2 + pad, window.innerWidth - width / 2 - pad));
+    const y = clamp(point.y, height + pad, Math.max(height + pad, window.innerHeight - pad));
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.style.transform = 'translate(-50%, -100%)';
+  }
+  dogPopupRenderKey(bot, mode) {
+    const request = this.normalizeDogFetchState(bot?.dogFetchState);
+    const praiseCounts = bot?.dogFetchMemory?.praiseCounts || {};
+    return JSON.stringify({
+      botId: bot?.id || null,
+      mode,
+      carrying: !!bot?.inventory,
+      itemType: bot?.inventory?.type || null,
+      requestedType: request?.requestedType || null,
+      targetType: request?.targetType || null,
+      praiseCounts
+    });
+  }
+  renderDogPopup(bot, mode = 'progress') {
+    const el = this.dom.dogPopup;
+    if (!el || !bot) return;
+    const carrying = !!bot.inventory;
+    const requestedType = this.normalizeDogFetchState(bot.dogFetchState)?.requestedType || null;
+    const currentType = bot.inventory?.type || null;
+    const isReward = mode === 'reward' && carrying;
+    const progress = this.dogFetchPraiseProgress(bot);
+    const draft = bot.dogCommandDraft || '';
+    const currentLabel = currentType ? itemLabel(currentType) : '';
+    const requestedLabel = requestedType ? itemLabel(requestedType) : '';
+    const progressSummary = progress.length
+      ? progress.map(entry => `<div class="dog-progress-row"><span>${escapeHtml(itemLabel(entry.type))}</span><span>${entry.count}/${DOG_FETCH_PRAISE_TARGET}</span><div class="dog-progress-bar"><i style="width:${Math.round(entry.ratio * 100)}%"></i></div></div>`).join('')
+      : '<p class="dog-popup-empty">No fetches praised yet.</p>';
+    const rewardSummary = requestedType
+      ? `Requested ${escapeHtml(requestedLabel)}. Brought ${escapeHtml(currentLabel)}.`
+      : `Brought ${escapeHtml(currentLabel)}.`;
+    el.innerHTML = isReward
+      ? `<div class="dog-popup-panel dog-popup-reward" data-dog-popup-panel><header><b>Good dog?</b><span>${escapeHtml(currentLabel)}</span></header><p class="dog-popup-summary">${rewardSummary}</p><div class="dog-popup-buttons"><button type="button" class="dog-popup-button is-yes" data-dog-popup-praise${this.isDogFetchPraiseAllowed(bot) ? '' : ' data-disabled="true" aria-disabled="true"'} aria-label="Praise dog">✓</button><button type="button" class="dog-popup-button is-no" data-dog-popup-reject aria-label="Reject dog">✕</button></div><p class="dog-popup-hint">${requestedType ? `Praise only works for ${escapeHtml(requestedLabel)}.` : 'Praise increases the learned chance for this item type.'}</p></div>`
+      : `<div class="dog-popup-panel dog-popup-progress" data-dog-popup-panel><header><b>Dog fetch</b><span>Learning progress</span></header><label class="dog-fetch-input dog-popup-input"><span>Teach command</span><input data-dog-fetch-command placeholder="go fetch me a stick" value="${escapeHtml(draft)}" autocomplete="off"></label><div class="dog-popup-actions"><button type="button" data-dog-fetch-submit>Send</button><button type="button" data-dog-popup-mic aria-label="Dictate command">Mic</button></div><p class="dog-popup-hint">The dog follows you, picks up nearby items, then comes back for praise.</p><div class="dog-popup-progress-list">${progressSummary}</div><p class="dog-popup-hint">10 praises for one item type makes it a guaranteed choice when that item is available.</p></div>`;
+    el.dataset.dogPopupKey = this.dogPopupRenderKey(bot, mode);
+    if (!el.dataset.dogPopupBound) {
+      el.dataset.dogPopupBound = 'true';
+    }
+    const handleRewardAction = action => {
+      const state = this.dogPopupState;
+      const currentBot = state?.botId ? this.findBot(state.botId) : null;
+      if (!currentBot) return;
+      if (action === 'praise') {
+        if (!this.isDogFetchPraiseAllowed(currentBot)) {
+          const btn = el.querySelector('[data-dog-popup-praise]');
+          if (btn) {
+            btn.classList.remove('is-wobble');
+            void btn.offsetWidth;
+            btn.classList.add('is-wobble');
+            setTimeout(() => btn.classList.remove('is-wobble'), 280);
+          }
+          currentBot.message = 'Not possible.';
+          this.emitSound('ui_error', { cooldownKey: `dog:not_possible:${currentBot.id}`, minGapMs: 150 });
+          this.renderDogPopup(currentBot, 'reward');
+          return;
+        }
+        const res = this.praiseDogFetch(currentBot);
+        if (res.ok) this.closeDogPopup();
+        return;
+      }
+      if (action === 'reject') {
+        const res = this.rejectDogFetch(currentBot);
+        if (res.ok) this.closeDogPopup();
+      }
+    };
+    el.querySelector('[data-dog-popup-praise]')?.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      handleRewardAction('praise');
+    });
+    el.querySelector('[data-dog-popup-reject]')?.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      handleRewardAction('reject');
+    });
+    el.querySelector('[data-dog-popup-praise]')?.addEventListener('pointerdown', event => event.stopPropagation());
+    el.querySelector('[data-dog-popup-reject]')?.addEventListener('pointerdown', event => event.stopPropagation());
+    this.placeDogPopup(el, bot, { above: isReward ? 58 : 54 });
+    el.hidden = false;
+    requestAnimationFrame(() => {
+      const input = el.querySelector('[data-dog-fetch-command]');
+      if (input) {
+        input.focus({ preventScroll: true });
+        input.setSelectionRange(0, input.value.length);
+      }
+    });
+  }
+  syncDogPopupUi(force = false) {
+    const el = this.dom.dogPopup;
+    if (!el) return;
+    const state = this.dogPopupState;
+    const bot = state?.botId ? this.findBot(state.botId) : this.bots.find(entry => entry.kind === 'dog' && entry.inventory && distXY(entry.x, entry.y, this.player.x, this.player.y) <= 64) || this.bots.find(entry => entry.kind === 'dog') || null;
+    if (!bot || (!state && !bot.inventory)) { if (!force) el.hidden = true; return; }
+    const carrying = !!bot.inventory;
+    const nearPlayer = carrying && distXY(bot.x, bot.y, this.player.x, this.player.y) <= 72;
+    const mode = carrying && nearPlayer ? 'reward' : (state?.mode || 'progress');
+    if (!carrying && mode === 'reward') {
+      el.hidden = true;
+      return;
+    }
+    this.dogPopupState = { botId: bot.id, mode };
+    const renderKey = this.dogPopupRenderKey(bot, mode);
+    const shouldRender = force || el.hidden || el.dataset.dogPopupKey !== renderKey;
+    if (shouldRender) this.renderDogPopup(bot, mode);
+    else if (mode !== 'reward') this.placeDogPopup(el, bot, { above: carrying ? 58 : 54 });
+    if (!shouldRender) return;
+    el.querySelector('[data-dog-fetch-submit]')?.addEventListener('click', () => {
+      const text = el.querySelector('[data-dog-fetch-command]')?.value || '';
+      const res = this.setDogFetchCommand(bot, text);
+      if (res.ok) this.renderDogPopup(bot, 'progress');
+    });
+    el.querySelector('[data-dog-fetch-command]')?.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        const text = el.querySelector('[data-dog-fetch-command]')?.value || '';
+        const res = this.setDogFetchCommand(bot, text);
+        if (res.ok) this.renderDogPopup(bot, 'progress');
+      }
+    });
+    el.querySelector('[data-dog-popup-mic]')?.addEventListener('click', async () => {
+      const input = el.querySelector('[data-dog-fetch-command]');
+      if (!input) return;
+      const voice = window.voiceInputDebug;
+      if (!voice) return;
+      if (voice.isRecording?.()) {
+        await voice.stopVoice?.();
+        voice.clearVoiceTargetInput?.();
+      } else {
+        voice.setVoiceTargetInput?.(input);
+        await voice.startVoice?.();
+      }
+    });
+  }
+  extractDogRequestedItemType(text) {
+    const lower = String(text || '').toLowerCase();
+    const candidates = ['arrow pack', 'log', 'plank', 'pole', 'stick', 'stone', 'tree seed', 'hemp seed', 'hemp', 'crude axe', 'crude pickaxe', 'crude shovel', 'crude hammer', 'wooden sword', 'wooden shield', 'bow'];
+    for (const candidate of candidates) {
+      if (new RegExp(`\\b${candidate.replace(/ /g, '\\s+')}\\b`).test(lower)) {
+        const type = this.normalizeItemType(candidate, null);
+        if (type && !this.isEquipmentItem(type)) return type;
+      }
+    }
+    return null;
+  }
+  chooseDogFetchTargetType(bot, requestedType = null) {
+    const nearbyItems = this.items.filter(item => distXY(bot.x, bot.y, item.x, item.y) <= DOG_FETCH_SEARCH_RADIUS && (!item.reservedBy || item.reservedBy === bot.id) && !this.isEquipmentItem(item.type));
+    if (!nearbyItems.length) return null;
+    if (requestedType) {
+      const exactItems = nearbyItems.filter(item => item.type === requestedType);
+      if (exactItems.length) return exactItems[0].type;
+    }
+    const memory = this.normalizeDogFetchMemory(bot.dogFetchMemory);
+    const praiseCounts = memory.praiseCounts || {};
+    const countsByType = nearbyItems.reduce((acc, item) => {
+      acc[item.type] = Math.max(acc[item.type] || 0, praiseCounts[item.type] || 0);
+      return acc;
+    }, {});
+    const sorted = Object.entries(countsByType).sort((a, b) => b[1] - a[1]);
+    const [bestType, bestCount] = sorted[0] || [];
+    if (bestType && bestCount > 0) {
+      const chance = Math.min(1, bestCount / DOG_FETCH_PRAISE_TARGET);
+      if (chance >= 1 || Math.random() < chance) return bestType;
+    }
+    return nearbyItems[Math.floor(Math.random() * nearbyItems.length)]?.type || null;
+  }
+  setDogFetchCommand(botRef, text) {
+    const bot = botRef && typeof botRef === 'object' ? botRef : this.resolveBotReference(botRef);
+    if (!bot) return { ok: false, error: `Bot ${botRef} not found` };
+    if (bot.inventory) return { ok: false, error: 'Dog must have empty paws before a new fetch command.' };
+    if (!this.isDogBot(bot)) return { ok: false, error: 'Only the starter dog can learn fetch commands.' };
+    const requestedText = String(text || '').trim();
+    const requestedType = this.extractDogRequestedItemType(requestedText);
+    const targetType = this.chooseDogFetchTargetType(bot, requestedType);
+    bot.dogCommandDraft = requestedText;
+    bot.dogFetchState = this.normalizeDogFetchState({ requestedText, requestedType, targetType, targetItemId: null, awaitingReward: false, source: 'dog menu' });
+    bot.program = 'dog_fetch';
+    bot.state = 'dog_fetch';
+    bot.message = targetType ? `Fetching ${itemLabel(targetType)}.` : 'No nearby item to fetch.';
+    this.releaseReservation(bot);
+    this.syncDogPopupUi?.(true);
+    this.syncBotDrawerUi?.(true);
+    return { ok: true, bot, targetType };
+  }
+  praiseDogFetch(botRef) {
+    const bot = botRef && typeof botRef === 'object' ? botRef : this.resolveBotReference(botRef);
+    if (!bot || !this.isDogBot(bot) || !bot.inventory) return { ok: false, error: 'Dog has no fetched item to praise.' };
+    const type = bot.dogFetchState?.targetType || bot.inventory.type;
+    bot.dogFetchMemory = this.normalizeDogFetchMemory(bot.dogFetchMemory);
+    bot.dogFetchMemory.praiseCounts[type] = (bot.dogFetchMemory.praiseCounts[type] || 0) + 1;
+    bot.dogFetchMemory.preferredType = type;
+    bot.dogFetchMemory.lastTargetType = type;
+    if (this.canPlayerAcceptItem(type)) {
+      this.player.inventory = { type, count: bot.inventory.count || 1 };
+      this.addFloat(`Good dog: ${itemLabel(type)} delivered`, bot.x, bot.y - 34, '#9abf8f');
+    } else {
+      this.spawnItem(type, bot.x + 8, bot.y + 8, bot.inventory.count || 1);
+      this.addFloat(`Good dog: dropped ${itemLabel(type)}`, bot.x, bot.y - 34, '#9abf8f');
+    }
+    bot.inventory = null;
+    bot.dogFetchState = null;
+    bot.target = null;
+    this.releaseReservation(bot);
+    bot.message = 'Awaiting fetch command.';
+    this.closeDogPopup();
+    this.syncBotDrawerUi?.(true);
+    return { ok: true, bot, type, praiseCount: bot.dogFetchMemory.praiseCounts[type] };
+  }
+  rejectDogFetch(botRef) {
+    const bot = botRef && typeof botRef === 'object' ? botRef : this.resolveBotReference(botRef);
+    if (!bot || !this.isDogBot(bot) || !bot.inventory) return { ok: false, error: 'Dog has no fetched item to reject.' };
+    const type = bot.inventory.type;
+    this.spawnItem(type, bot.x + 8, bot.y + 8, bot.inventory.count || 1);
+    bot.inventory = null;
+    bot.dogFetchState = null;
+    bot.target = null;
+    this.releaseReservation(bot);
+    bot.message = `Rejected ${itemLabel(type)}.`;
+    this.addFloat(`Dog dropped ${itemLabel(type)}`, bot.x, bot.y - 34, '#c86b5f');
+    this.closeDogPopup();
+    this.syncBotDrawerUi?.(true);
+    return { ok: true, bot, type };
   }
   delegateMessageToManager(senderBot, recipientRef, message, { throttleKey = '' } = {}) {
     const manager = recipientRef && typeof recipientRef === 'object' ? recipientRef : this.resolveBotReference(recipientRef);
@@ -1752,7 +2088,7 @@ export class Game {
   renderTemplateCard(template) {
     const steps = template.steps || [];
     const updated = template.updatedAt ? new Date(template.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-    return `<article class="template-card" data-template-id="${escapeHtml(template.id)}"><header><b>${escapeHtml(template.name)}</b><small>${steps.length} step${steps.length === 1 ? '' : 's'}${updated ? ` Â· ${escapeHtml(updated)}` : ''}</small></header>${this.renderTemplateSteps(steps)}<div class="template-card-actions"><label>Assign to bot <input data-template-bot-id="${escapeHtml(template.id)}" type="number" min="1" value="1"></label><button type="button" data-assign-template="${escapeHtml(template.id)}">Assign</button><button type="button" data-delete-template="${escapeHtml(template.id)}">Delete</button></div></article>`;
+    return `<article class="template-card" data-template-id="${escapeHtml(template.id)}"><header><b>${escapeHtml(template.name)}</b><small>${steps.length} step${steps.length === 1 ? '' : 's'}${updated ? ` · ${escapeHtml(updated)}` : ''}</small></header>${this.renderTemplateSteps(steps)}<div class="template-card-actions"><label>Assign to bot <input data-template-bot-id="${escapeHtml(template.id)}" type="number" min="1" value="1"></label><button type="button" data-assign-template="${escapeHtml(template.id)}">Assign</button><button type="button" data-delete-template="${escapeHtml(template.id)}">Delete</button></div></article>`;
   }
   syncTemplateDrawerUi() {
     const list = this.dom?.templateList;
@@ -1835,10 +2171,10 @@ export class Game {
       return { kind: 'radius', x, y, radius, name: this.radiusText({ x, y, radius }) };
     }
     const lower = raw.toLowerCase();
-    if (!/(around|near|um|bereich|radius|small|klein|large|groÃŸ|gross)/.test(lower)) return null;
+    if (!/(around|near|um|bereich|radius|small|klein|large|groß|gross)/.test(lower)) return null;
     const structure = this.findStructureMention(lower);
     if (!structure) return null;
-    const radius = /(large|groÃŸ|gross|big|weiter|weiten)/.test(lower) ? 220 : /(small|klein|kleinen|tiny)/.test(lower) ? 95 : 150;
+    const radius = /(large|groß|gross|big|weiter|weiten)/.test(lower) ? 220 : /(small|klein|kleinen|tiny)/.test(lower) ? 95 : 150;
     return { kind: 'radius', centerStructureId: structure.id, radius, name: `${radius <= 100 ? 'small' : radius >= 200 ? 'large' : 'radius'} area around ${structure.name}` };
   }
   parseNearbyZoneMention(text) {
@@ -1966,6 +2302,10 @@ export class Game {
   normalizeBowmakerRecipe(value, fallback = 'bow') {
     const raw = String(value || fallback || '').toLowerCase().replace(/[_-]/g, ' ').trim();
     return ['bow', 'bows'].includes(raw) ? 'bow' : null;
+  }
+  normalizeArrowmakerRecipe(value, fallback = 'arrow_pack') {
+    const raw = String(value || fallback || '').toLowerCase().replace(/[_-]/g, ' ').trim();
+    return ['arrow pack', 'arrow packs', 'arrow_pack', 'arrowpacks', 'arrows'].includes(raw) ? 'arrow_pack' : null;
   }
   normalizePatrolPoints(input) {
     let raw = input;
@@ -2214,6 +2554,12 @@ export class Game {
         if (!recipe) recordError(`Step ${index + 1}: craft_bowmaker supports only bow`, { code: 'unknown_recipe', field: 'recipe', stepIndex: index + 1, value: rawRecipe });
         else step.recipe = recipe;
       }
+      if (op === 'craft_arrowmaker') {
+        const rawRecipe = raw.recipe || raw.type || raw.item || raw.itemType;
+        const recipe = this.normalizeArrowmakerRecipe(rawRecipe);
+        if (!recipe) recordError(`Step ${index + 1}: craft_arrowmaker supports only arrow_pack`, { code: 'unknown_recipe', field: 'recipe', stepIndex: index + 1, value: rawRecipe });
+        else step.recipe = recipe;
+      }
       if (op === 'if_inventory') {
         const goto = Number(raw.goto);
         if (!Number.isInteger(goto) || goto < 0 || goto >= steps.length) errors.push(`Step ${index + 1}: if_inventory goto must be a valid zero-based step index`);
@@ -2305,13 +2651,13 @@ export class Game {
           else if (!placeholder) recordError(`Step ${index + 1}: attack target must resolve to an existing hostile actor`, { code: 'unknown_actor_ref', field: 'target', stepIndex: index + 1, value: targetRaw });
         }
       }
-      if (op === 'pick_up_from_storage' || op === 'move_to_structure' || op === 'deposit_to_structure' || op === 'craft_smithery' || op === 'craft_bowmaker' || op === 'disassemble_building_to_kit') {
+      if (op === 'pick_up_from_storage' || op === 'move_to_structure' || op === 'deposit_to_structure' || op === 'craft_smithery' || op === 'craft_bowmaker' || op === 'craft_arrowmaker' || op === 'disassemble_building_to_kit') {
         const sourceRaw = raw.sourceStructureId ?? raw.sourceId ?? raw.source;
         const targetRaw = raw.structureId ?? raw.targetStructureId ?? raw.targetId ?? raw.target ?? raw.structureName;
-        const wantedType = op === 'pick_up_from_storage' ? 'item_palette' : op === 'craft_smithery' ? 'smithery' : op === 'craft_bowmaker' ? 'bowmaker' : (raw.structureType || null);
+        const wantedType = op === 'pick_up_from_storage' ? 'item_palette' : op === 'craft_smithery' ? 'smithery' : op === 'craft_bowmaker' ? 'bowmaker' : op === 'craft_arrowmaker' ? 'arrowmaker' : (raw.structureType || null);
         const lookup = op === 'pick_up_from_storage' ? (sourceRaw ?? targetRaw) : targetRaw;
         const placeholder = typeof lookup === 'string' && lookup.startsWith('$');
-        const structureId = placeholder ? null : this.normalizeStructureId(lookup, wantedType) || ((op === 'craft_smithery' || op === 'craft_bowmaker') ? null : this.normalizeStructureId(lookup, null));
+        const structureId = placeholder ? null : this.normalizeStructureId(lookup, wantedType) || ((op === 'craft_smithery' || op === 'craft_bowmaker' || op === 'craft_arrowmaker') ? null : this.normalizeStructureId(lookup, null));
         const structure = structureId ? this.structures.find(s => s.id === structureId) : null;
         if (!placeholder && lookup != null && lookup !== '' && !structure) recordError(`Step ${index + 1}: ${op} requires an existing ${wantedType || 'structure'} target/source`, { code: 'unknown_structure_ref', field: op === 'pick_up_from_storage' ? 'source' : 'target', stepIndex: index + 1, value: lookup });
         if (!placeholder && op === 'disassemble_building_to_kit' && !this.canDisassembleStructure(structure)) recordError(`Step ${index + 1}: disassemble_building_to_kit requires a disassemblable building`, { code: 'structure_not_disassemblable', field: 'target', stepIndex: index + 1, value: lookup });
@@ -2516,6 +2862,7 @@ export class Game {
     this.addStructure('robotics_parts_bin', CAMPAIGN_START.x + 435, CAMPAIGN_START.y - 38);
     this.createBot(CAMPAIGN_START.x - 45, CAMPAIGN_START.y + 56, 'idle', true);
     this.createBot(CAMPAIGN_START.x - 10, CAMPAIGN_START.y + 86, 'idle', true);
+    this.spawnStarterDog(CAMPAIGN_START.x + 28, CAMPAIGN_START.y + 70);
     this.spawnItem('crude_axe', CAMPAIGN_START.x + 80, CAMPAIGN_START.y + 95, 2);
     this.spawnItem('stick', CAMPAIGN_START.x + 126, CAMPAIGN_START.y + 102, 4);
     this.spawnItem('stone', CAMPAIGN_START.x + 170, CAMPAIGN_START.y + 92, 2);
@@ -2580,7 +2927,7 @@ export class Game {
     this.zones = clone(payload.zones || DEFAULT_WORLD_ZONES);
     this.idleDepot = { x: 115, y: 245, label: 'idle depot', ...(payload.idleDepot || {}) };
     this.trees = clone(payload.trees || []); this.hempPlants = clone(payload.hempPlants || []); this.rocks = clone(payload.rocks || []); this.holes = clone(payload.holes || []); this.items = clone(payload.items || []); this.bots = clone(payload.bots || []); this.structures = clone(payload.structures || []); this.monsters = clone(payload.monsters || []); this.projectiles = clone(payload.projectiles || []); this.floaters = [];
-    for (const bot of this.bots) { ensureEquipment(bot); bot.name = bot.name || `Bot ${bot.id}`; bot.status = bot.status === 'manager' ? 'manager' : 'worker'; bot.taughtLoopRepeat = bot.taughtLoopRepeat !== false; bot.managerKnowledgePacks = this.normalizeManagerKnowledgePacks(bot.managerKnowledgePacks || bot.knowledgePacks || [], bot.status === 'manager' ? DEFAULT_MANAGER_KNOWLEDGE_PACKS : []); bot.knowledgePacks = bot.managerKnowledgePacks; if (bot.teamId && !this.findBotTeam(bot.teamId)) bot.teamId = null; }
+    for (const bot of this.bots) { ensureEquipment(bot); bot.name = bot.name || `Bot ${bot.id}`; bot.kind = bot.kind === 'dog' ? 'dog' : 'bot'; bot.status = bot.status === 'manager' ? 'manager' : 'worker'; bot.taughtLoopRepeat = bot.taughtLoopRepeat !== false; bot.managerKnowledgePacks = this.normalizeManagerKnowledgePacks(bot.managerKnowledgePacks || bot.knowledgePacks || [], bot.status === 'manager' ? DEFAULT_MANAGER_KNOWLEDGE_PACKS : []); bot.knowledgePacks = bot.kind === 'dog' ? (Array.isArray(bot.knowledgePacks) && bot.knowledgePacks.length ? bot.knowledgePacks : ['dog_fetch']) : (Array.isArray(bot.knowledgePacks) ? bot.knowledgePacks : bot.managerKnowledgePacks); bot.dogFetchMemory = this.normalizeDogFetchMemory(bot.dogFetchMemory); bot.dogFetchState = this.normalizeDogFetchState(bot.dogFetchState); if (bot.teamId && !this.findBotTeam(bot.teamId)) bot.teamId = null; }
     const counters = payload.counters || {};
     this.nextItemId = Number(counters.nextItemId || 1); this.nextRockId = Number(counters.nextRockId || 1); this.nextHoleId = Number(counters.nextHoleId || 1); this.nextTreeId = Number(counters.nextTreeId || 1); this.nextHempId = Number(counters.nextHempId || 1); this.nextMonsterId = Number(counters.nextMonsterId || 1); this.nextProjectileId = Number(counters.nextProjectileId || 1); this.nextBotId = Number(counters.nextBotId || 1); this.nextStructureId = Number(counters.nextStructureId || 1); this.nextZoneId = Number(counters.nextZoneId || 1); this.nextBotTeamId = Number(counters.nextBotTeamId || this.nextBotTeamId || 1); this.nextCustomTemplateId = Number(counters.nextCustomTemplateId || this.nextCustomTemplateId || 1);
     if (payload.settings?.maxBots) this.maxBots = Number(payload.settings.maxBots);
@@ -2597,7 +2944,7 @@ export class Game {
     this.resetWorldCollections();
     this.gameMode = 'local_ai';
     this.map = { ...WORLD_MAP_SIZE };
-      this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.targetQueue = []; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.hp = this.player.maxHp || 10; this.player.facingX = 1; this.player.facingY = 0;
+      this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.targetQueue = []; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.ammunition = 0; this.player.hp = this.player.maxHp || 10; this.player.facingX = 1; this.player.facingY = 0;
       this.assistant.x = localStart.x - 30; this.assistant.y = localStart.y + 24; this.assistant.facingX = 1; this.assistant.facingY = 0;
     this.camera.x = localStart.x - (this.W / (this.camera.zoom || 1)) / 2;
     this.camera.y = localStart.y - (this.H / (this.camera.zoom || 1)) / 2;
@@ -2622,6 +2969,7 @@ export class Game {
     this.addStructure('workbench', localStart.x + 230, localStart.y - 120);
     this.createBot(this.idleDepot.x - homeSide * 22, this.idleDepot.y - 24, 'idle', true);
     this.createBot(this.idleDepot.x + homeSide * 18, this.idleDepot.y + 18, 'idle', true);
+    this.spawnStarterDog(localStart.x + 28, localStart.y + 34);
     this.spawnItem('crude_axe', localStart.x + 95, localStart.y + 80, 2);
     this.spawnItem('stick', localStart.x + 130, localStart.y + 86, 4);
     this.spawnItem('stone', localStart.x + 160, localStart.y + 75, 2);
@@ -2635,7 +2983,7 @@ export class Game {
     this.gameMode = 'online_lakes';
     this.map = { ...WORLD_MAP_SIZE };
     this.mapFeatures = clone(ONLINE_MULTIPLAYER_FEATURES);
-      this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.targetQueue = []; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.hp = this.player.maxHp || 10; this.player.facingX = 1; this.player.facingY = 0;
+      this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.targetQueue = []; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.ammunition = 0; this.player.hp = this.player.maxHp || 10; this.player.facingX = 1; this.player.facingY = 0;
       this.assistant.x = localStart.x - 30; this.assistant.y = localStart.y + 24; this.assistant.facingX = 1; this.assistant.facingY = 0;
     this.camera.x = localStart.x - (this.W / (this.camera.zoom || 1)) / 2;
     this.camera.y = localStart.y - (this.H / (this.camera.zoom || 1)) / 2;
@@ -2656,6 +3004,7 @@ export class Game {
     this.addStructure('workbench', localStart.x + (playerId === 'p1' ? 230 : -230), localStart.y - (playerId === 'p1' ? 120 : -80));
     this.createBot(this.idleDepot.x - homeSide * 22, this.idleDepot.y - 24, 'idle', true);
     this.createBot(this.idleDepot.x + homeSide * 18, this.idleDepot.y + 18, 'idle', true);
+    this.spawnStarterDog(localStart.x + 28, localStart.y + 34);
     this.spawnItem('crude_axe', localStart.x + 95, localStart.y + 80, 2);
     this.spawnItem('stick', localStart.x + 130, localStart.y + 86, 4);
     this.spawnItem('stone', localStart.x + 160, localStart.y + 75, 2);
@@ -2856,7 +3205,7 @@ export class Game {
           if (!this.treeSearchAvailable(tree, 'player')) { this.advancePlayerTargetQueue(); this.addFloat('Tree already being searched', tree.x, tree.y - 34, '#c86b5f'); return; }
           tree.searchReservedBy = 'player';
           this.player.target = { ...target, started: true, remaining: TREE_SEARCH_SECONDS, total: TREE_SEARCH_SECONDS, processLabel: 'searching tree' };
-          this.addFloat('Searching treeâ€¦', tree.x, tree.y - 34, '#d3a95f');
+          this.addFloat('Searching tree…', tree.x, tree.y - 34, '#d3a95f');
           return;
         }
         const hemp = this.hempPlants.find(h => h.id === target.resourceId && !h.harvested);
@@ -2865,12 +3214,12 @@ export class Game {
           if (this.player.inventory || hemp.searched) { this.advancePlayerTargetQueue(); this.addFloat(hemp.searched ? 'Hemp already searched' : 'Hands must be empty', hemp.x, hemp.y - 28, '#c86b5f'); return; }
           hemp.searchReservedBy = 'player';
           this.player.target = { ...target, started: true, remaining: HEMP_SEARCH_SECONDS, total: HEMP_SEARCH_SECONDS, processLabel: 'searching hemp' };
-          this.addFloat('Searching hempâ€¦', hemp.x, hemp.y - 28, '#d3a95f');
+          this.addFloat('Searching hemp…', hemp.x, hemp.y - 28, '#d3a95f');
           return;
         }
         if (this.player.inventory?.type !== 'crude_axe') { this.advancePlayerTargetQueue(); this.addFloat('Need crude axe to chop hemp', hemp.x, hemp.y - 28, '#c86b5f'); return; }
         this.player.target = { ...target, started: true, remaining: HEMP_CHOP_SECONDS, total: HEMP_CHOP_SECONDS, processLabel: 'chopping hemp' };
-        this.addFloat('Chopping hempâ€¦', hemp.x, hemp.y - 28, '#d3a95f');
+        this.addFloat('Chopping hemp…', hemp.x, hemp.y - 28, '#d3a95f');
         return;
       }
       this.player.target = null;
@@ -2908,10 +3257,71 @@ export class Game {
     if (bot.program === 'haul_planks') return this.programHaulPlanks(bot, dt);
     if (bot.program === 'craft_axes') return this.programCraftAxes(bot, dt);
     if (bot.program === 'build_bots') return this.programBuildBots(bot, dt);
+    if (bot.program === 'dog_fetch') return this.programDogFetch(bot, dt);
     if (bot.program === 'taught_loop') return this.programTaughtLoop(bot, dt);
     return this.programIdle(bot, dt);
   }
   programIdle(bot, dt) { this.releaseReservation(bot); const depot = this.idleDepot || { x: 115, y: 245, label: 'idle depot' }; const angle = (bot.id / Math.max(1,this.bots.length)) * Math.PI*2; const tx=depot.x+Math.cos(angle)*42, ty=depot.y+Math.sin(angle)*32; bot.message=`Parked at ${depot.label || 'idle depot'}.`; this.moveToward(bot, tx, ty, dt, bot.speed*0.6, 6); }
+  programDogFetch(bot, dt) {
+    bot.kind = 'dog';
+    bot.knowledgePacks = bot.knowledgePacks?.length ? bot.knowledgePacks : ['dog_fetch'];
+    bot.dogFetchMemory = this.normalizeDogFetchMemory(bot.dogFetchMemory);
+    const request = this.normalizeDogFetchState(bot.dogFetchState);
+    bot.dogFetchState = request;
+    if (!request) {
+      this.releaseReservation(bot);
+      const reached = this.moveBotTo(bot, this.player, dt, 42);
+      bot.message = reached ? 'At heel. Awaiting fetch command.' : 'Following the player.';
+      return;
+    }
+    if (bot.inventory) {
+      const reached = this.moveBotTo(bot, this.player, dt, 38);
+      request.awaitingReward = reached || request.awaitingReward;
+      bot.message = reached ? `Returning ${itemLabel(bot.inventory.type)} for praise.` : `Following player with ${itemLabel(bot.inventory.type)}.`;
+      bot.target = null;
+      if (reached) this.syncDogPopupUi?.(true);
+      return;
+    }
+    let targetItem = request.targetItemId ? this.items.find(item => item.id === request.targetItemId && (!item.reservedBy || item.reservedBy === bot.id) && item.type === request.targetType && distXY(bot.x, bot.y, item.x, item.y) <= DOG_FETCH_SEARCH_RADIUS) : null;
+    if (!targetItem) {
+      const targetType = request.requestedType || request.targetType || this.chooseDogFetchTargetType(bot, null);
+      request.targetType = targetType;
+      targetItem = targetType ? nearest(this.items, bot.x, bot.y, item => item.type === targetType && (!item.reservedBy || item.reservedBy === bot.id) && !this.isEquipmentItem(item.type) && distXY(bot.x, bot.y, item.x, item.y) <= DOG_FETCH_SEARCH_RADIUS) : null;
+      if (!targetItem && request.requestedType) {
+        const fallbackType = this.chooseDogFetchTargetType(bot, null);
+        if (fallbackType && fallbackType !== request.requestedType) {
+          request.targetType = fallbackType;
+          targetItem = nearest(this.items, bot.x, bot.y, item => item.type === fallbackType && (!item.reservedBy || item.reservedBy === bot.id) && !this.isEquipmentItem(item.type) && distXY(bot.x, bot.y, item.x, item.y) <= DOG_FETCH_SEARCH_RADIUS) || null;
+        }
+      }
+      if (!targetItem && !request.requestedType && !request.targetType) targetItem = nearest(this.items, bot.x, bot.y, item => (!item.reservedBy || item.reservedBy === bot.id) && !this.isEquipmentItem(item.type) && distXY(bot.x, bot.y, item.x, item.y) <= DOG_FETCH_SEARCH_RADIUS) || null;
+      if (targetItem) {
+        request.targetItemId = targetItem.id;
+        request.targetType = targetItem.type;
+        targetItem.reservedBy = bot.id;
+      }
+    }
+    if (!targetItem) {
+      bot.message = `No nearby ${request.requestedType ? itemLabel(request.requestedType) : 'item'} to fetch.`;
+      this.releaseReservation(bot);
+      return;
+    }
+    if (!this.moveBotTo(bot, targetItem, dt, 12)) {
+      bot.message = `Fetching ${itemLabel(targetItem.type)}.`;
+      return;
+    }
+    if (!this.pickItem(bot, targetItem)) {
+      bot.message = `Could not fetch ${itemLabel(targetItem.type)}.`;
+      request.targetItemId = null;
+      return;
+    }
+    request.targetItemId = null;
+    request.targetType = targetItem.type;
+    request.awaitingReward = true;
+    bot.message = `Fetched ${itemLabel(targetItem.type)}.`;
+    bot.target = null;
+    this.syncBotDrawerUi?.();
+  }
   programChopWood(bot, dt) {
     if (!this.ensureChopTool(bot, dt)) return;
     const zone = this.getBotZone(bot);
@@ -3077,7 +3487,8 @@ export class Game {
   pickItem(bot, item) {
     if (!bot || !item) return false;
     if (this.isEquipmentItem(item.type)) {
-      if (this.equipActor(bot, item.type)) bot.message = `Equipped ${itemLabel(item.type)}.`;
+      if (this.equipActor(bot, item.type)) bot.message = item.type === 'arrow_pack' ? `Loaded ${itemLabel(item.type)}.` : `Equipped ${itemLabel(item.type)}.`;
+      else if (item.type === 'arrow_pack') { bot.message = 'Ammo already full.'; return false; }
       else if (this.carryEquipmentItem(bot, item.type)) bot.message = `Carrying ${itemLabel(item.type)}.`;
       else { bot.message = `Cannot pick up ${itemLabel(item.type)} while carrying ${itemLabel(bot.inventory?.type || 'item')}.`; return false; }
       this.emitSound('equip', { cooldownKey: `bot:equip:${bot.id}`, minGapMs: 120 });
@@ -3202,6 +3613,13 @@ export class Game {
         this.maybeStartStructureProcessing(s, worker);
         return true;
       }
+      if (s.type === 'arrowmaker') {
+        if (type === 'stick') s.sticks++;
+        if (type === 'stone') s.stones++;
+        this.addFloat(`${s.name}: ${s.sticks} sticks, ${s.stones} stones`, s.x, s.y - 35, '#d3a95f');
+        this.maybeStartStructureProcessing(s, worker);
+        return true;
+      }
       if (s.type === 'bowmaker') {
         const key = `${type}s` in s ? `${type}s` : type;
         s[key]++;
@@ -3237,6 +3655,7 @@ export class Game {
       const recipe = smitheryRecipe(s), input = smitheryInputFor(recipe), key = input === 'stick' ? 'sticks' : 'planks';
       if ((s[key] || 0) > 0) return { recipe, label: `crafting ${itemLabel(recipe)}` };
     }
+    if (s.type === 'arrowmaker' && s.sticks >= 1 && s.stones >= 1) return { recipe: 'arrow_pack', label: 'fletching arrow pack' };
     if (s.type === 'bowmaker' && Object.entries(BOW_RECIPE).every(([type, cost]) => (s[`${type}s`] ?? s[type] ?? 0) >= cost)) return { recipe: 'bow', label: 'binding bow' };
     if (s.type === 'factory' && Object.entries(FACTORY_BOT_RECIPE).every(([type, cost]) => (s[`${type}s`] ?? s[type] ?? 0) >= cost)) return { recipe: 'basic_bot', label: 'assembling bot' };
     if (s.type === 'assembler' && Object.entries(ASSEMBLER_KIT_RECIPE).every(([type, cost]) => (s[`${type}s`] ?? s[type] ?? 0) >= cost)) { const recipe = assemblerRecipe(s); return { recipe, label: `assembling ${itemLabel(recipe)}` }; }
@@ -3247,6 +3666,7 @@ export class Game {
     if (s.type === 'sawbench' && recipe === 'plank') { s.planks--; return true; }
     if (s.type === 'workbench' && WORKBENCH_TOOL_RECIPES.includes(recipe)) { s.sticks--; s.stones--; return true; }
     if (s.type === 'smithery' && SMITHERY_RECIPES.includes(recipe)) { const input = smitheryInputFor(recipe), key = input === 'stick' ? 'sticks' : 'planks'; s[key]--; return true; }
+    if (s.type === 'arrowmaker' && recipe === 'arrow_pack') { s.sticks--; s.stones--; return true; }
     if (s.type === 'bowmaker' && recipe === 'bow') { for (const [type, cost] of Object.entries(BOW_RECIPE)) { const key = `${type}s` in s ? `${type}s` : type; s[key] -= cost; } return true; }
     if (s.type === 'factory' && recipe === 'basic_bot') { for (const [type, cost] of Object.entries(FACTORY_BOT_RECIPE)) { const key = `${type}s` in s ? `${type}s` : type; s[key] -= cost; } return true; }
     if (s.type === 'assembler' && BUILDING_KIT_ITEM_TYPES.includes(recipe)) { for (const [type, cost] of Object.entries(ASSEMBLER_KIT_RECIPE)) { const key = `${type}s` in s ? `${type}s` : type; s[key] -= cost; } return true; }
@@ -3299,13 +3719,14 @@ export class Game {
       this.addFloat(`+ ${itemLabel(job.recipe)} dropped`, s.x, s.y - 35, '#d3a95f');
       return;
     }
+    if (s.type === 'arrowmaker' && job.recipe === 'arrow_pack') { s.arrow_packs++; this.dropProducedItem(s, 'arrow_pack', 1); this.addFloat('+ arrow pack dropped', s.x, s.y - 35, '#d3a95f'); return; }
     if (s.type === 'bowmaker' && job.recipe === 'bow') { s.bows++; this.dropProducedItem(s, 'bow', 1); this.addFloat('+ bow dropped', s.x, s.y - 35, '#d3a95f'); return; }
     if (s.type === 'factory' && job.recipe === 'basic_bot') { const nb = this.createBot(s.x + rand(-30, 30), s.y + 72, 'idle'); if (nb) this.addChat?.('assistant', `Factory created Basic Bot ${nb.id}.`); return; }
     if (s.type === 'assembler' && BUILDING_KIT_ITEM_TYPES.includes(job.recipe)) { this.dropProducedItem(s, job.recipe, 1); this.addFloat(`+ ${itemLabel(job.recipe)} dropped`, s.x, s.y - 35, '#d3a95f'); return; }
   }
     updateProductionStructures(dt) {
       for (const s of this.structures) {
-        if (!['sawbench', 'workbench', 'factory', 'smithery', 'bowmaker', 'assembler'].includes(s.type)) continue;
+        if (!['sawbench', 'workbench', 'factory', 'smithery', 'bowmaker', 'arrowmaker', 'assembler'].includes(s.type)) continue;
         if (this.isStructureProcessing(s)) {
           s.processing.remaining -= dt;
           if (s.processing.remaining <= 0) { const job = s.processing; s.processing = null; this.finishStructureProcessing(s, job); }
@@ -3350,7 +3771,7 @@ export class Game {
       return false;
     }
     attack.targetRef = target.ref;
-    if (attack.cooldownRemaining > 0) { bot.message = `Attacking ${target.name || target.ref || 'target'}â€¦`; return true; }
+    if (attack.cooldownRemaining > 0) { bot.message = `Attacking ${target.name || target.ref || 'target'}…`; return true; }
     if (ranged) this.fireActorBow(bot, target, attack);
     else {
       this.damageAttackTarget(target, attack.damage || 1);
@@ -3453,6 +3874,11 @@ export class Game {
     const recipe = this.normalizeBowmakerRecipe(step.recipe);
     const s = this.nearestStructure('bowmaker', bot.x, bot.y, step.structureId);
     return this.executeCraftAtProduction(bot, step, dt, s, recipe, 'bowmaker');
+  }
+  executeCraftArrowmakerStep(bot, step, dt) {
+    const recipe = this.normalizeArrowmakerRecipe(step.recipe);
+    const s = this.nearestStructure('arrowmaker', bot.x, bot.y, step.structureId);
+    return this.executeCraftAtProduction(bot, step, dt, s, recipe, 'arrowmaker');
   }
   executeCraftAtProduction(bot, step, dt, s, recipe, structureType) {
     if (!s || !recipe) { bot.message = `No ${structureType} recipe target available.`; return false; }
@@ -3587,6 +4013,10 @@ export class Game {
     }
     if (step.op === 'craft_bowmaker') {
       if (this.executeCraftBowmakerStep(bot, step, dt)) advance();
+      return;
+    }
+    if (step.op === 'craft_arrowmaker') {
+      if (this.executeCraftArrowmakerStep(bot, step, dt)) advance();
       return;
     }
     if (step.op === 'deploy_building_kit') {
@@ -3848,12 +4278,12 @@ export class Game {
   }
   startPlayerResourceWork(target, resource, processLabel) {
     this.player.target = { ...target, x: resource.x, y: resource.y, started: true, remaining: RESOURCE_HIT_SECONDS, total: RESOURCE_HIT_SECONDS, processLabel };
-    this.addFloat(`${processLabel[0].toUpperCase()}${processLabel.slice(1)}â€¦`, resource.x, resource.y - 34, '#d3a95f');
+    this.addFloat(`${processLabel[0].toUpperCase()}${processLabel.slice(1)}…`, resource.x, resource.y - 34, '#d3a95f');
     return true;
   }
   startPlayerTimedAction(target, duration, processLabel) {
     this.player.target = { ...target, started: true, remaining: duration, total: duration, processLabel };
-    this.addFloat(`${processLabel[0].toUpperCase()}${processLabel.slice(1)}â€¦`, target.x, target.y - 34, '#d3a95f');
+    this.addFloat(`${processLabel[0].toUpperCase()}${processLabel.slice(1)}…`, target.x, target.y - 34, '#d3a95f');
     return true;
   }
   startPlayerBuildingKitAction(target) {
@@ -4169,6 +4599,7 @@ export class Game {
       if (equipped) { this.recordTeachStep({ op: 'pick_up', type: item.type }); this.syncTeachUi(); }
       if (equipped) this.emitSound('equip', { cooldownKey: 'player:equip', minGapMs: 120 });
       if (equipped) return true;
+      if (item.type === 'arrow_pack') { this.addFloat('Ammo already full', this.player.x, this.player.y - 30, '#c86b5f'); return false; }
       if (distXY(item.x, item.y, this.player.x, this.player.y) >= 44) return false;
       if (!this.carryEquipmentItem(this.player, item.type)) { this.addFloat(`Carrying ${itemLabel(this.player.inventory?.type || 'item')}`, this.player.x, this.player.y - 30, '#c86b5f'); return false; }
       this.items = this.items.filter(i => i.id !== item.id);
@@ -4194,8 +4625,20 @@ export class Game {
   takeStoredItemFromStructure(bot, s, type, dt) {
     if (!s || (bot.inventory && !this.isEquipmentItem(type)) || !STORAGE_STRUCTURE_TYPES.includes(s.type) || s.storageType !== type || (s.stored || 0) <= 0) return false;
     if (this.isEquipmentItem(type) && !this.canEquipActor(bot, type) && bot.inventory) return false;
+    if (type === 'arrow_pack' && (bot.ammunition || 0) >= 10) { bot.message = 'Ammo already full.'; return false; }
     if (!this.moveBotTo(bot, s, dt, 32)) { bot.message = `Taught loop: pick up ${itemLabel(type)} from ${s.name}.`; return false; }
-    s.stored--; if (s.stored <= 0) s.storageType = null; if (this.isEquipmentItem(type) && !this.equipActor(bot, type)) this.carryEquipmentItem(bot, type); else if (!this.isEquipmentItem(type)) bot.inventory = { type, count: 1 }; bot.message = `Taught loop took ${itemLabel(type)} from ${s.name}.`; return true;
+    s.stored--;
+    if (s.stored <= 0) s.storageType = null;
+    if (this.isEquipmentItem(type)) {
+      if (!this.equipActor(bot, type)) {
+        if (type === 'arrow_pack') { bot.message = 'Ammo already full.'; return false; }
+        this.carryEquipmentItem(bot, type);
+      }
+    } else {
+      bot.inventory = { type, count: 1 };
+    }
+    bot.message = `Taught loop took ${itemLabel(type)} from ${s.name}.`;
+    return true;
   }
   manualTakeFromPalette(s) {
     if (!s || !STORAGE_STRUCTURE_TYPES.includes(s.type)) return false;
@@ -4204,10 +4647,17 @@ export class Game {
     if (!type || (s.stored || 0) <= 0) { this.addFloat(`${s.name} is empty`, s.x, s.y - 35, '#c86b5f'); return false; }
     if (rectDistance(this.player.x, this.player.y, s) >= 45) return false;
     if (this.isEquipmentItem(type) && !this.canEquipActor(this.player, type) && this.player.inventory) { this.addFloat(`Carrying ${itemLabel(this.player.inventory.type)}`, this.player.x, this.player.y - 30, '#c86b5f'); return false; }
+    if (type === 'arrow_pack' && (this.player.ammunition || 0) >= 10) { this.addFloat('Ammo already full', this.player.x, this.player.y - 30, '#c86b5f'); return false; }
     s.stored--;
     if (s.stored <= 0) s.storageType = null;
-    if (this.isEquipmentItem(type) && !this.equipActor(this.player, type)) this.carryEquipmentItem(this.player, type);
-    else this.player.inventory = { type, count: 1 };
+    if (this.isEquipmentItem(type)) {
+      if (!this.equipActor(this.player, type)) {
+        if (type === 'arrow_pack') { this.addFloat('Ammo already full', this.player.x, this.player.y - 30, '#c86b5f'); return false; }
+        this.carryEquipmentItem(this.player, type);
+      }
+    } else {
+      this.player.inventory = { type, count: 1 };
+    }
     this.addFloat(`${this.isEquipmentItem(type) && !this.player.inventory ? 'Equipped' : 'Took'} ${itemLabel(type)} from ${s.name}`, this.player.x, this.player.y - 30, '#d3a95f');
     this.emitSound(this.isEquipmentItem(type) && !this.player.inventory ? 'equip' : 'storage', { cooldownKey: 'player:storage', minGapMs: 120 });
     this.recordTeachStep({ op: 'pick_up_from_storage', type, structureId: s.id, structureRef: s.ref, structureType: s.type, structureName: s.name, target: s.name });
@@ -4236,7 +4686,7 @@ export class Game {
   }
   manualDepositToStructure(s = null, { waitIfProcessing = false } = {}) {
     if (!this.player.inventory) return false;
-    const target = s || this.structures.find(st => rectDistance(this.player.x, this.player.y, st) < 45 && [...STORAGE_STRUCTURE_TYPES, 'sawbench', 'workbench', 'factory', 'smithery', 'bowmaker', 'assembler'].includes(st.type));
+    const target = s || this.structures.find(st => rectDistance(this.player.x, this.player.y, st) < 45 && [...STORAGE_STRUCTURE_TYPES, 'sawbench', 'workbench', 'factory', 'smithery', 'bowmaker', 'arrowmaker', 'assembler'].includes(st.type));
     if (!target) { this.addFloat(`No production building nearby for ${itemLabel(this.player.inventory.type)}`, this.player.x, this.player.y - 30, '#c86b5f'); return false; }
     const type = this.player.inventory.type;
     if (this.isStructureProcessing(target)) { if (!waitIfProcessing) this.addFloat(`${target.name} is processing`, target.x, target.y - 35, '#c7b683'); return false; }
@@ -4269,6 +4719,7 @@ export class Game {
     if (s?.type==='sawbench' && (s.logs>0 || s.planks>0 || this.isStructureProcessing(s))) { this.maybeStartStructureProcessing(s, { kind: 'player' }); this.addFloat(`${s.name} processing`, s.x, s.y-35, '#d3a95f'); return; }
     if (s?.type==='smithery') { const input = smitheryInputFor(smitheryRecipe(s)); const key = input === 'stick' ? 'sticks' : 'planks'; if (this.isStructureProcessing(s) || (s[key] || 0) > 0) { this.maybeStartStructureProcessing(s, { kind: 'player' }); this.addFloat(`${s.name} processing`, s.x, s.y-35, '#d3a95f'); return; } }
     if (s?.type==='bowmaker' && (this.isStructureProcessing(s) || Object.entries(BOW_RECIPE).every(([type,cost]) => (s[`${type}s`] ?? s[type] ?? 0) >= cost))) { this.maybeStartStructureProcessing(s, { kind: 'player' }); this.addFloat(`${s.name} processing`, s.x, s.y-35, '#d3a95f'); return; }
+    if (s?.type==='arrowmaker' && (this.isStructureProcessing(s) || (s.sticks >= 1 && s.stones >= 1))) { this.maybeStartStructureProcessing(s, { kind: 'player' }); this.addFloat(`${s.name} processing`, s.x, s.y-35, '#d3a95f'); return; }
     if (s?.type==='factory' && (this.isStructureProcessing(s) || Object.entries(FACTORY_BOT_RECIPE).every(([type,cost]) => (s[`${type}s`] ?? s[type] ?? 0) >= cost))) { this.maybeStartStructureProcessing(s, { kind: 'player' }); this.addFloat(`${s.name} processing`, s.x, s.y-35, '#d3a95f'); }
   }
 
@@ -4358,7 +4809,7 @@ export class Game {
     const team = teamId ? this.findBotTeam(teamId) : null;
     if (teamId && !team) return { ok: false, error: 'Team not found' };
     bot.teamId = team?.id || null;
-    this.addFloat(`${this.botDisplayName(bot)} â†’ ${team?.name || 'No team'}`, bot.x, bot.y - 30, team?.color || '#c7b683');
+    this.addFloat(`${this.botDisplayName(bot)} → ${team?.name || 'No team'}`, bot.x, bot.y - 30, team?.color || '#c7b683');
     this.syncBotDrawerUi();
     return { ok: true, bot, team };
   }
@@ -4368,7 +4819,8 @@ export class Game {
     const name = this.botDisplayName(bot);
     const color = this.teamColor(team?.color || '#101413');
     const teamText = team ? team.name : 'No team';
-    return `<article class="bot-card bot-team-card" draggable="true" data-bot-card data-bot-id="${bot.id}" style="--team-color:${escapeHtml(color)}"><button type="button" class="bot-badge bot-card-menu-button" data-open-bot-menu="${bot.id}" aria-label="Open ${escapeHtml(name)} menu">#${bot.id}</button><div class="bot-card-body"><div class="bot-card-topline"><label class="bot-name-edit">Name <input data-bot-name-input="${bot.id}" value="${escapeHtml(name)}" maxlength="32" /></label><button type="button" class="bot-card-inline-action" data-open-bot-menu="${bot.id}">Open menu</button></div><p><span class="program">${escapeHtml(bot.program)}</span> Â· ${escapeHtml(teamText)} Â· ${escapeHtml(bot.status === 'manager' ? 'manager' : 'worker')}</p><p>${escapeHtml(bot.message)}</p></div></article>`;
+    const roleLabel = this.isDogBot(bot) ? 'dog' : (bot.status === 'manager' ? 'manager' : 'worker');
+    return `<article class="bot-card bot-team-card" draggable="true" data-bot-card data-bot-id="${bot.id}" style="--team-color:${escapeHtml(color)}"><button type="button" class="bot-badge bot-card-menu-button" data-open-bot-menu="${bot.id}" aria-label="Open ${escapeHtml(name)} menu">#${bot.id}</button><div class="bot-card-body"><div class="bot-card-topline"><label class="bot-name-edit">Name <input data-bot-name-input="${bot.id}" value="${escapeHtml(name)}" maxlength="32" /></label><button type="button" class="bot-card-inline-action" data-open-bot-menu="${bot.id}">Open menu</button></div><p><span class="program">${escapeHtml(bot.program)}</span> · ${escapeHtml(teamText)} · ${escapeHtml(roleLabel)}</p><p>${escapeHtml(bot.message)}</p></div></article>`;
   }
 
   renderBotDrawerTeam(team, bots) {
@@ -4663,6 +5115,10 @@ export class Game {
   }
 
   showBotMenu(bot, x, y, { refreshEdit = false } = {}) {
+    if (this.isDogBot(bot)) {
+      this.showDogPopup(bot, bot.inventory ? 'reward' : 'progress');
+      return;
+    }
     const el = this.dom.botMenu;
     const edit = this.ensureBotMenuEdit(bot, { refresh: refreshEdit });
     const tpl = JSON.stringify(edit.program, null, 2);
@@ -4674,13 +5130,23 @@ export class Game {
     const hasWorkflow = !!bot.program && bot.program !== 'idle';
     const stopLabel = bot.paused ? 'Resume workflow' : 'Stop workflow';
     const displayName = this.botDisplayName(bot);
-    const statusLabel = this.isManagerBot(bot) ? 'manager' : (bot.status || 'worker');
+    const statusLabel = this.isManagerBot(bot) ? 'manager' : ((this.isDogBot(bot) || bot.program === 'dog_fetch') ? 'dog' : (bot.status || 'worker'));
     const promoteButton = this.isManagerBot(bot) ? '' : '<button type="button" data-promote-manager>Promote to Manager</button>';
-    const managerSection = this.isManagerBot(bot) ? `<section class="manager-menu" data-manager-section><b>Manager controls</b><p>Status: <code>manager</code> Â· Known packs: <span data-manager-pack-summary>${escapeHtml((bot.managerKnowledgePacks || []).join(', ') || 'starter_automation')}</span></p><div class="manager-pack-list">${this.renderManagerPackControls(bot)}</div><label class="manager-message-input">Message manager <textarea data-manager-message rows="3" placeholder="make bot 2 chop trees"></textarea></label><button type="button" data-send-manager-message>Send to Manager</button><p class="manager-message-status" data-manager-status></p></section>` : '';
+    const managerSection = this.isManagerBot(bot) ? `<section class="manager-menu" data-manager-section><b>Manager controls</b><p>Status: <code>manager</code> · Known packs: <span data-manager-pack-summary>${escapeHtml((bot.managerKnowledgePacks || []).join(', ') || 'starter_automation')}</span></p><div class="manager-pack-list">${this.renderManagerPackControls(bot)}</div><label class="manager-message-input">Message manager <textarea data-manager-message rows="3" placeholder="make bot 2 chop trees"></textarea></label><button type="button" data-send-manager-message>Send to Manager</button><p class="manager-message-status" data-manager-status></p></section>` : '';
+    const dogPackSummary = `<span>${escapeHtml((bot.knowledgePacks || []).join(', ') || 'dog_fetch')}</span>`;
+    const dogSection = (() => {
+      if (!this.isDogBot(bot) && bot.program !== 'dog_fetch') return '';
+      const fetchedType = bot.inventory?.type ? itemLabel(bot.inventory.type) : '';
+      const praiseCount = bot.inventory?.type ? (bot.dogFetchMemory?.praiseCounts?.[bot.inventory.type] || 0) : 0;
+      const dogControls = bot.inventory
+        ? `<div class="dog-reward-buttons" data-dog-reward-buttons><button type="button" class="dog-reward-button is-yes" data-dog-praise aria-label="Praise dog and take item">&#10003;</button><button type="button" class="dog-reward-button is-no" data-dog-reject aria-label="Reject fetched item">&#10007;</button></div><p class="dog-reward-hint">Right now: ${escapeHtml(fetchedType)} · praises ${praiseCount}/${DOG_FETCH_PRAISE_TARGET}</p>`
+        : `<label class="dog-fetch-input"><span>Fetch command</span><input data-dog-fetch-command placeholder="go fetch me a stick" value="${escapeHtml(edit.dogCommandDraft || '')}"></label><button type="button" data-dog-fetch-submit>Fetch</button><p class="dog-reward-hint">Dog pack: pick up + follow. Assigned pack: ${dogPackSummary}</p>`;
+      return `<section class="dog-menu" data-dog-section><b>Dog fetch</b><p>Status: <code>dog</code> · Assigned pack: ${dogPackSummary}</p>${dogControls}</section>`;
+    })();
     const nameStatus = edit.nameStatus ? `<p class="bot-menu-name-status" data-bot-name-status>${escapeHtml(edit.nameStatus)}</p>` : '';
     const nameEditor = edit.nameEditing ? `<label class="bot-menu-name-edit">Bot name <input data-menu-bot-name value="${escapeHtml(edit.nameDraft || displayName)}" maxlength="32"></label>` : '';
     const workflowButton = hasWorkflow ? `<button data-stop-workflow>${stopLabel}</button>` : '';
-    el.innerHTML = `<div class="bot-menu-title"><div class="bot-menu-title-row"><b>${escapeHtml(displayName)}</b><button type="button" data-edit-bot-name aria-label="Edit bot name">âœŽ</button></div>${nameStatus}${nameEditor}</div><button data-close>Ã—</button><p>${escapeHtml(bot.message)}</p><p><b>Status:</b> ${escapeHtml(statusLabel)}</p><p><b>Program:</b> ${escapeHtml(bot.program)}</p><p><b>Ref:</b> <code>${escapeHtml(bot.ref)}</code></p>${promoteButton}${managerSection}${workflowButton}<section class="teach-menu"><b>Teach by doing</b><p>${escapeHtml(this.recorder.recording ? `Recording ${this.recorder.steps.length} steps for Bot ${this.recorder.targetBotId || bot.id}â€¦` : this.recorder.status)}</p><ol class="teach-steps menu-teach-steps">${teachSteps}</ol><button data-teach-record>${recordLabel}</button><button data-assign-taught${assignDisabled}>Assign to ${escapeHtml(displayName)}</button></section><section class="bot-program-editor"><b>Assigned JSON</b><p data-bot-edit-status>${escapeHtml(edit.status || 'Edit JSON, or adjust the DSL cards and accept them.')}</p><textarea data-bot-json-editor spellcheck="false">${escapeHtml(tpl)}</textarea><button type="button" data-save-json>Save JSON + refresh Bot ${bot.id}</button><div class="bot-card-flow-head"><b>DSL card flow</b><button type="button" data-add-loop-step>Add loop</button></div><ol class="teach-steps bot-program-steps" data-bot-program-steps>${editSteps}</ol><button type="button" data-accept-dsl-cards>Accept card flow + refresh Bot ${bot.id}</button></section><button data-add>Add bot to chat</button>`;
+    el.innerHTML = `<div class="bot-menu-title"><div class="bot-menu-title-row"><b>${escapeHtml(displayName)}</b><button type="button" data-edit-bot-name aria-label="Edit bot name">Edit</button></div>${nameStatus}${nameEditor}</div><button data-close>×</button><p>${escapeHtml(bot.message)}</p><p><b>Status:</b> ${escapeHtml(statusLabel)}</p><p><b>Program:</b> ${escapeHtml(bot.program)}</p><p><b>Ref:</b> <code>${escapeHtml(bot.ref)}</code></p>${promoteButton}${managerSection}${dogSection}${workflowButton}<section class="teach-menu"><b>Teach by doing</b><p>${escapeHtml(this.recorder.recording ? `Recording ${this.recorder.steps.length} steps for Bot ${this.recorder.targetBotId || bot.id}…` : this.recorder.status)}</p><ol class="teach-steps menu-teach-steps">${teachSteps}</ol><button data-teach-record>${recordLabel}</button><button data-assign-taught${assignDisabled}>Assign to ${escapeHtml(displayName)}</button></section><section class="bot-program-editor"><b>Assigned JSON</b><p data-bot-edit-status>${escapeHtml(edit.status || 'Edit JSON, or adjust the DSL cards and accept them.')}</p><textarea data-bot-json-editor spellcheck="false">${escapeHtml(tpl)}</textarea><button type="button" data-save-json>Save JSON + refresh Bot ${bot.id}</button><div class="bot-card-flow-head"><b>DSL card flow</b><button type="button" data-add-loop-step>Add loop</button></div><ol class="teach-steps bot-program-steps" data-bot-program-steps>${editSteps}</ol><button type="button" data-accept-dsl-cards>Accept card flow + refresh Bot ${bot.id}</button></section><button data-add>Add bot to chat</button>`;
     this.placeMenu(el,x,y);
     this.bindTeachStepControls(el.querySelector('.menu-teach-steps'));
     this.bindBotProgramEditControls(el, bot, x, y);
@@ -4702,6 +5168,27 @@ export class Game {
       const status = el.querySelector('[data-manager-status]');
       if (status) status.textContent = res.ok ? `Sent to ${this.botDisplayName(bot)}.` : res.error;
     });
+    el.querySelector('[data-dog-fetch-submit]')?.addEventListener('click', () => {
+      const text = el.querySelector('[data-dog-fetch-command]')?.value || '';
+      const res = this.setDogFetchCommand(bot, text);
+      if (res.ok) this.showBotMenu(bot, x, y, { refreshEdit: true });
+    });
+    el.querySelector('[data-dog-fetch-command]')?.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        const text = el.querySelector('[data-dog-fetch-command]')?.value || '';
+        const res = this.setDogFetchCommand(bot, text);
+        if (res.ok) this.showBotMenu(bot, x, y, { refreshEdit: true });
+      }
+    });
+    el.querySelector('[data-dog-praise]')?.addEventListener('click', () => {
+      const res = this.praiseDogFetch(bot);
+      if (res.ok) this.showBotMenu(bot, x, y, { refreshEdit: true });
+    });
+    el.querySelector('[data-dog-reject]')?.addEventListener('click', () => {
+      const res = this.rejectDogFetch(bot);
+      if (res.ok) this.showBotMenu(bot, x, y, { refreshEdit: true });
+    });
     el.querySelector('[data-edit-bot-name]')?.addEventListener('click', () => this.beginBotMenuNameEdit(bot, x, y));
     el.querySelector('[data-menu-bot-name]')?.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); this.saveBotMenuName(bot, x, y, el.querySelector('[data-menu-bot-name]')?.value || ''); } });
     el.querySelector('[data-add]').onclick=()=>{this.chat.insertAtCursor(`Bot ${bot.id} `);};
@@ -4717,8 +5204,8 @@ export class Game {
   }
   showStructureMenu(s, x, y) {
     const el = this.dom.structureMenu;
-    const processing = s.processing ? `<br>processing ${escapeHtml(s.processing.label)} Â· ${Math.max(0, s.processing.remaining).toFixed(1)}s left` : '';
-    const storage = (s.type === 'throne' ? `<br>owner ${s.ownerLabel || s.ownerId || 'none'} Â· HP ${Math.max(0, s.hp || 0)}/${s.maxHp || THRONE_HP}` : s.type === 'defensetower' ? `<br>range ${s.rangedAttack?.range || DEFENSE_TOWER_ATTACK.range} Â· damage ${s.rangedAttack?.damage || 1} Â· cooldown ${s.rangedAttack?.cooldown || 1}s${s.rangedAttack?.targetRef ? ` Â· target ${s.rangedAttack.targetRef}` : ''}` : STORAGE_STRUCTURE_TYPES.includes(s.type) ? `<br>locked type ${s.storageType || 'empty/unlocked'} Â· stored ${s.stored || 0}/${s.capacity || 0}` : s.type === 'workbench' ? `<br>sticks ${s.sticks||0} Â· stones ${s.stones||0} Â· output ${escapeHtml(itemLabel(workbenchRecipe(s)))} Â· made A${s.axes||0} P${s.pickaxes||0} S${s.shovels||0} H${s.hammers||0}` : s.type === 'smithery' ? `<br>sticks ${s.sticks||0} Â· planks ${s.planks||0} Â· mode ${escapeHtml(itemLabel(smitheryRecipe(s)))} Â· made swords ${s.swords||0} shields ${s.shields||0}` : s.type === 'bowmaker' ? `<br>sticks ${s.sticks||0}/2 Â· hemp ${s.hemps||0}/3 Â· made bows ${s.bows||0}` : s.type === 'factory' ? `<br>logs ${s.logs||0} Â· planks ${s.planks||0} Â· poles ${s.poles||0} Â· seeds ${s.tree_seeds||0}` : s.type === 'assembler' ? `<br>planks ${s.planks||0}/2 Â· poles ${s.poles||0}/1 Â· output ${escapeHtml(itemLabel(assemblerRecipe(s)))}` : `<br>logs ${s.logs||0} Â· planks ${s.planks||0} Â· poles ${s.poles||0}`) + processing;
+    const processing = s.processing ? `<br>processing ${escapeHtml(s.processing.label)} · ${Math.max(0, s.processing.remaining).toFixed(1)}s left` : '';
+    const storage = (s.type === 'throne' ? `<br>owner ${s.ownerLabel || s.ownerId || 'none'} · HP ${Math.max(0, s.hp || 0)}/${s.maxHp || THRONE_HP}` : s.type === 'defensetower' ? `<br>range ${s.rangedAttack?.range || DEFENSE_TOWER_ATTACK.range} · damage ${s.rangedAttack?.damage || 1} · cooldown ${s.rangedAttack?.cooldown || 1}s${s.rangedAttack?.targetRef ? ` · target ${s.rangedAttack.targetRef}` : ''}` : STORAGE_STRUCTURE_TYPES.includes(s.type) ? `<br>locked type ${s.storageType || 'empty/unlocked'} · stored ${s.stored || 0}/${s.capacity || 0}` : s.type === 'workbench' ? `<br>sticks ${s.sticks||0} · stones ${s.stones||0} · output ${escapeHtml(itemLabel(workbenchRecipe(s)))} · made A${s.axes||0} P${s.pickaxes||0} S${s.shovels||0} H${s.hammers||0}` : s.type === 'smithery' ? `<br>sticks ${s.sticks||0} · planks ${s.planks||0} · mode ${escapeHtml(itemLabel(smitheryRecipe(s)))} · made swords ${s.swords||0} shields ${s.shields||0}` : s.type === 'bowmaker' ? `<br>sticks ${s.sticks||0}/2 · hemp ${s.hemps||0}/3 · made bows ${s.bows||0}` : s.type === 'arrowmaker' ? `<br>sticks ${s.sticks||0}/1 · stones ${s.stones||0}/1 · arrow packs ${s.arrow_packs||0}` : s.type === 'factory' ? `<br>logs ${s.logs||0} · planks ${s.planks||0} · poles ${s.poles||0} · seeds ${s.tree_seeds||0}` : s.type === 'assembler' ? `<br>planks ${s.planks||0}/2 · poles ${s.poles||0}/1 · output ${escapeHtml(itemLabel(assemblerRecipe(s)))}` : `<br>logs ${s.logs||0} · planks ${s.planks||0} · poles ${s.poles||0}`) + processing;
     const insertButton = STORAGE_STRUCTURE_TYPES.includes(s.type) ? '<button data-insert-nearby>Insert nearby item</button>' : '<button data-add-radius>Add small radius</button>';
     const demolishButton = this.canDemolishStructure(s) ? '<button data-demolish-structure>Demolish with hammer</button>' : '';
     const disassembleButton = this.canDisassembleStructure(s) ? '<button data-disassemble-structure>Disassemble into kit</button>' : '';
@@ -4726,7 +5213,7 @@ export class Game {
     const selector = s.type === 'workbench' ? `<section class="tool-selector" aria-label="Tool bench output"><b>Produce:</b> ${WORKBENCH_TOOL_RECIPES.map(type => `<button type="button" data-select-tool="${type}"${type === selectedRecipe ? ' aria-pressed="true" class="is-active"' : ' aria-pressed="false"'}>${escapeHtml(itemLabel(type))}</button>`).join('')}</section>` : s.type === 'smithery' ? `<section class="tool-selector" aria-label="Smithery production mode"><b>Production mode:</b> <button type="button" data-switch-smithery>${escapeHtml(itemLabel(smitheryRecipe(s)))} (switch)</button></section>` : s.type === 'assembler' ? `<section class="tool-selector" aria-label="Assembler building kit output"><b>Assemble:</b> ${BUILDING_KIT_ITEM_TYPES.map(type => `<button type="button" data-select-kit="${type}"${type === assemblerRecipe(s) ? ' aria-pressed="true" class="is-active"' : ' aria-pressed="false"'}>${escapeHtml(itemLabel(type))}</button>`).join('')}</section>` : '';
     const info = STRUCTURE_INFO[s.type] || 'Building.';
     const visibleType = BUILDING_TYPES[s.type]?.category || s.type;
-    el.innerHTML = `<b>${escapeHtml(s.name)}</b><button data-close>Ã—</button><p>${escapeHtml(s.label)} Â· type <code>${escapeHtml(visibleType)}</code> Â· ref <code>${escapeHtml(s.ref)}</code>${storage}<br><b>Info:</b> ${escapeHtml(info)}<br><b>Recipe:</b> ${escapeHtml(structureRecipeText(s))}</p>${selector}${demolishButton}${disassembleButton}<button data-add-name>Add name</button><button data-add-ref>Add ref</button>${insertButton}`;
+    el.innerHTML = `<b>${escapeHtml(s.name)}</b><button data-close>×</button><p>${escapeHtml(s.label)} · type <code>${escapeHtml(visibleType)}</code> · ref <code>${escapeHtml(s.ref)}</code>${storage}<br><b>Info:</b> ${escapeHtml(info)}<br><b>Recipe:</b> ${escapeHtml(structureRecipeText(s))}</p>${selector}${demolishButton}${disassembleButton}<button data-add-name>Add name</button><button data-add-ref>Add ref</button>${insertButton}`;
     this.placeMenu(el,x,y);
     el.querySelector('[data-close]').onclick=()=>this.hideMenus();
     el.querySelectorAll('[data-select-tool]').forEach(btn => btn.addEventListener('click', () => {
@@ -4779,7 +5266,7 @@ export class Game {
   }  showHoleMenu(hole, x, y) {
     const el = this.dom.structureMenu;
     const canPlant = this.player.inventory?.type === 'tree_seed' && !hole.planted;
-    el.innerHTML = `<b>${escapeHtml(hole.planted ? 'planted hole' : 'dug hole')}</b><button data-close>Ã—</button><p>Resource type <code>dug_hole</code> Â· ref <code>${escapeHtml(hole.ref || `hole:${hole.id}`)}</code><br>${hole.planted ? 'already planted' : 'open for tree seed'}${hole.reservedBy ? ` Â· reserved by ${escapeHtml(String(hole.reservedBy))}` : ''}</p>${canPlant ? '<button data-plant-seed>Plant tree seed</button>' : ''}<button data-add-hole-name>Add name</button><button data-add-hole-ref>Add ref</button><button data-add-hole-radius>Add small radius</button>`;
+    el.innerHTML = `<b>${escapeHtml(hole.planted ? 'planted hole' : 'dug hole')}</b><button data-close>×</button><p>Resource type <code>dug_hole</code> · ref <code>${escapeHtml(hole.ref || `hole:${hole.id}`)}</code><br>${hole.planted ? 'already planted' : 'open for tree seed'}${hole.reservedBy ? ` · reserved by ${escapeHtml(String(hole.reservedBy))}` : ''}</p>${canPlant ? '<button data-plant-seed>Plant tree seed</button>' : ''}<button data-add-hole-name>Add name</button><button data-add-hole-ref>Add ref</button><button data-add-hole-radius>Add small radius</button>`;
     this.placeMenu(el, x, y);
     el.querySelector('[data-close]').onclick = () => this.hideMenus();
     el.querySelector('[data-plant-seed]')?.addEventListener('click', () => {
@@ -4803,7 +5290,7 @@ export class Game {
     const list = this.dom.zoneList;
     if (!list) return;
     if (!this.zones.length) { list.innerHTML = '<p class="empty">No zones yet.</p>'; return; }
-    list.innerHTML = this.zones.map(z => `<div class="zone-card${z.hidden ? ' is-hidden' : ''}" data-zone-id="${escapeHtml(z.id)}"><div><b>${escapeHtml(z.name)}</b><p>${escapeHtml(z.id)} Â· ${escapeHtml(z.kind === 'radius' ? `radius ${Math.round(z.radius || DEFAULT_RESOURCE_RADIUS)}px` : `${Math.round(z.w || 0)}Ã—${Math.round(z.h || 0)}`)}${z.hidden ? ' Â· hidden' : ''}</p></div><div class="zone-card-actions"><button type="button" data-rename-zone="${escapeHtml(z.id)}">Rename</button><button type="button" data-toggle-zone-hidden="${escapeHtml(z.id)}">${z.hidden ? 'Show' : 'Hide'}</button><button type="button" data-add-zone-name="${escapeHtml(z.id)}">Add name</button></div></div>`).join('');
+    list.innerHTML = this.zones.map(z => `<div class="zone-card${z.hidden ? ' is-hidden' : ''}" data-zone-id="${escapeHtml(z.id)}"><div><b>${escapeHtml(z.name)}</b><p>${escapeHtml(z.id)} · ${escapeHtml(z.kind === 'radius' ? `radius ${Math.round(z.radius || DEFAULT_RESOURCE_RADIUS)}px` : `${Math.round(z.w || 0)}×${Math.round(z.h || 0)}`)}${z.hidden ? ' · hidden' : ''}</p></div><div class="zone-card-actions"><button type="button" data-rename-zone="${escapeHtml(z.id)}">Rename</button><button type="button" data-toggle-zone-hidden="${escapeHtml(z.id)}">${z.hidden ? 'Show' : 'Hide'}</button><button type="button" data-add-zone-name="${escapeHtml(z.id)}">Add name</button></div></div>`).join('');
     list.querySelectorAll('[data-rename-zone]').forEach(btn => btn.addEventListener('click', () => this.promptRenameZone(this.zones.find(z => z.id === btn.dataset.renameZone))));
     list.querySelectorAll('[data-toggle-zone-hidden]').forEach(btn => btn.addEventListener('click', () => { const z = this.zones.find(zone => zone.id === btn.dataset.toggleZoneHidden); if (z) this.setZoneHidden(z, !z.hidden); }));
     list.querySelectorAll('[data-add-zone-name]').forEach(btn => btn.addEventListener('click', () => { const z = this.zones.find(zone => zone.id === btn.dataset.addZoneName); if (z) this.chat.insertAtCursor(z.name); }));
@@ -4828,8 +5315,8 @@ export class Game {
   showZoneMenu(z, x, y) {
     const el = this.dom.structureMenu;
     const text = this.zoneText(z);
-    const size = z.kind === 'radius' ? `radius ${Math.round(z.radius || DEFAULT_RESOURCE_RADIUS)} px` : `${Math.round(z.w || 0)}Ã—${Math.round(z.h || 0)} px`;
-    el.innerHTML = `<b>${escapeHtml(z.name)}</b><button data-close>Ã—</button><p>Zone ref <code>${escapeHtml(z.id)}</code><br>${escapeHtml(size)}<br><code>${escapeHtml(text)}</code></p><button data-add-rect>Add zone coords</button><button data-add-name>Add zone name</button><button data-add-ref>Add zone ref</button><button data-rename-zone>Rename</button><button data-hide-zone>Hide zone</button>`;
+    const size = z.kind === 'radius' ? `radius ${Math.round(z.radius || DEFAULT_RESOURCE_RADIUS)} px` : `${Math.round(z.w || 0)}×${Math.round(z.h || 0)} px`;
+    el.innerHTML = `<b>${escapeHtml(z.name)}</b><button data-close>×</button><p>Zone ref <code>${escapeHtml(z.id)}</code><br>${escapeHtml(size)}<br><code>${escapeHtml(text)}</code></p><button data-add-rect>Add zone coords</button><button data-add-name>Add zone name</button><button data-add-ref>Add zone ref</button><button data-rename-zone>Rename</button><button data-hide-zone>Hide zone</button>`;
     this.placeMenu(el,x,y);
     el.querySelector('[data-close]').onclick=()=>this.hideMenus();
     el.querySelector('[data-add-rect]').onclick=()=>{this.chat.insertAtCursor(text); this.hideMenus();};
@@ -4839,10 +5326,10 @@ export class Game {
     el.querySelector('[data-hide-zone]').onclick=()=>{this.setZoneHidden(z, true); this.hideMenus();};
   }
   placeMenu(el,x,y) { this.hideMenus(); el.style.left=`${Math.min(x, window.innerWidth-310)}px`; el.style.top=`${Math.min(y, window.innerHeight-260)}px`; el.hidden=false; }
-  hideMenus(){ this.dom.botMenu.hidden=true; this.dom.structureMenu.hidden=true; }
+  hideMenus(){ this.dom.botMenu.hidden=true; this.dom.structureMenu.hidden=true; this.closeDogPopup(); }
 
   syncBuildUi() { if (!this.dom.buildStatus) return; this.dom.buildStatus.textContent = this.placementType ? `Click map to place ${BUILDING_TYPES[this.placementType].label}.` : 'Choose a building, then click the map.'; for (const b of this.dom.buildPanel.querySelectorAll('[data-build]')) b.classList.toggle('is-active', b.dataset.build === this.placementType); }
-  updateUI(dt) { this.dom.sawLogs.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0); this.dom.sawPlanks.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0); if (this.dom.sawPoles) this.dom.sawPoles.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0); this.dom.factoryPlanks.textContent = this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0); if (this.dom.factoryRecipe) this.dom.factoryRecipe.textContent = this.structures.filter(s=>s.type==='factory').map(s=>`L${s.logs||0} P${s.planks||0} Po${s.poles||0} S${s.tree_seeds||0}`).join(' Â· '); this.dom.looseLogs.textContent = this.countItems('log'); this.dom.loosePlanks.textContent = this.countItems('plank'); if (this.dom.looseBase) this.dom.looseBase.textContent = `sticks ${this.countItems('stick')} Â· stones ${this.countItems('stone')} Â· seeds ${this.countItems('tree_seed')} Â· poles ${this.countItems('pole')} Â· axes ${this.countItems('crude_axe')} Â· pickaxes ${this.countItems('crude_pickaxe')} Â· shovels ${this.countItems('crude_shovel')} Â· hammers ${this.countItems('crude_hammer')} Â· swords ${this.countItems('wooden_sword')} Â· shields ${this.countItems('wooden_shield')}`; if (this.dom.paletteItems) this.dom.paletteItems.textContent = this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0); this.dom.statline.innerHTML = `<span>FPS <b>${this.fps} / ${this.targetFps}</b></span><span>Bots <b>${this.bots.length} / ${this.maxBots}</b></span><span>Buildings <b>${this.structures.length}</b></span><span>Zones <b>${this.zones.length}</b></span>`; this.dom.rendererStatus.textContent = `Renderer: ${this.renderer.text}`; this.lastBotListUpdate += dt; if (this.lastBotListUpdate > .35) { this.lastBotListUpdate=0; this.syncBotDrawerUi(); } }
+  updateUI(dt) { this.dom.sawLogs.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0); this.dom.sawPlanks.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0); if (this.dom.sawPoles) this.dom.sawPoles.textContent = this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0); this.dom.factoryPlanks.textContent = this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0); if (this.dom.factoryRecipe) this.dom.factoryRecipe.textContent = this.structures.filter(s=>s.type==='factory').map(s=>`L${s.logs||0} P${s.planks||0} Po${s.poles||0} S${s.tree_seeds||0}`).join(' · '); this.dom.looseLogs.textContent = this.countItems('log'); this.dom.loosePlanks.textContent = this.countItems('plank'); if (this.dom.looseBase) this.dom.looseBase.textContent = `sticks ${this.countItems('stick')} · stones ${this.countItems('stone')} · seeds ${this.countItems('tree_seed')} · poles ${this.countItems('pole')} · axes ${this.countItems('crude_axe')} · pickaxes ${this.countItems('crude_pickaxe')} · shovels ${this.countItems('crude_shovel')} · hammers ${this.countItems('crude_hammer')} · swords ${this.countItems('wooden_sword')} · shields ${this.countItems('wooden_shield')}`; if (this.dom.paletteItems) this.dom.paletteItems.textContent = this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0); this.dom.statline.innerHTML = `<span>FPS <b>${this.fps} / ${this.targetFps}</b></span><span>Bots <b>${this.bots.length} / ${this.maxBots}</b></span><span>Buildings <b>${this.structures.length}</b></span><span>Zones <b>${this.zones.length}</b></span>`; this.dom.rendererStatus.textContent = `Renderer: ${this.renderer.text}`; this.syncDogPopupUi(); this.lastBotListUpdate += dt; if (this.lastBotListUpdate > .35) { this.lastBotListUpdate=0; this.syncBotDrawerUi(); } }
 
   getRenderState() { return createRenderState(this); }
   draw() { this.renderBackend?.draw?.(this.getRenderState()); }
@@ -4851,7 +5338,7 @@ export class Game {
 
   getObjectRegistry(){ return [
     ...this.zones.map(z=>({ id:z.id, name:z.name, kind:'zone', zoneKind:z.kind, rect:z.kind==='rect'?{x:Math.round(z.x),y:Math.round(z.y),w:Math.round(z.w),h:Math.round(z.h)}:undefined, builtIn:!!z.builtIn, hidden:!!z.hidden })),
-    ...this.structures.map(s=>({ id:s.ref, numericId:s.id, kind:'structure', type:s.type, name:s.name, x:Math.round(s.x), y:Math.round(s.y), logs:s.logs||0, planks:s.planks||0, poles:s.poles||0, sticks:s.sticks||0, stones:s.stones||0, tree_seeds:s.tree_seeds||0, axes:s.axes||0, pickaxes:s.pickaxes||0, shovels:s.shovels||0, hammers:s.hammers||0, swords:s.swords||0, shields:s.shields||0, hemps:s.hemps||0, bows:s.bows||0, workbenchRecipe:s.workbenchRecipe||null, smitheryRecipe:s.smitheryRecipe||null, rangedAttack:s.rangedAttack?{...s.rangedAttack}:null, storageType:s.storageType||null, stored:s.stored||0, capacity:s.capacity||0, processing:s.processing?{...s.processing}:null })),
+    ...this.structures.map(s=>({ id:s.ref, numericId:s.id, kind:'structure', type:s.type, name:s.name, x:Math.round(s.x), y:Math.round(s.y), logs:s.logs||0, planks:s.planks||0, poles:s.poles||0, sticks:s.sticks||0, stones:s.stones||0, tree_seeds:s.tree_seeds||0, axes:s.axes||0, pickaxes:s.pickaxes||0, shovels:s.shovels||0, hammers:s.hammers||0, swords:s.swords||0, shields:s.shields||0, hemps:s.hemps||0, bows:s.bows||0, arrow_packs:s.arrow_packs||0, workbenchRecipe:s.workbenchRecipe||null, smitheryRecipe:s.smitheryRecipe||null, rangedAttack:s.rangedAttack?{...s.rangedAttack}:null, storageType:s.storageType||null, stored:s.stored||0, capacity:s.capacity||0, processing:s.processing?{...s.processing}:null })),
     ...this.items.map(i=>({ id:i.ref, numericId:i.id, kind:'item', type:i.type, name:itemLabel(i.type), x:Math.round(i.x), y:Math.round(i.y), reservedBy:i.reservedBy||null })),
     ...this.holes.map(h=>({ id:h.ref, numericId:h.id, kind:'hole', type:'dug_hole', name:h.planted ? 'planted hole' : 'dug hole', x:Math.round(h.x), y:Math.round(h.y), radius:h.radius||HOLE_VISUAL_RADIUS, blockRadius:h.blockRadius||HOLE_BLOCK_RADIUS, planted:!!h.planted, reservedBy:h.reservedBy||null, treeId:h.treeId||null })),
     ...this.hempPlants.map(h=>({ id:h.ref||`hemp:${h.id}`, numericId:h.id||null, kind:'resource', type:'hemp_plant', name:h.searched ? 'searched hemp' : 'hemp plant', x:Math.round(h.x), y:Math.round(h.y), radius:h.radius, searched:!!h.searched, harvested:!!h.harvested, searchReservedBy:h.searchReservedBy||null })),
@@ -4859,7 +5346,14 @@ export class Game {
     ...this.projectiles.map(p=>({ id:p.ref, numericId:p.id, kind:'projectile', type:p.type, sourceStructureId:p.sourceStructureId, targetRef:p.targetRef, x:Math.round(p.x), y:Math.round(p.y), damage:p.damage })),
     ...this.monsters.map(m=>({ id:m.ref||`monster:${m.id}`, numericId:m.id||null, kind:'monster', type:m.type||'passive_monster', name:m.name||'passive monster', x:Math.round(m.x), y:Math.round(m.y), hp:m.hp, maxHp:m.maxHp, radius:m.radius, passive:!!m.passive, spawnedAtNight:!!m.spawnedAtNight, avoidRadius:m.avoidRadius, roamRadius:m.roamRadius })),
     ...this.rocks.map(r=>({ id:r.ref, numericId:r.id, kind:'resource', type:'stone_deposit', name:'stone deposit', x:Math.round(r.x), y:Math.round(r.y), hp:r.hp, maxHp:r.maxHp, depleted:!!r.depleted })),
-    ...this.bots.map(b=>({ id:b.ref, numericId:b.id, kind:'bot', name:this.botDisplayName(b), status:b.status||'worker', managerKnowledgePacks:b.managerKnowledgePacks||[], x:Math.round(b.x), y:Math.round(b.y), hp:b.hp, maxHp:b.maxHp, hostile:!!b.hostile, equipment:this.equipmentSummary(b), program:b.program, teamId:b.teamId||null, teamName:this.botTeam(b)?.name||null }))
+    ...this.bots.map(b=>({ id:b.ref, numericId:b.id, kind:b.kind || 'bot', name:this.botDisplayName(b), status:b.status||'worker', managerKnowledgePacks:b.managerKnowledgePacks||[], knowledgePacks:b.knowledgePacks||b.managerKnowledgePacks||[], dogFetchMemory:b.dogFetchMemory ? clone(b.dogFetchMemory) : null, dogFetchState:b.dogFetchState ? clone(b.dogFetchState) : null, x:Math.round(b.x), y:Math.round(b.y), hp:b.hp, maxHp:b.maxHp, hostile:!!b.hostile, equipment:this.equipmentSummary(b), program:b.program, teamId:b.teamId||null, teamName:this.botTeam(b)?.name||null }))
   ]; }
-  getState(){ return { gameMode:this.gameMode||this.multiplayer?.mapMode||'test', map:{...this.map}, mapFeatures:clone(this.mapFeatures || []), paused:!!this.paused, fps:Math.round(this.fps||0), targetFps:this.targetFps, dynamicShadowsEnabled:!!this.dynamicShadowsEnabled, lightingEffectsEnabled:this.lightingEffectsEnabled!==false, showFpsOverlay:this.showFpsOverlay!==false, dayNight:this.getDayNightState(), fogOfWar:getFogStats(this.fogOfWar), nightSpawns:clone(this.nightSpawns||{}), multiplayer:this.getMultiplayerSnapshot(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null,targetQueue:(this.player.targetQueue||[]).map(target=>({...target,x:Math.round(target.x),y:Math.round(target.y)}))}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), customTemplates:clone(this.customTemplates || []), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),status:b.status||'worker',managerKnowledgePacks:b.managerKnowledgePacks||[],knowledgePacks:b.managerKnowledgePacks||[],teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,customTemplateName:b.customTemplateName||'',paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,label:s.label,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,hammers:s.hammers||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:z.kind==='rect'?Math.round(z.w):undefined,h:z.kind==='rect'?Math.round(z.h):undefined,radius:z.kind==='radius'?Math.round(z.radius||DEFAULT_RESOURCE_RADIUS):undefined})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, webgpuAvailable:this.renderer.webgpu, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
+  getState(){ return { gameMode:this.gameMode||this.multiplayer?.mapMode||'test', map:{...this.map}, mapFeatures:clone(this.mapFeatures || []), paused:!!this.paused, fps:Math.round(this.fps||0), targetFps:this.targetFps, dynamicShadowsEnabled:!!this.dynamicShadowsEnabled, lightingEffectsEnabled:this.lightingEffectsEnabled!==false, showFpsOverlay:this.showFpsOverlay!==false, dayNight:this.getDayNightState(), fogOfWar:getFogStats(this.fogOfWar), nightSpawns:clone(this.nightSpawns||{}), multiplayer:this.getMultiplayerSnapshot(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),ammunition:Number(this.player.ammunition||0),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null,targetQueue:(this.player.targetQueue||[]).map(target=>({...target,x:Math.round(target.x),y:Math.round(target.y)}))}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), customTemplates:clone(this.customTemplates || []), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),kind:b.kind||'bot',status:b.status||'worker',managerKnowledgePacks:b.managerKnowledgePacks||[],knowledgePacks:b.knowledgePacks||b.managerKnowledgePacks||[],dogFetchMemory:b.dogFetchMemory?clone(b.dogFetchMemory):null,dogFetchState:b.dogFetchState?clone(b.dogFetchState):null,teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,customTemplateName:b.customTemplateName||'',paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),ammunition:Number(b.ammunition||0),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,label:s.label,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,hammers:s.hammers||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,arrow_packs:s.arrow_packs||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:z.kind==='rect'?Math.round(z.w):undefined,h:z.kind==='rect'?Math.round(z.h):undefined,radius:z.kind==='radius'?Math.round(z.radius||DEFAULT_RESOURCE_RADIUS):undefined})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, rendererBackend:this.renderer.backend || this.renderBackend?.kind || null, webgpuAvailable:this.renderer.webgpu, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
 }
+
+
+
+
+
+
+

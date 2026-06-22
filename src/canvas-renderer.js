@@ -1009,7 +1009,72 @@ function drawMonster(game, c, m, now) {
   if (hover) drawNameTag(c, `${m.name || 'passive monster'} · ${m.hp || 0}/${m.maxHp || 10} hp`, m.x, m.y - r - 28);
 }
 
+function drawDogBot(game, c, b, now) {
+  const hover = game.mouse.hoverBot === b;
+  const r = b.r || 12;
+  const bob = Math.sin(now / 180 + (b.id || 0)) * 1.8;
+  const facingRight = (b.facingX ?? 1) >= 0;
+  c.save();
+  drawShadow(c, b.x, b.y + r + 6, r + 9, 5, .25);
+  c.translate(b.x, b.y + bob);
+  if (hover) {
+    c.beginPath();
+    c.fillStyle = 'rgba(255,244,208,.15)';
+    c.arc(0, 0, r + 10, 0, Math.PI * 2);
+    c.fill();
+  }
+  c.fillStyle = '#8a6246';
+  c.strokeStyle = hover ? '#fff4d0' : '#3c281f';
+  c.lineWidth = hover ? 3 : 2;
+  roundedRect(c, -r - 3, -r + 2, (r + 3) * 2, r * 1.45, 8);
+  c.fill();
+  c.stroke();
+  c.fillStyle = '#9d7457';
+  c.beginPath();
+  c.ellipse(0, -r * .2, r * .95, r * .78, 0, 0, Math.PI * 2);
+  c.fill();
+  c.stroke();
+  const earSide = facingRight ? 1 : -1;
+  c.fillStyle = '#6f4b35';
+  c.beginPath();
+  c.moveTo(-r * .45 * earSide, -r * .75);
+  c.lineTo(-r * .8 * earSide, -r * 1.35);
+  c.lineTo(-r * .15 * earSide, -r * 1.05);
+  c.closePath();
+  c.fill();
+  c.beginPath();
+  c.moveTo(r * .18 * earSide, -r * .7);
+  c.lineTo(r * .55 * earSide, -r * 1.25);
+  c.lineTo(r * .02 * earSide, -r * .96);
+  c.closePath();
+  c.fill();
+  c.fillStyle = '#1b120f';
+  c.beginPath();
+  c.arc(-r * .22 * earSide, -r * .15, 1.8, 0, Math.PI * 2);
+  c.arc(r * .16 * earSide, -r * .15, 1.8, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = '#e5ece8';
+  c.beginPath();
+  c.arc(r * .42 * earSide, -r * .02, 2.7, 0, Math.PI * 2);
+  c.fill();
+  c.strokeStyle = '#bfe6c5';
+  c.lineWidth = 2;
+  c.beginPath();
+  c.moveTo(-r * .45, r * .45);
+  c.lineTo(-r * .95, r * .85);
+  c.lineTo(-r * .68, r * .2);
+  c.stroke();
+  c.fillStyle = '#d7e8cf';
+  c.font = '800 9px system-ui';
+  c.textAlign = 'center';
+  c.fillText(b.name || 'Dog', 0, r + 14);
+  if (b.inventory) drawMiniItem(c, 0, -r * 1.75, b.inventory.type);
+  if (hover) drawNameTag(c, `${b.name || 'Dog'} · fetch helper`, b.x, b.y - r - 28);
+  c.restore();
+}
+
 function drawBot(game, c, b, now) {
+  if (b.kind === 'dog') return drawDogBot(game, c, b, now);
   const hover = game.mouse.hoverBot === b;
   const inventoryIsHandTool = isBotHandTool(b.inventory?.type);
   const facingRight = (b.facingX ?? 1) >= 0;
@@ -1035,6 +1100,7 @@ function drawBot(game, c, b, now) {
   });
   if (b.equipment?.weapon) drawHeldToolAsset(c, b.x + 17, b.y - 5, b.equipment.weapon);
   if (b.equipment?.shield) drawHeldToolAsset(c, b.x - 17, b.y - 7, b.equipment.shield);
+  drawAmmoBadge(c, b, b.x, b.y + b.r + 16);
   if (hover) drawNameTag(c, b.name || `Bot ${b.id}`, b.x, b.y - b.r - 24);
   c.restore();
 }
@@ -1070,6 +1136,21 @@ function drawRemotePlayer(game, c, player) {
   c.restore();
 }
 
+function drawAmmoBadge(c, actor, x, y) {
+  if (!actor?.equipment?.weapon || actor.equipment.weapon !== 'bow') return;
+  const ammo = Number(actor.ammunition || 0);
+  c.save();
+  c.font = '800 10px system-ui';
+  c.textAlign = 'center';
+  c.fillStyle = ammo > 0 ? '#d3a95f' : '#c86b5f';
+  c.strokeStyle = 'rgba(6,10,8,.85)';
+  c.lineWidth = 3;
+  const text = `AR ${ammo}`;
+  c.strokeText(text, x, y);
+  c.fillText(text, x, y);
+  c.restore();
+}
+
 function drawPlayer(game, c, now, view) {
   if (game.player.target && (!view || circleInView(game.player.target.x, game.player.target.y, 64, view))) drawPlayerTarget(game, c);
   const playerVisible = !view || circleInView(game.player.x, game.player.y, (game.player.r || 13) + 42, view);
@@ -1095,6 +1176,7 @@ function drawPlayerActor(game, c, now) {
   }
   if (game.player.equipment?.weapon) drawHeldToolAsset(c, game.player.x + 19, game.player.y - 5, game.player.equipment.weapon);
   if (game.player.equipment?.shield) drawHeldToolAsset(c, game.player.x - 18, game.player.y - 5, game.player.equipment.shield);
+  drawAmmoBadge(c, game.player, game.player.x, game.player.y + 28);
   c.restore();
 }
 

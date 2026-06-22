@@ -6,6 +6,7 @@ from __future__ import annotations
 import contextlib
 import functools
 import http.server
+import os
 import socketserver
 import threading
 from pathlib import Path
@@ -14,6 +15,7 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 SCREENSHOT = ROOT / "build-menu-icons-smoke.png"
+BASE_URL = os.environ.get("BASE_URL", "").rstrip("/") or os.environ.get("ORCHESTRATOR_GROVE_BASE_URL", "").rstrip("/")
 EXPECTED = {
     "sawbench": {"icon": "🪚", "label": "Sawbench", "hint": "Open timber saw table", "aria": "Place Sawbench"},
     "workbench": {"icon": "🪓", "label": "Tool Bench", "hint": "Angled tool canopy", "aria": "Place Tool Bench"},
@@ -29,6 +31,7 @@ EXPECTED = {
     "solar_array": {"icon": "☀️", "label": "Solar Panels", "hint": "Fold-out charging array", "aria": "Place Fold-Out Solar Panels"},
     "smithery": {"icon": "⚔️", "label": "Smithery", "hint": "Stone forge & anvil", "aria": "Place Smithery"},
     "bowmaker": {"icon": "🏹", "label": "Bowmaker", "hint": "Arched bow hut", "aria": "Place Bowmaker"},
+    "arrowmaker": {"icon": "🪶", "label": "Arrowmaker", "hint": "Fletching shed", "aria": "Place Arrowmaker"},
     "defensetower": {"icon": "🛡️", "label": "Defense Tower", "hint": "Tall guard tower", "aria": "Place Defense Tower"},
 }
 
@@ -37,13 +40,7 @@ class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format: str, *args) -> None:  # noqa: A002
         return
 
-
-Handler = functools.partial(QuietHandler, directory=str(ROOT))
-with socketserver.TCPServer(("127.0.0.1", 0), Handler) as httpd:
-    port = httpd.server_address[1]
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-    thread.start()
-
+def run_smoke(url: str) -> None:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1280, "height": 820})
@@ -51,7 +48,7 @@ with socketserver.TCPServer(("127.0.0.1", 0), Handler) as httpd:
         page.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
         page.on("pageerror", lambda exc: errors.append(str(exc)))
 
-        page.goto(f"http://127.0.0.1:{port}/index.html", wait_until="networkidle")
+        page.goto(url, wait_until="networkidle")
         page.wait_for_function("() => window.gameMenuDebug && window.uiDebug")
         page.evaluate("() => { window.gameMenuDebug.closeMainMenu(); window.uiDebug.setChatOpen(false); }")
         page.click("#buildDrawerToggle")
@@ -61,7 +58,7 @@ with socketserver.TCPServer(("127.0.0.1", 0), Handler) as httpd:
             "production": ["sawbench", "workbench", "factory", "portable_3d_printer", "assembler"],
             "storage": ["item_palette", "power_station", "robotics_parts_bin"],
             "camp": ["camper_van", "hammock_camp", "ultrabook_desk", "solar_array"],
-            "military": ["smithery", "bowmaker", "defensetower"],
+            "military": ["smithery", "bowmaker", "arrowmaker", "defensetower"],
         }
         for tab, keys in tabs.items():
             page.click(f"[data-build-tab='{tab}']")
@@ -73,19 +70,27 @@ with socketserver.TCPServer(("127.0.0.1", 0), Handler) as httpd:
                 assert button.locator(".build-copy b").inner_text().strip() == EXPECTED[key]["label"], key
                 assert button.locator(".build-copy small").inner_text().strip() == EXPECTED[key]["hint"], key
 
-        # Capture evidence with the icon buttons visible before selection closes the drawer.
         page.click("[data-build-tab='production']")
         page.screenshot(path=str(SCREENSHOT), full_page=True)
 
-        # Nested icon clicks must still select the building via event delegation.
         page.click("[data-build='sawbench'] .build-icon")
         page.wait_for_function("() => window.getGameState && window.getGameState().placementType === 'sawbench'")
 
         assert not errors, errors
         browser.close()
 
-    httpd.shutdown()
-    with contextlib.suppress(Exception):
-        thread.join(timeout=1)
-
+if BASE_URL:
+    run_smoke(f"{BASE_URL}/index.html")
+else:
+    Handler = functools.partial(QuietHandler, directory=str(ROOT))
+    with socketserver.TCPServer(("127.0.0.1", 0), Handler) as httpd:
+        port = httpd.server_address[1]
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        try:
+            run_smoke(f"http://127.0.0.1:{port}/index.html")
+        finally:
+            httpd.shutdown()
+            with contextlib.suppress(Exception):
+                thread.join(timeout=1)
 print("build menu icons smoke passed")

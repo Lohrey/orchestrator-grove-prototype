@@ -32,7 +32,9 @@ export function createChatController({
     boundary: '',
     stopTimer: null
   };
+  let voiceTargetInput = chatInput;
 
+  const getInput = () => voiceTargetInput || chatInput;
   const isTypingTarget = t => ['input', 'textarea', 'select'].includes(t?.tagName?.toLowerCase()) || t?.isContentEditable;
   const isFasterWhisperMode = () => getAsrMode() === FASTER_WHISPER_MODE;
   const isBrowserWhisperMode = () => getAsrMode() === BROWSER_WHISPER_MODE;
@@ -73,11 +75,14 @@ export function createChatController({
       committed: 'Committed speech segment.'
     };
   };
-  const getSelection = () => ({ start: chatInput.selectionStart ?? chatInput.value.length, end: chatInput.selectionEnd ?? chatInput.value.length });
+  const getSelection = () => {
+    const input = getInput();
+    return { start: input.selectionStart ?? input.value.length, end: input.selectionEnd ?? input.value.length };
+  };
   function remember() { if (!ignoreRemember) lastSelection = getSelection(); }
-  function setValueCaret(value, caret) { chatInput.value = value; chatInput.focus(); ignoreRemember = true; chatInput.setSelectionRange(caret, caret); lastSelection = { start: caret, end: caret }; setTimeout(() => { ignoreRemember = false; }, 0); }
-  function replaceRange(start, end, text) { const value = chatInput.value.slice(0, start) + text + chatInput.value.slice(end); const caret = start + text.length; setValueCaret(value, caret); chatInput.dispatchEvent(new Event('input', { bubbles: true })); return { start, end: caret }; }
-  function insertAtCursor(text, { replaceSelection = true } = {}) { const s = document.activeElement === chatInput ? getSelection() : lastSelection; const prefix = s.start > 0 && !/\s$/.test(chatInput.value.slice(0, s.start)) && !/^\s|[.,!?;:}]/.test(text) ? ' ' : ''; return replaceRange(s.start, replaceSelection ? s.end : s.start, prefix + text); }
+  function setValueCaret(value, caret) { const input = getInput(); input.value = value; input.focus(); ignoreRemember = true; input.setSelectionRange(caret, caret); lastSelection = { start: caret, end: caret }; setTimeout(() => { ignoreRemember = false; }, 0); }
+  function replaceRange(start, end, text) { const input = getInput(); const value = input.value.slice(0, start) + text + input.value.slice(end); const caret = start + text.length; setValueCaret(value, caret); input.dispatchEvent(new Event('input', { bubbles: true })); return { start, end: caret }; }
+  function insertAtCursor(text, { replaceSelection = true } = {}) { const input = getInput(); const s = document.activeElement === input ? getSelection() : lastSelection; const prefix = s.start > 0 && !/\s$/.test(input.value.slice(0, s.start)) && !/^\s|[.,!?;:}]/.test(text) ? ' ' : ''; return replaceRange(s.start, replaceSelection ? s.end : s.start, prefix + text); }
   function resetDraft(clear = false) { transcriptDraft = null; if (clear) { asr.lastPartial = ''; asr.boundary = ''; } }
   function markBoundary() { if (!asr.recording) return; if (transcriptDraft) { transcriptDraft = null; asr.boundary = asr.lastPartial || asr.boundary; } }
   function deltaAfterBoundary(text) { const b = asr.boundary; if (!b) return text; const t = text.toLowerCase(), bb = b.toLowerCase(); if (t.startsWith(bb)) return text.slice(b.length).trimStart(); let i = 0; while (i < Math.min(t.length, bb.length) && t[i] === bb[i]) i++; return i ? text.slice(i).trimStart() : text; }
@@ -88,7 +93,8 @@ export function createChatController({
     asr.lastPartial = text;
     const next = isFinal ? normalizeFinal(deltaAfterBoundary(text)) : deltaAfterBoundary(text);
     if (!next) { if (isFinal) resetDraft(true); return; }
-    const base = transcriptDraft || (document.activeElement === chatInput ? getSelection() : lastSelection);
+    const input = getInput();
+    const base = transcriptDraft || (document.activeElement === input ? getSelection() : lastSelection);
     const nextRange = replaceRange(base.start, base.end, next);
     if (isFinal) { asr.segment = segment + 1; resetDraft(true); } else transcriptDraft = nextRange;
   }
@@ -305,6 +311,8 @@ export function createChatController({
     resetDraft(false);
   }
   function toggleVoice() { asr.recording ? stopVoice() : startVoice(); }
+  function setVoiceTargetInput(input) { voiceTargetInput = input || chatInput; remember(); }
+  function clearVoiceTargetInput() { voiceTargetInput = chatInput; remember(); }
 
   ['click', 'keyup', 'input', 'select', 'focus', 'mouseup'].forEach(type => chatInput.addEventListener(type, () => { if (['click', 'keyup', 'mouseup'].includes(type)) markBoundary(); remember(); }));
   document.addEventListener('selectionchange', () => { if (document.activeElement === chatInput) remember(); });
@@ -314,5 +322,5 @@ export function createChatController({
   quickCommands?.addEventListener('mousedown', e => { if (e.target.closest('button')) { e.preventDefault(); markBoundary(); remember(); } });
   quickCommands?.addEventListener('click', e => { const btn = e.target.closest('button[data-command],button[data-insert]'); if (!btn) return; markBoundary(); if (btn.dataset.insert) { insertAtCursor(btn.dataset.insert); asr.boundary = asr.lastPartial || asr.boundary; return; } chatInput.value = btn.dataset.command; chatInput.focus(); chatInput.setSelectionRange(chatInput.value.length, chatInput.value.length); remember(); });
 
-  return { isTypingTarget, insertAtCursor, applyTranscript, markBoundary, getSelection, wsUrl, transcribeUrl, asr };
+  return { isTypingTarget, insertAtCursor, applyTranscript, markBoundary, getSelection, wsUrl, transcribeUrl, asr, startVoice, stopVoice, toggleVoice, isRecording: () => asr.recording, setVoiceTargetInput, clearVoiceTargetInput };
 }

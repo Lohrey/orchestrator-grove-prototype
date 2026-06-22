@@ -9,9 +9,18 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: true } });
 const sessions = new Map();
+let boundPort = null;
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(__dirname, { extensions: ['html'] }));
+
+app.get('/health', (req, res) => {
+  res.json({
+    ok: true,
+    port: boundPort,
+    sessions: sessions.size
+  });
+});
 
 app.get('/api/multiplayer/sessions/:id/save', (req, res) => {
   const session = sessions.get(req.params.id);
@@ -64,5 +73,58 @@ io.on('connection', socket => {
   });
 });
 
-const port = Number(process.env.PORT || 8097);
-server.listen(port, () => console.log(`Orchestrator Grove multiplayer server listening on http://127.0.0.1:${port}`));
+const defaultPort = 8097;
+const configuredPort = process.env.PORT ? Number(process.env.PORT) : null;
+
+function listen(port) {
+  return new Promise((resolve, reject) => {
+    const onError = error => {
+      server.off('error', onError);
+      reject(error);
+    };
+
+    server.once('error', onError);
+    server.listen(port, () => {
+      server.off('error', onError);
+      boundPort = port;
+      resolve(port);
+    });
+  });
+}
+
+async function start() {
+  if (configuredPort) {
+    try {
+      const port = await listen(configuredPort);
+      console.log(`Orchestrator Grove multiplayer server listening on http://127.0.0.1:${port}`);
+    } catch (error) {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`Port ${configuredPort} is already in use. Stop the process using it or start with a different PORT.`);
+        process.exit(1);
+      }
+      throw error;
+    }
+    return;
+  }
+
+  for (let port = defaultPort; port < defaultPort + 20; port += 1) {
+    try {
+      await listen(port);
+      if (port !== defaultPort) {
+        console.warn(`Port ${defaultPort} was busy; using ${port} instead.`);
+      }
+      console.log(`Orchestrator Grove multiplayer server listening on http://127.0.0.1:${port}`);
+      return;
+    } catch (error) {
+      if (error.code !== 'EADDRINUSE') throw error;
+    }
+  }
+
+  console.error(`No free port found in the range ${defaultPort}-${defaultPort + 19}. Set PORT manually and try again.`);
+  process.exit(1);
+}
+
+start().catch(error => {
+  console.error(error);
+  process.exit(1);
+});

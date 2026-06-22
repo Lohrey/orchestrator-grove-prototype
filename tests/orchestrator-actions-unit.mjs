@@ -73,6 +73,7 @@ assert.ok(ACTION_STEP_REGISTRY.patrol_route.customLoop, 'patrol_route must be cu
 assert.ok(ACTION_STEP_REGISTRY.equip_item.customLoop, 'equip_item must be custom-loop executable');
 assert.ok(ACTION_STEP_REGISTRY.craft_smithery.customLoop, 'craft_smithery must be custom-loop executable');
 assert.ok(ACTION_STEP_REGISTRY.craft_bowmaker.customLoop, 'craft_bowmaker must be custom-loop executable');
+assert.ok(ACTION_STEP_REGISTRY.craft_arrowmaker.customLoop, 'craft_arrowmaker must be custom-loop executable');
 assert.ok(ACTION_STEP_REGISTRY.wait.customLoop, 'wait must be custom-loop executable');
 assert.ok(actionStepOpsForPack('combat').includes('rename_bot'), 'combat pack exposes rename_bot');
 assert.ok(actionStepOpsForPack('starter_automation').includes('rename_bot'), 'starter pack exposes rename_bot');
@@ -90,12 +91,14 @@ const valid = game.validateDslProgram({ steps: [
   { op: 'equip_item', type: 'sword' },
   { op: 'craft_smithery', recipe: 'shield' },
   { op: 'craft_bowmaker', recipe: 'bow' },
+  { op: 'craft_arrowmaker', recipe: 'arrow pack' },
   { op: 'loop' }
 ] });
 assert.equal(valid.ok, true, valid);
 assert.equal(valid.program.steps[2].type, 'wooden_sword', 'equip_item sword alias normalizes');
 assert.equal(valid.program.steps[3].recipe, 'wooden_shield', 'craft_smithery shield alias normalizes');
 assert.equal(valid.program.steps[4].recipe, 'bow', 'craft_bowmaker validates bow');
+assert.equal(valid.program.steps[5].recipe, 'arrow_pack', 'craft_arrowmaker arrow pack alias normalizes');
 
 const renameValid = game.validateDslProgram({ steps: [{ op: 'rename_bot', name: '  Lumber\njack<>  ', target: 2 }, { op: 'loop' }] });
 assert.equal(renameValid.ok, true, renameValid);
@@ -224,6 +227,10 @@ const sets = bot1.equipment.weaponSets;
 assert.equal(sets.length, 2, bot1.equipment);
 assert.ok(sets.some(set => set.weapon === 'wooden_sword' && set.shield === 'wooden_shield'), bot1.equipment);
 assert.ok(sets.some(set => set.weapon === 'bow' && !set.shield), bot1.equipment);
+addItem(game, 'arrow_pack', 310, 300);
+const firstArrowPack = game.items.find(item => item.type === 'arrow_pack');
+assert.equal(game.pickItem(bot1, firstArrowPack), true, bot1);
+assert.equal(bot1.ammunition, 10, bot1);
 
 bot1.x = 520; bot1.y = 520;
 assigned = game.assignCustomDslProgram({ botId: 1, program: { steps: [{ op: 'guard_area', radius: 180 }, { op: 'loop' }] } });
@@ -265,5 +272,25 @@ assigned = game.assignCustomDslProgram({ botId: 4, program: { steps: [{ op: 'cra
 assert.equal(assigned.ok, true, assigned);
 tick(game, 14);
 assert.ok(game.items.some(item => item.type === 'bow'), { items: game.items, bowmaker });
+
+const bot5 = game.findBot(5) || game.createBot(920, 260, 'idle');
+const arrowmaker = game.addStructure('arrowmaker', bowmaker.x + 145, bowmaker.y + 80);
+for (const other of game.bots) {
+  if (other.id !== bot5.id) other.paused = true;
+}
+bot5.x = arrowmaker.x - 54; bot5.y = arrowmaker.y;
+addItem(game, 'stick', bot5.x, bot5.y);
+addItem(game, 'stone', bot5.x + 3, bot5.y + 1);
+assigned = game.assignCustomDslProgram({ botId: bot5.id, program: { steps: [{ op: 'craft_arrowmaker', recipe: 'arrow pack', target: arrowmaker.name }, { op: 'loop' }] } });
+assert.equal(assigned.ok, true, assigned);
+let arrowPack = null;
+for (let i = 0; i < 30; i++) {
+  tick(game, 1);
+  arrowPack = game.items.find(item => item.type === 'arrow_pack');
+  if (arrowmaker.arrow_packs > 0 || arrowPack || bot5.ammunition > 0) break;
+}
+assert.ok(arrowmaker.arrow_packs > 0 || arrowPack || bot5.ammunition > 0, { items: game.items, arrowmaker, bot: bot5 });
+if (arrowPack) assert.equal(game.pickItem(bot5, arrowPack), true, bot5);
+assert.equal(bot5.ammunition, 10, bot5);
 
 console.log('orchestrator executable action steps passed');

@@ -6,21 +6,27 @@ v7 adds testable Autonauts-like production requirements on top of the object-reg
 
 ## Run locally
 
-From this folder:
+Install dependencies once:
 
 ```bash
-python3 -m http.server 8000
+npm install
+```
+
+Then start the local server:
+
+```bash
+npm start
 ```
 
 Then open:
 
 ```text
-http://localhost:8000
+http://127.0.0.1:8097
 ```
 
-If port 8000 is already in use, choose another port, for example `python3 -m http.server 8017` and open `http://localhost:8017`.
+If `8097` is already in use, the server will try the next free port in the `8097-8116` range. If you want a specific port, set `PORT` before starting the server.
 
-No build step, npm install, bundler, or framework is required.
+Do not use `python -m http.server` for normal development anymore. The app now loads ES modules from `vendor/*.mjs`, and Python's default static server commonly serves those with the wrong MIME type, which breaks dynamic imports such as the Pixi renderer.
 
 ## Controls
 

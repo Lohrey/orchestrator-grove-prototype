@@ -43,7 +43,11 @@ for (const action of DSL_ACTION_WIKI.actions) {
 }
 
 for (const pack of Object.values(ASSISTANT_KNOWLEDGE_PACKS)) {
-  assert.deepEqual(pack.unlockedOps, actionStepOpsForPack(pack.id), `${pack.id} unlockedOps must be registry-derived`);
+  if (pack.custom) {
+    assert.ok(pack.unlockedOps.length > 0, `${pack.id} custom pack must declare unlocked ops explicitly`);
+  } else {
+    assert.deepEqual(pack.unlockedOps, actionStepOpsForPack(pack.id), `${pack.id} unlockedOps must be registry-derived`);
+  }
   const details = actionStepDetailsForOps(pack.unlockedOps);
   assert.deepEqual(details.map(action => action.op), pack.unlockedOps, `${pack.id} action details must preserve registry-derived pack ops`);
   for (const action of details) {

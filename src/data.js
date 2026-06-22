@@ -77,8 +77,8 @@ export const ASSISTANT_KNOWLEDGE_PACKS = {
   combat: {
     id: 'combat',
     name: 'Follow + Combat',
-    concepts: ['Bot names/refs can be used as variables for multi-bot follow or attack requests.', 'Use rename_bot for squad-friendly combat labels like Guard or Patrol.', 'Use follow to keep a bot near me/player or another bot.', 'Use guard_area to hold a zone/current post: bots attack hostiles in/near the guard area, then return to the guard center.', 'Use patrol_route with JSON points to cycle checkpoints and interrupt the route to attack nearby threats.', 'Use equip_item only for weaponry (sword, shield, bow); tools/resources are not valid equipment actions.', 'Use craft_smithery for wooden_sword/wooden_shield and craft_bowmaker for bow recipes that already exist in the game.', 'Use attack for hostile targets, monster types, or combat zones. zone:"nearby" creates a moving search radius around each assigned bot; set radius to override, e.g. 500.'],
-    vocabulary: ['rename', 'name', 'call', 'follow', 'escort', 'guard', 'patrol', 'checkpoint', 'route', 'equip', 'weapon', 'sword', 'shield', 'bow', 'smithery', 'bowmaker', 'attack', 'fight', 'kill', 'hunt', 'monster', 'enemy', 'nearby', 'radius'],
+    concepts: ['Bot names/refs can be used as variables for multi-bot follow or attack requests.', 'Use rename_bot for squad-friendly combat labels like Guard or Patrol.', 'Use follow to keep a bot near me/player or another bot.', 'Use guard_area to hold a zone/current post: bots attack hostiles in/near the guard area, then return to the guard center.', 'Use patrol_route with JSON points to cycle checkpoints and interrupt the route to attack nearby threats.', 'Use equip_item only for weaponry (sword, shield, bow); tools/resources are not valid equipment actions.', 'Use craft_smithery for wooden_sword/wooden_shield, craft_bowmaker for bow, and craft_arrowmaker for arrow packs that already exist in the game.', 'Use arrowmaker to fletch arrow packs from sticks and stone, then load them with equip_item by picking up the finished arrow pack.', 'Use attack for hostile targets, monster types, or combat zones. zone:"nearby" creates a moving search radius around each assigned bot; set radius to override, e.g. 500.'],
+    vocabulary: ['rename', 'name', 'call', 'follow', 'escort', 'guard', 'patrol', 'checkpoint', 'route', 'equip', 'weapon', 'sword', 'shield', 'bow', 'arrow', 'arrow pack', 'arrowmaker', 'smithery', 'bowmaker', 'attack', 'fight', 'kill', 'hunt', 'monster', 'enemy', 'nearby', 'radius'],
     optionalContext: ['availableBotNames', 'availableMonsterTypes'],
     unlockedOps: actionStepOpsForPack('combat'),
     examples: [
@@ -88,7 +88,20 @@ export const ASSISTANT_KNOWLEDGE_PACKS = {
       { intent: 'Bot 2 patrol between two checkpoints', dsl: { steps: [{ op: 'patrol_route', points: [{ x: 320, y: 320 }, { x: 480, y: 320 }], radius: 180 }, { op: 'loop' }] } },
       { intent: 'Bot 3 equip sword', dsl: { steps: [{ op: 'equip_item', type: 'sword' }, { op: 'loop' }] } },
       { intent: 'Bot 1 craft shield at smithery 1', dsl: { steps: [{ op: 'craft_smithery', recipe: 'shield', target: 'smithery 1' }, { op: 'loop' }] } },
-      { intent: 'Bot 1 attack nearby monsters within 500', dsl: { steps: [{ op: 'attack', type: 'monster', zone: 'nearby', radius: 500 }, { op: 'loop' }] } }
+      { intent: 'Bot 1 attack nearby monsters within 500', dsl: { steps: [{ op: 'attack', type: 'monster', zone: 'nearby', radius: 500 }, { op: 'loop' }] } },
+      { intent: 'Bot 1 fletch arrow packs at arrowmaker 1', dsl: { steps: [{ op: 'craft_arrowmaker', recipe: 'arrow_pack', target: 'arrowmaker 1' }, { op: 'loop' }] } }
+    ]
+  },
+  dog_fetch: {
+    id: 'dog_fetch',
+    name: 'Dog Fetch',
+    custom: true,
+    concepts: ['The assigned bot is always the dog.', 'Use pick_up for the chosen nearby item, then use follow to bring it back to the player.', 'Praise teaches the dog which item type to prefer next time; after 10 praises, that item is chosen every time it is available.'],
+    vocabulary: ['dog', 'fetch', 'praise', 'good dog', 'pick up', 'follow', 'stick', 'log', 'plank', 'stone', 'random nearby item'],
+    optionalContext: ['availableItemTypes'],
+    unlockedOps: actionStepOpsForPack('starter_automation').filter(op => ['pick_up', 'follow'].includes(op)),
+    examples: [
+      { intent: 'Dog fetch a stick', dsl: { steps: [{ op: 'pick_up', type: 'stick' }, { op: 'follow', target: 'me' }, { op: 'loop' }] } }
     ]
   }
 };
@@ -284,7 +297,7 @@ export const DSL_ACTION_WIKI = {
     type: 'Item/resource type for logistics actions: log, plank, pole, stick, stone, tree_seed, crude_axe, crude_pickaxe, crude_shovel, crude_hammer; or hostile target type for attack: monster, night_monster, passive_monster, enemy, throne.',
     radius: 'Optional numeric radius for radius/nearby zones. For attack zone:"nearby", radius:500 means search 500px around each assigned bot as it moves. For guard_area it controls the guarded radius around the guard center; for patrol_route it controls threat interception range.',
     points: 'Patrol checkpoints for patrol_route, preferably JSON array [{x,y},{x,y}] or semicolon-separated coordinate pairs like "320,320;480,320".',
-    recipe: 'Crafting recipe for production actions. craft_smithery supports sword/wooden_sword and shield/wooden_shield; craft_bowmaker supports bow.',
+    recipe: 'Crafting recipe for production actions. craft_smithery supports sword/wooden_sword and shield/wooden_shield; craft_bowmaker supports bow; craft_arrowmaker supports arrow_pack/arrow pack.',
     distance: 'Optional follow spacing in pixels; follow defaults to a small escort distance if omitted.',
     targetKind: 'Generic target for use_held_item: tree, hemp, stone_deposit, dig_spot, dug_hole, structure, or ground. Validation resolves this to the concrete op and keeps knowledge-pack locks.',
     source: 'Optional source structure, usually a sawbench for loose planks/poles near production or an item_palette for storage pickup.',
@@ -352,6 +365,7 @@ export const BUILDING_TYPES = {
   assembler: { label: 'Portable Assembler', category: 'production', w: 112, h: 70, color: '#6d7c62', cost: 'story kit' },
   smithery: { label: 'Smithery', category: 'military', w: 100, h: 58, color: '#6f6760', cost: 'free prototype', processingDurations: { wooden_sword: 1.0, wooden_shield: 1.0 } },
   bowmaker: { label: 'Bowmaker', category: 'military', w: 104, h: 58, color: '#5f7054', cost: 'free prototype', processingDurations: { bow: 5.5 } },
+  arrowmaker: { label: 'Arrowmaker', category: 'military', w: 104, h: 58, color: '#6a7356', cost: 'free prototype', processingDurations: { arrow_pack: 3.0 } },
   defensetower: { label: 'Defense Tower', category: 'military', w: 82, h: 96, color: '#5b625d', cost: 'free prototype', attackRange: 260, attackDamage: 1, attackCooldown: 1 },
   throne: { label: 'Throne', category: 'military', w: 118, h: 86, color: '#8a6a42', cost: 'multiplayer objective', maxHp: 120 },
   item_palette: { label: 'Item Palette', category: 'storage', w: 86, h: 48, color: '#6f7661', cost: 'free prototype', capacity: 40 },

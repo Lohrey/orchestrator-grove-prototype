@@ -112,9 +112,10 @@ function waitSecondsFromText(lower) {
 }
 
 function itemTypeFromText(lower, game) {
-  const candidates = ['crude pickaxe', 'pickaxe', 'crude axe', 'axe', 'tree seeds', 'tree seed', 'seeds', 'seed', 'planks', 'plank', 'boards', 'board', 'logs', 'log', 'wood', 'poles', 'pole', 'sticks', 'stick', 'stones', 'stone', 'rocks', 'rock'];
+  const candidates = ['arrow pack', 'arrow packs', 'quiver', 'crude pickaxe', 'pickaxe', 'crude axe', 'axe', 'tree seeds', 'tree seed', 'seeds', 'seed', 'planks', 'plank', 'boards', 'board', 'logs', 'log', 'wood', 'poles', 'pole', 'sticks', 'stick', 'stones', 'stone', 'rocks', 'rock'];
   const found = candidates.find(word => new RegExp(`\\b${word.replace(/ /g, '\\s+')}\\b`).test(lower));
-  return game.normalizeItemType?.(found === 'wood' ? 'log' : found, 'log') || 'log';
+  const normalized = found === 'wood' ? 'log' : (found?.includes('arrow') || found === 'quiver' ? 'arrow_pack' : found);
+  return game.normalizeItemType?.(normalized, 'log') || 'log';
 }
 
 function buildingKitTypeFromText(lower, game) {
@@ -227,6 +228,22 @@ function packCatalog(knowledgePacks = ASSISTANT_KNOWLEDGE_PACKS) {
   return knowledgePacks && typeof knowledgePacks === 'object' ? knowledgePacks : ASSISTANT_KNOWLEDGE_PACKS;
 }
 
+export function estimateTokenCount(text = '') {
+  const value = String(text || '');
+  if (!value.trim()) return 0;
+  return Math.max(1, Math.ceil(value.length / 4));
+}
+
+function estimateValueTokenCount(value) {
+  if (value == null) return 0;
+  if (typeof value === 'string') return estimateTokenCount(value);
+  try {
+    return estimateTokenCount(JSON.stringify(value));
+  } catch {
+    return estimateTokenCount(String(value));
+  }
+}
+
 function parseTextList(value) {
   if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean);
   return String(value || '').split(/[\n,]+/).map(item => item.trim()).filter(Boolean);
@@ -252,7 +269,7 @@ export function normalizeAssistantKnowledgePack(pack = {}) {
   const selectedOps = validActionStepOps(pack.unlockedOps || pack.selectedOps || pack.ops || []);
   const actionPartAliases = normalizeActionStepAliasOverrides(pack.actionPartAliases || pack.partAliases || {}, selectedOps);
   const actions = actionStepDetailsForOps(selectedOps, { actionPartAliases });
-  return {
+  const normalized = {
     id,
     name: String(pack.name || id || 'Custom Action Pack').trim(),
     custom: !!pack.custom,
@@ -265,6 +282,10 @@ export function normalizeAssistantKnowledgePack(pack = {}) {
     actions,
     actionDetails: actions,
     examples: Array.isArray(pack.examples) ? pack.examples : parseTextList(pack.examples)
+  };
+  return {
+    ...normalized,
+    tokenCount: estimateValueTokenCount(normalized)
   };
 }
 
@@ -292,6 +313,7 @@ export function formatAssistantLoadout(loadout = DEFAULT_ASSISTANT_LOADOUT, know
     id: pack.id,
     name: pack.name,
     custom: !!pack.custom,
+    tokenCount: pack.tokenCount || estimateValueTokenCount(pack),
     concepts: pack.concepts,
     vocabulary: pack.vocabulary,
     optionalContext: pack.optionalContext || [],
@@ -308,6 +330,7 @@ export function summarizeAssistantLoadout(loadout = DEFAULT_ASSISTANT_LOADOUT, k
   return {
     ids: packs.map(pack => pack.id),
     names: packs.map(pack => pack.name),
+    tokenCount: packs.reduce((sum, pack) => sum + Number(pack.tokenCount || 0), 0),
     unlockedOps: [...new Set(packs.flatMap(pack => pack.unlockedOps))],
     optionalContext: [...new Set(packs.flatMap(pack => pack.optionalContext || []))],
     vocabulary: [...new Set(packs.flatMap(pack => pack.vocabulary))],
@@ -415,6 +438,13 @@ function compileDslIntent({ botId, text, lower, game, unlockedOps }) {
     if (bowmaker) step.target = bowmaker.name;
     const steps = [step, { op: 'loop' }];
     if (canUse(steps)) return dslAssignment(botId, 'Craft bow', steps, 'Generated pack-backed DSL: craft the existing bowmaker recipe.', repeatRequested(lower, false));
+  }
+  if (botId && /\b(craft|make|produce|fletch)\b.*\b(arrow\s*packs?|arrows?)\b|\barrowmaker\b/.test(lower)) {
+    const arrowmaker = game.findStructureMention?.(lower, 'arrowmaker') || game.structures?.find(s => s.type === 'arrowmaker');
+    const step = { op: 'craft_arrowmaker', recipe: 'arrow_pack' };
+    if (arrowmaker) step.target = arrowmaker.name;
+    const steps = [step, { op: 'loop' }];
+    if (canUse(steps)) return dslAssignment(botId, 'Craft arrow packs', steps, 'Generated pack-backed DSL: craft the existing arrowmaker recipe.', repeatRequested(lower, false));
   }
   if (botId && /\bfollow\b|\bescort\b/.test(lower)) {
     const targetInfo = followTargetFromText(lower, game);
@@ -814,7 +844,21 @@ export function buildOllamaPrompt(text, game, { enableTemplates = false, loadout
   ];
   const messages = appendRepairMessages(baseMessages, repairContext);
   const loadoutKnowledge = { equippedPacks, unlockedOps, actionGuide: knowledge.capabilities.actions };
-  return { systemPrompt, userPrompt, messages, finalPrompt: formatOllamaFinalPrompt(messages), equippedPacks, unlockedOps, knowledge, loadoutKnowledge };
+  const finalPrompt = formatOllamaFinalPrompt(messages);
+  return {
+    systemPrompt,
+    userPrompt,
+    messages,
+    finalPrompt,
+    finalPromptTokens: estimateTokenCount(finalPrompt),
+    systemPromptTokens: estimateTokenCount(systemPrompt),
+    userPromptTokens: estimateTokenCount(userPrompt),
+    messagesTokenCount: messages.reduce((sum, message) => sum + estimateValueTokenCount(`${String(message.role || 'message').toUpperCase()}:\n${message.content || ''}`), 0),
+    equippedPacks,
+    unlockedOps,
+    knowledge,
+    loadoutKnowledge
+  };
 }
 
 export function isGemma412BModel(model) {

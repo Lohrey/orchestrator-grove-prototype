@@ -14,6 +14,7 @@ const ITEM_PALETTE = {
   hemp: { label: 'hemp', color: '#8fbf76' },
   hemp_seed: { label: 'hemp seed', color: '#b8d58a' },
   bow: { label: 'bow', color: '#cda66d' },
+  arrow_pack: { label: 'arrow pack', color: '#d3a95f' },
   camper_van: { label: 'white camper van', color: '#edf3ef' },
   hammock: { label: 'hammock', color: '#80a9c9' },
   ultrabook: { label: 'ultrabook laptop', color: '#b7c2ba' },
@@ -30,6 +31,7 @@ const BUILDING_ASSETS = {
   factory: { base: '#637772', roof: '#2c3835', accent: '#d3a95f', trim: '#111916' },
   smithery: { base: '#6f6760', roof: '#3f332e', accent: '#e1743f', trim: '#1f2723' },
   bowmaker: { base: '#5f7054', roof: '#3f4d35', accent: '#cda66d', trim: '#1f2723' },
+  arrowmaker: { base: '#6a7356', roof: '#404636', accent: '#d3a95f', trim: '#1f2723' },
   defensetower: { base: '#5b625d', roof: '#2c332f', accent: '#e6d6a8', trim: '#141b18' },
   throne: { base: '#8a6a42', roof: '#6f4428', accent: '#ffe3a7', trim: '#251a10' },
   item_palette: { base: '#6f7661', roof: '#4b523f', accent: '#d8aa63', trim: '#5d341d' },
@@ -76,6 +78,7 @@ export function drawBuildingAsset(c, structure, def, { hover = false, now = 0 } 
     case 'factory': drawFactory(c, asset, w, h, hover, now); break;
     case 'smithery': drawSmithery(c, asset, w, h, hover, now); break;
     case 'bowmaker': drawBowmaker(c, asset, w, h, hover); break;
+    case 'arrowmaker': drawArrowmaker(c, asset, w, h, hover); break;
     case 'defensetower': drawDefenseTower(c, asset, w, h, hover); break;
     case 'throne': drawThrone(c, asset, w, h, hover); break;
     case 'item_palette': drawPalette(c, asset, w, h, hover); break;
@@ -108,6 +111,7 @@ export function drawItemAsset(c, type) {
     case 'hemp_seed': drawSeed(c, type); break;
     case 'hemp': drawHempBundle(c); break;
     case 'bow': drawBow(c); break;
+    case 'arrow_pack': drawArrowPack(c); break;
     case 'crude_axe': drawAxe(c); break;
     case 'crude_pickaxe': drawPickaxe(c); break;
     case 'crude_shovel': drawShovel(c); break;
@@ -226,6 +230,16 @@ function drawBowmaker(c, asset, w, h, hover) {
   c.fillStyle = '#8fbf76'; roundedRect(c, -w * .33, h * .11, w * .23, h * .14, 4); c.fill(); c.stroke();
   drawBow(c, w * .10, h * .04, 1.25);
   c.strokeStyle = '#e8dfc8'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(-w * .04, -h * .23); c.lineTo(w * .28, h * .18); c.stroke();
+}
+
+function drawArrowmaker(c, asset, w, h, hover) {
+  styleBuilding(c, asset, hover);
+  c.fillStyle = asset.base;
+  c.beginPath(); c.moveTo(-w * .44, h * .28); c.lineTo(-w * .28, -h * .28); c.lineTo(w * .30, -h * .22); c.lineTo(w * .44, h * .28); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = asset.roof; roundedRect(c, -w * .35, -h * .12, w * .70, h * .18, 5); c.fill(); c.stroke();
+  c.strokeStyle = asset.accent; c.lineWidth = 2.5; c.beginPath(); c.moveTo(-w * .20, h * .02); c.lineTo(w * .20, h * .02); c.stroke();
+  c.fillStyle = '#8fbf76'; roundedRect(c, -w * .25, h * .06, w * .18, h * .13, 4); c.fill(); c.stroke();
+  drawMiniArrowPack(c, w * .12, h * .08, .95);
 }
 
 function drawDefenseTower(c, asset, w, h, hover) {
@@ -348,6 +362,7 @@ function drawStone(c) { const g = c.createRadialGradient(-3, -4, 1, 0, 0, 8); g.
 function drawSeed(c, type) { c.fillStyle = type === 'hemp_seed' ? '#b8d58a' : '#a7d095'; c.beginPath(); c.ellipse(0, 0, 5, 7, -.5, 0, Math.PI * 2); c.fill(); c.stroke(); c.fillStyle = '#f1f8dd'; c.beginPath(); c.arc(-1, -2, 1.3, 0, Math.PI * 2); c.fill(); }
 function drawHempBundle(c) { c.fillStyle = '#8fbf76'; c.beginPath(); c.ellipse(0, 1, 10, 6, .15, 0, Math.PI * 2); c.fill(); c.stroke(); c.strokeStyle = '#d8f0c8'; c.beginPath(); c.moveTo(-6, -4); c.lineTo(4, 5); c.moveTo(0, -5); c.lineTo(8, 4); c.stroke(); }
 function drawBow(c, x = 0, y = 0, scale = 1) { c.save(); c.translate(x, y); c.scale(scale, scale); c.lineCap = 'square'; c.lineJoin = 'miter'; c.strokeStyle = '#5a341c'; c.lineWidth = 3; c.beginPath(); c.moveTo(-5, -12); c.lineTo(5, -5); c.lineTo(5, 5); c.lineTo(-5, 12); c.stroke(); c.strokeStyle = '#e8d8b8'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(-5, -12); c.lineTo(-5, 12); c.stroke(); c.restore(); }
+function drawArrowPack(c, x = 0, y = 0, scale = 1) { c.save(); c.translate(x, y); c.scale(scale, scale); c.strokeStyle = '#2f2118'; c.lineWidth = 1.4; c.fillStyle = '#d3a95f'; roundedRect(c, -11, -8, 22, 16, 3); c.fill(); c.stroke(); c.strokeStyle = '#8a5c2c'; c.lineWidth = 2.3; c.beginPath(); c.moveTo(-5, 5); c.lineTo(6, -5); c.moveTo(-6, -1); c.lineTo(5, -9); c.moveTo(-1, 8); c.lineTo(10, -2); c.stroke(); c.restore(); }
 function drawAxe(c, x = 0, y = 0, scale = 1, rot = 0) { c.save(); c.translate(x, y); c.rotate(rot); c.scale(scale, scale); c.lineCap = 'square'; c.lineJoin = 'miter'; c.strokeStyle = '#2f2118'; c.lineWidth = 6; c.beginPath(); c.moveTo(-10, 11); c.lineTo(8, -7); c.stroke(); c.strokeStyle = '#7b4a25'; c.lineWidth = 4; c.stroke(); c.fillStyle = '#9aa3a3'; c.strokeStyle = '#3a4242'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(4, -14); c.lineTo(18, -11); c.lineTo(17, -3); c.lineTo(11, 2); c.lineTo(3, -2); c.lineTo(6, -7); c.lineTo(0, -8); c.lineTo(1, -12); c.closePath(); c.fill(); c.stroke(); c.restore(); }
 function drawPickaxe(c, x = 0, y = 0, scale = 1) { c.save(); c.translate(x, y); c.scale(scale, scale); c.lineCap = 'square'; c.lineJoin = 'miter'; c.strokeStyle = '#2f2118'; c.lineWidth = 6; c.beginPath(); c.moveTo(-8, 10); c.lineTo(7, -7); c.stroke(); c.strokeStyle = '#7b4a25'; c.lineWidth = 4; c.stroke(); c.fillStyle = '#b0b7b6'; c.strokeStyle = '#414747'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(-17, -12); c.lineTo(-2, -16); c.lineTo(17, -9); c.lineTo(16, -5); c.lineTo(1, -9); c.lineTo(-14, -7); c.closePath(); c.fill(); c.stroke(); c.restore(); }
 function drawShovel(c, x = 0, y = 0, scale = 1, rot = 0) { c.save(); c.translate(x, y); c.rotate(rot); c.scale(scale, scale); c.lineCap = 'square'; c.lineJoin = 'miter'; c.strokeStyle = '#2f2118'; c.lineWidth = 5; c.beginPath(); c.moveTo(-7, -12); c.lineTo(4, 5); c.stroke(); c.strokeStyle = '#7b4a25'; c.lineWidth = 3; c.stroke(); c.fillStyle = '#a4adad'; c.strokeStyle = '#3d4545'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(4, 4); c.lineTo(13, 8); c.lineTo(10, 17); c.lineTo(1, 13); c.lineTo(-1, 8); c.closePath(); c.fill(); c.stroke(); c.restore(); }
@@ -362,6 +377,7 @@ function drawMiniSolarPanel(c) { c.fillStyle = '#20343a'; roundedRect(c, -13, -9
 function drawMiniBattery(c, x = 0, y = 0, scale = 1) { c.save(); c.translate(x, y); c.scale(scale, scale); c.fillStyle = '#5f625d'; roundedRect(c, -9, -11, 18, 21, 3); c.fill(); c.stroke(); c.fillStyle = '#d3a95f'; c.fillRect(-4, -4, 8, 8); c.restore(); }
 function drawMiniPrinter(c) { c.strokeStyle = '#26322d'; c.lineWidth = 2; roundedRect(c, -11, -12, 22, 22, 3); c.stroke(); c.fillStyle = '#d8ded9'; roundedRect(c, -8, 4, 16, 7, 2); c.fill(); c.stroke(); c.fillStyle = '#80a9c9'; c.fillRect(-5, -8, 10, 4); }
 function drawMiniAssembler(c) { c.strokeStyle = '#20291f'; c.lineWidth = 3; c.beginPath(); c.moveTo(-8, 8); c.lineTo(-3, -5); c.lineTo(10, -12); c.stroke(); c.fillStyle = '#9abf8f'; c.beginPath(); c.arc(-8, 8, 4, 0, Math.PI * 2); c.arc(10, -12, 3, 0, Math.PI * 2); c.fill(); c.stroke(); c.fillStyle = '#c7b683'; roundedRect(c, -5, 4, 14, 7, 2); c.fill(); c.stroke(); }
+function drawMiniArrowPack(c, x = 0, y = 0, scale = 1) { c.save(); c.translate(x, y); c.scale(scale, scale); c.fillStyle = '#d3a95f'; roundedRect(c, -8, -7, 16, 14, 2); c.fill(); c.stroke(); c.strokeStyle = '#8a5c2c'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-4, 4); c.lineTo(4, -4); c.moveTo(-5, 0); c.lineTo(3, -8); c.stroke(); c.restore(); }
 function drawMiniParts(c, x = 0, y = 0, scale = 1) { c.save(); c.translate(x, y); c.scale(scale, scale); c.strokeStyle = '#2a2118'; c.lineWidth = 1.5; c.fillStyle = '#c7b683'; c.beginPath(); c.arc(-7, 0, 5, 0, Math.PI * 2); c.arc(7, -2, 4, 0, Math.PI * 2); c.fill(); c.stroke(); c.strokeStyle = '#9aa3a3'; c.lineWidth = 2; c.beginPath(); c.moveTo(-2, 8); c.lineTo(12, 7); c.moveTo(0, -8); c.lineTo(10, -12); c.stroke(); c.restore(); }
 
 function roundedRect(c, x, y, w, h, r) {

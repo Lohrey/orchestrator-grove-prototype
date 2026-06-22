@@ -64,6 +64,11 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             packs = page.evaluate("window.assistantKnowledgePacks")
             loadout = page.evaluate("window.assistantLoadout")
             assert "starter_automation" in packs, packs
+            assert "dog_fetch" in packs, packs
+            dog_pack = packs["dog_fetch"]
+            assert dog_pack["custom"] is True, dog_pack
+            assert dog_pack["unlockedOps"] == ["pick_up", "follow"], dog_pack
+            assert dog_pack["concepts"][0] == "The assigned bot is always the dog.", dog_pack
             assert "woodworking" in loadout and "logistics" in loadout, loadout
             assert "Assistant knowledge packs" in page.evaluate("window.dslActionWikiText"), page.evaluate("window.dslActionWikiText")
 
@@ -71,6 +76,7 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             knowledge_class = page.locator('[data-settings-panel="knowledge"]').get_attribute("class") or ""
             assert "is-active" in knowledge_class, knowledge_class
             assert page.locator("#knowledgePackList [data-knowledge-pack]").count() == len(packs)
+            assert "selected" in page.locator("#knowledgePackTokenSummary").inner_text()
             foldouts = page.locator("details.prompt-foldout")
             assert foldouts.count() == 3, foldouts.count()
             assert page.locator("details.prompt-foldout[open]").count() == 0
@@ -84,12 +90,14 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
             assert prompt_before.strip().startswith("{"), prompt_before
             assert prompt_before_json["systemPrompt"]["role"] == "command_compiler", prompt_before_json
             assert prompt_before_json["userPrompt"]["request"] == "[current user request will appear here]", prompt_before_json
+            assert prompt_before_json["tokenCounts"]["finalPrompt"] > 0, prompt_before_json
             assert prompt_before_json["messages"][1]["content"]["request"] == "[current user request will appear here]", prompt_before_json
             assert any(action["op"] == "mine_stone" for action in prompt_before_json["knowledge"]["capabilities"]["actions"]), prompt_before_json
             page.fill("#chatInput", "bot 1 feed sawbench with logs")
             prompt_with_request = page.evaluate("window.getAssistantPromptPreview()")
             prompt_with_request_json = parse_prompt_preview(page)
             assert prompt_with_request_json["messages"][1]["content"]["request"] == "bot 1 feed sawbench with logs", prompt_with_request_json
+            assert "tokens" in page.locator("#assistantPromptTokenSummary").inner_text()
             page.uncheck('[data-knowledge-pack="mining_tools"]')
             stored = page.evaluate("localStorage.getItem('orchestratorGrove.assistantLoadout.v1')")
             assert "mining_tools" not in stored, stored

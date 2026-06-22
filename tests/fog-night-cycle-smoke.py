@@ -1,47 +1,70 @@
 #!/usr/bin/env python3
-import functools
-import http.server
-import os
+from __future__ import annotations
+
+import io
 import math
-import socketserver
-import threading
+import os
+import subprocess
+import time
 from pathlib import Path
 
+from PIL import Image
 from playwright.sync_api import sync_playwright
 
-ROOT = Path(__file__).resolve().parents[1]
-BASE_URL = os.environ.get("ORCHESTRATOR_GROVE_BASE_URL", "").rstrip("/")
+from bot_tool_smoke_utils import ROOT, SERVER_URL, start_local_server, wait_for_server
+
+BASE_URL = (os.environ.get("ORCHESTRATOR_GROVE_BASE_URL") or os.environ.get("BASE_URL") or "").rstrip("/")
 SCREENSHOT = ROOT / ("t_2859e629-fog-night-cycle-public.png" if BASE_URL else "t_2859e629-fog-night-cycle-smoke.png")
 
-class QuietHandler(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, format: str, *args) -> None:  # noqa: A002
-        pass
 
 def distance(a, b):
     return math.hypot(a["x"] - b["x"], a["y"] - b["y"])
+
+
+def average_brightness(image: Image.Image, center_x: float, center_y: float, radius: int = 18) -> float:
+    x0 = max(0, int(round(center_x - radius)))
+    y0 = max(0, int(round(center_y - radius)))
+    x1 = min(image.width, int(round(center_x + radius)))
+    y1 = min(image.height, int(round(center_y + radius)))
+    pixels = []
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            r, g, b = image.getpixel((x, y))
+            pixels.append((r + g + b) / 3)
+    return sum(pixels) / max(1, len(pixels))
+
 
 def run_smoke(url: str) -> None:
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1280, "height": 840})
-        errors = []
-        page.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
+        errors: list[str] = []
+        logs: list[str] = []
+        page.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else logs.append(f"{msg.type}: {msg.text}"))
+        page.on("pageerror", lambda exc: errors.append(str(exc)))
         page.goto(url, wait_until="networkidle")
         page.wait_for_function("() => window.getGameState && window.gameMenuDebug && window.teachDebug")
-        page.locator("#mainMenuNewBtn").click()
-        page.wait_for_function("() => !document.getElementById('mainMenuModeLayer').hidden")
-        page.locator("#mainMenuStartSelectedBtn").click()
+        page.evaluate(
+            """
+            async () => {
+              const waitFrame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              window.gameMenuDebug.startTest();
+              await waitFrame();
+              await waitFrame();
+            }
+            """
+        )
         page.wait_for_function("() => window.getGameState().gameMode === 'test' && !window.getGameState().paused")
 
         initial = page.evaluate("window.getGameState()")
+        assert initial["rendererBackend"] == "pixi", initial["rendererBackend"]
         assert initial["fogOfWar"]["enabled"], initial["fogOfWar"]
         assert initial["fogOfWar"]["cellSize"] == 64, initial["fogOfWar"]
         assert "visibleCount" in initial["fogOfWar"], initial["fogOfWar"]
         assert initial["dayNight"]["label"] in {"Dawn", "Day", "Dusk", "Night"}, initial["dayNight"]
 
-        # Advance through one long night update: it should flip to night, explore fog cells,
-        # and create a night monster far away from the player/building cluster.
         state = page.evaluate("window.teachDebug.tickWorld(74)")
+        page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
         assert state["dayNight"]["isNight"], state["dayNight"]
         assert state["dayNight"]["nightAmount"] > 0.7, state["dayNight"]
         assert state["fogOfWar"]["exploredCount"] > 0, state["fogOfWar"]
@@ -59,72 +82,69 @@ def run_smoke(url: str) -> None:
             assert monster.get("avoidRadius", 0) >= 650, monster
             assert monster.get("roamRadius", 0) >= 500, monster
 
-        production_lights = [obj for obj in structures if obj["type"] in {"sawbench", "workbench", "factory", "smithery", "bowmaker", "defensetower"}]
+        production_lights = [obj for obj in structures if obj["type"] in {"sawbench", "workbench", "factory", "smithery", "bowmaker", "arrowmaker", "defensetower"}]
         assert production_lights, structures
 
-        # Regression guard for t_de3368b1: fog reveal masks must not erase the
-        # already-rendered scene. Sample live canvas pixels around the player
-        # and a lit structure; both should remain opaque/visible at night.
-        page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
-        visibility = page.evaluate(
+        sample_points = page.evaluate(
             """
             () => {
               const state = window.getGameState();
               const camera = window.getCameraState().camera;
-              const canvas = document.getElementById('game');
-              const ctx = canvas.getContext('2d');
               const zoom = camera.zoom || 1;
-              const lightTypes = new Set(['sawbench', 'workbench', 'factory', 'smithery', 'bowmaker', 'defensetower']);
+              const lightTypes = new Set(['sawbench', 'workbench', 'factory', 'smithery', 'bowmaker', 'arrowmaker', 'defensetower']);
               const structure = state.structures.find(s => lightTypes.has(s.type)) || state.structures[0];
-              const samples = [
-                { name: 'player', x: state.player.x, y: state.player.y, radius: 10 },
-                { name: 'structure', x: structure.x + (structure.w || 48) / 2, y: structure.y + (structure.h || 48) / 2, radius: 18, type: structure.type }
-              ];
-              const read = sample => {
-                const sx = Math.round((sample.x - camera.x) * zoom);
-                const sy = Math.round((sample.y - camera.y) * zoom);
-                const pixels = [];
-                for (let y = sy - sample.radius; y <= sy + sample.radius; y += 2) {
-                  for (let x = sx - sample.radius; x <= sx + sample.radius; x += 2) {
-                    if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) continue;
-                    const d = ctx.getImageData(x, y, 1, 1).data;
-                    pixels.push([d[0], d[1], d[2], d[3]]);
-                  }
-                }
-                const opaque = pixels.filter(p => p[3] > 220).length;
-                const bright = pixels.filter(p => p[3] > 220 && (p[0] + p[1] + p[2]) > 120).length;
-                const alpha = pixels.reduce((total, p) => total + p[3], 0) / Math.max(1, pixels.length);
-                const maxSaturation = Math.max(0, ...pixels.map(p => Math.max(p[0], p[1], p[2]) - Math.min(p[0], p[1], p[2])));
-                return { ...sample, sx, sy, count: pixels.length, opaque, bright, avgAlpha: alpha, maxSaturation };
+              return {
+                player: {
+                  x: (state.player.x - camera.x) * zoom,
+                  y: (state.player.y - camera.y) * zoom
+                },
+                structure: {
+                  x: ((structure.x + ((structure.w || 48) / 2)) - camera.x) * zoom,
+                  y: ((structure.y + ((structure.h || 48) / 2)) - camera.y) * zoom,
+                  type: structure.type
+                },
+                fogProbe: { x: 80, y: 120 }
               };
-              return Object.fromEntries(samples.map(sample => [sample.name, read(sample)]));
             }
             """
         )
-        assert visibility["player"]["count"] > 0, visibility
-        assert visibility["player"]["opaque"] >= 50, visibility
-        assert visibility["player"]["bright"] >= 30, visibility
-        assert visibility["player"]["avgAlpha"] > 220, visibility
-        assert visibility["structure"]["count"] > 0, visibility
-        assert visibility["structure"]["opaque"] >= 120, visibility
-        assert visibility["structure"]["avgAlpha"] > 220, visibility
-        assert visibility["structure"]["maxSaturation"] >= 18, visibility
 
-        page.screenshot(path=str(SCREENSHOT), full_page=True)
+        canvas_png = page.locator("#game").screenshot(path=str(SCREENSHOT))
+        image = Image.open(io.BytesIO(canvas_png)).convert("RGB")
+        fog_brightness = average_brightness(image, sample_points["fogProbe"]["x"], sample_points["fogProbe"]["y"])
+        player_brightness = average_brightness(image, sample_points["player"]["x"], sample_points["player"]["y"])
+        structure_brightness = average_brightness(image, sample_points["structure"]["x"], sample_points["structure"]["y"])
+
+        assert fog_brightness < 40, {"fog_brightness": fog_brightness}
+        assert player_brightness > fog_brightness + 55, {
+            "fog_brightness": fog_brightness,
+            "player_brightness": player_brightness,
+        }
+        assert structure_brightness > fog_brightness + 25, {
+            "fog_brightness": fog_brightness,
+            "structure_brightness": structure_brightness,
+            "structure_type": sample_points["structure"]["type"],
+        }
+
         assert SCREENSHOT.exists() and SCREENSHOT.stat().st_size > 20_000, SCREENSHOT
+        assert not any("Pixi renderer failed" in log for log in logs), logs
+        assert not any("PixiJS Deprecation Warning" in log for log in logs), logs
         assert not errors, errors
         browser.close()
 
+
 if BASE_URL:
-    run_smoke(f"{BASE_URL}/index.html?v=t_2859e629")
+    run_smoke(f"{BASE_URL}/index.html?renderer=pixi&v=t_2859e629")
 else:
-    with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, directory=str(ROOT))) as server:
-        port = server.server_address[1]
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
+    server = start_local_server()
+    try:
+        wait_for_server(f"{SERVER_URL}/index.html")
+        run_smoke(f"{SERVER_URL}/index.html?renderer=pixi&v=t_2859e629")
+    finally:
+        server.terminate()
         try:
-            run_smoke(f"http://127.0.0.1:{port}/index.html?v=t_2859e629")
-        finally:
-            server.shutdown()
+            server.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            server.kill()
 
 print("fog/night cycle smoke passed")

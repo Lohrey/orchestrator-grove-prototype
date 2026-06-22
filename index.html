@@ -279,6 +279,10 @@
                 <span class="build-icon" aria-hidden="true">🏹</span>
                 <span class="build-copy"><b>Bowmaker</b><small>Arched bow hut</small></span>
               </button>
+              <button type="button" data-build="arrowmaker" aria-label="Place Arrowmaker">
+                <span class="build-icon" aria-hidden="true">🪶</span>
+                <span class="build-copy"><b>Arrowmaker</b><small>Fletching shed</small></span>
+              </button>
               <button type="button" data-build="defensetower" aria-label="Place Defense Tower">
                 <span class="build-icon" aria-hidden="true">🛡️</span>
                 <span class="build-copy"><b>Defense Tower</b><small>Tall guard tower</small></span>
@@ -343,57 +347,16 @@
         <button id="settingsClose" type="button" aria-label="Close settings">×</button>
       </header>
 
-      <nav class="settings-tabs" aria-label="Settings tabs">
-        <button type="button" class="is-active" data-settings-tab="controls" aria-selected="true">Controls</button>
-        <button type="button" data-settings-tab="performance" aria-selected="false">Performance</button>
-        <button type="button" data-settings-tab="stats" aria-selected="false">Stats</button>
-        <button type="button" data-settings-tab="voice" aria-selected="false">Voice</button>
-        <button type="button" data-settings-tab="audio" aria-selected="false">Audio</button>
-        <button type="button" data-settings-tab="ai" aria-selected="false">Local AI</button>
-        <button type="button" data-settings-tab="knowledge" aria-selected="false">Knowledge Packs</button>
-        <button type="button" data-settings-tab="log" aria-selected="false">log (chat)</button>
-        <button type="button" data-settings-tab="programs" aria-selected="false">DSL</button>
-        <button type="button" data-settings-tab="dsl-wiki" aria-selected="false">DSL Wiki</button>
-        <button type="button" data-settings-tab="step-chain" aria-selected="false">Step Chains</button>
-      </nav>
-
-      <section class="settings-section game-menu-actions-panel" aria-label="Pause and save controls">
-        <h3>Pause / Save</h3>
-        <div class="save-game-manager" id="saveGameManager">
-          <div class="save-manager-grid">
-            <label>Slot
-              <select id="saveSlotSelect"></select>
-            </label>
-            <label>New / edited slot name
-              <input id="saveSlotName" type="text" maxlength="64" placeholder="Camp experiment" />
-            </label>
-            <label>Save name
-              <input id="saveName" type="text" maxlength="64" placeholder="Before building bots" />
-            </label>
-            <label>Saved snapshots
-              <select id="saveEntrySelect"></select>
-            </label>
-          </div>
-          <div class="pause-save-actions save-manager-actions">
-            <button id="saveGameBtn" type="button">Create savegame</button>
-            <button id="loadGameBtn" type="button">Load selected savegame</button>
-            <button id="renameSlotBtn" type="button">Edit slot name</button>
-            <button id="deleteSlotBtn" type="button" class="danger-action">Delete slot</button>
-            <button id="renameSaveBtn" type="button">Edit savegame name</button>
-            <button id="deleteSaveBtn" type="button" class="danger-action">Delete savegame</button>
-          </div>
-          <div class="delete-old-savegames">
-            <label>Delete old savegames except newest
-              <input id="deleteKeepCount" type="number" min="0" step="1" value="3" />
-            </label>
-            <button id="deleteOldSavesBtn" type="button" class="danger-action">Delete old in slot</button>
-          </div>
-        </div>
+      <section id="settingsMainPanel" class="settings-section settings-main-panel" data-settings-panel="menu">
+        <h3>Game Menu</h3>
         <div class="pause-save-actions">
           <button id="resumeGameBtn" type="button">Resume game</button>
           <button id="pauseGameBtn" type="button">Pause game</button>
           <button id="fullscreenToggleBtn" type="button">Enter fullscreen</button>
           <button id="quitToMainMenuBtn" type="button" class="danger-action">Quit to main menu</button>
+        </div>
+        <div class="pause-save-actions settings-main-actions">
+          <button id="openSettingsTabBtn" type="button">Settings</button>
         </div>
         <p id="fullscreenStatus" class="small status-text">Fullscreen is off.</p>
         <div id="quitSavePrompt" class="quit-save-prompt" role="alertdialog" aria-live="polite" hidden>
@@ -405,8 +368,22 @@
             <button id="cancelQuitBtn" type="button">Cancel</button>
           </div>
         </div>
-        <p id="saveGameStatus" class="small status-text">Single-player can be paused and saved to this browser cache.</p>
       </section>
+
+      <nav class="settings-tabs" aria-label="Settings tabs">
+        <button type="button" class="is-active" data-settings-tab="controls" aria-selected="true">Controls</button>
+        <button type="button" data-settings-tab="save-load" aria-selected="false">Save / Load</button>
+        <button type="button" data-settings-tab="performance" aria-selected="false">Performance</button>
+        <button type="button" data-settings-tab="stats" aria-selected="false">Stats</button>
+        <button type="button" data-settings-tab="voice" aria-selected="false">Voice</button>
+        <button type="button" data-settings-tab="audio" aria-selected="false">Audio</button>
+        <button type="button" data-settings-tab="ai" aria-selected="false">Local AI</button>
+        <button type="button" data-settings-tab="knowledge" aria-selected="false">Knowledge Packs</button>
+        <button type="button" data-settings-tab="log" aria-selected="false">log (chat)</button>
+        <button type="button" data-settings-tab="programs" aria-selected="false">DSL</button>
+        <button type="button" data-settings-tab="dsl-wiki" aria-selected="false">DSL Wiki</button>
+        <button type="button" data-settings-tab="step-chain" aria-selected="false">Step Chains</button>
+      </nav>
 
       <section class="settings-section settings-tab-panel is-active" data-settings-panel="controls">
         <h3>Game Controls</h3>
@@ -423,6 +400,65 @@
           <span><b>Game menu:</b> Esc or mobile Menu opens pause/settings</span>
         </div>
         <p class="small">Performance and hardware tuning lives in the <b>Performance</b> tab.</p>
+      </section>
+
+      <section class="settings-section settings-tab-panel" data-settings-panel="save-load">
+        <h3>Pause / Save</h3>
+        <div class="save-flow" id="saveGameManager">
+          <div class="save-flow-step save-flow-choice">
+            <p class="small save-flow-kicker">Step 1. Choose what you want to do.</p>
+            <div class="save-flow-choice-actions" role="tablist" aria-label="Save or load mode">
+              <button type="button" data-save-flow-mode="save" aria-pressed="false">Save game</button>
+              <button type="button" data-save-flow-mode="load" aria-pressed="false">Load game</button>
+            </div>
+            <p id="saveFlowPlaceholder" class="small status-text save-flow-placeholder" data-save-flow-placeholder>Select Save game or Load game to reveal the matching controls.</p>
+          </div>
+          <div class="save-flow-step" data-save-flow-panel="save" hidden>
+            <h4>Step 2. Save options</h4>
+            <div class="save-manager-grid">
+              <label>Slot
+                <select id="saveSlotSelect"></select>
+              </label>
+              <label>New / edited slot name
+                <input id="saveSlotName" type="text" maxlength="64" placeholder="Camp experiment" />
+              </label>
+              <label>Save name
+                <input id="saveName" type="text" maxlength="64" placeholder="Before building bots" />
+              </label>
+            </div>
+            <div class="pause-save-actions save-manager-actions">
+              <button id="saveGameBtn" type="button">Create savegame</button>
+              <button id="renameSlotBtn" type="button">Edit slot name</button>
+              <button id="deleteSlotBtn" type="button" class="danger-action">Delete slot</button>
+            </div>
+            <div class="delete-old-savegames">
+              <label>Delete old savegames except newest
+                <input id="deleteKeepCount" type="number" min="0" step="1" value="3" />
+              </label>
+              <button id="deleteOldSavesBtn" type="button" class="danger-action">Delete old in slot</button>
+            </div>
+          </div>
+          <div class="save-flow-step" data-save-flow-panel="load" hidden>
+            <h4>Step 2. Load options</h4>
+            <div class="save-manager-grid">
+              <label>Slot
+                <select id="saveSlotSelectLoad"></select>
+              </label>
+              <label>Saved snapshots
+                <select id="saveEntrySelect"></select>
+              </label>
+              <label>Savegame name
+                <input id="saveNameLoad" type="text" maxlength="64" placeholder="Before building bots" />
+              </label>
+            </div>
+            <div class="pause-save-actions save-manager-actions">
+              <button id="loadGameBtn" type="button">Load selected savegame</button>
+              <button id="renameSaveBtn" type="button">Edit savegame name</button>
+              <button id="deleteSaveBtn" type="button" class="danger-action">Delete savegame</button>
+            </div>
+          </div>
+        </div>
+        <p id="saveGameStatus" class="small status-text">Single-player can be paused and saved to this browser cache.</p>
       </section>
 
       <section class="settings-section settings-tab-panel" data-settings-panel="performance">
@@ -617,6 +653,7 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
 
       <section class="settings-section settings-tab-panel" data-settings-panel="knowledge">
         <h3>Assistant Knowledge Packs</h3>
+        <p id="knowledgePackTokenSummary" class="small status-text">0 selected · ~0 tokens</p>
         <p class="small">Choose which DSL concepts, vocabulary, operations, and optional runtime name lists are equipped for the assistant parser and Ollama prompt. Saved in this browser.</p>
         <div id="knowledgePackList" class="knowledge-pack-list"></div>
         <section class="custom-action-pack-editor" aria-label="Custom action pack editor">
@@ -664,7 +701,7 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
           <pre id="assistantLoadoutView" class="program-view assistant-loadout-view"></pre>
         </details>
         <details class="prompt-foldout">
-          <summary>Final AI prompt preview</summary>
+          <summary>Final AI prompt preview <span id="assistantPromptTokenSummary" class="muted-cell">~0 tokens</span></summary>
           <p class="small">Exact system/user prompt messages generated from the current world context, selected packs, template-routing setting, and the current chat draft (or a placeholder request).</p>
           <pre id="assistantPromptPreview" class="program-view assistant-prompt-preview">Prompt preview will appear after the world loads.</pre>
         </details>
@@ -698,6 +735,7 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
   </div>
 
   <div id="botMenu" class="entity-menu" hidden></div>
+  <div id="dogPopup" class="entity-menu dog-popup" hidden></div>
   <div id="structureMenu" class="entity-menu" hidden></div>
 
   <script type="module" src="ui-overlays/ui-overlays.js?v=t_building_kits_0618"></script>

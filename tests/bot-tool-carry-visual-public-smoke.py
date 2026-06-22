@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Public regression: bot-held crude tools are carried at the hand, not above the head."""
+"""Public regression: bot-held crude tools are carried at the hand in the Pixi backend."""
 
 from __future__ import annotations
 
@@ -7,72 +7,34 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+from bot_tool_smoke_utils import BOT_TOOL_CAPTURE_JS
+
 URL = "https://docs.pau1.cloud/public/prototypes/orchestrator-grove/index.html?v=t_fe2b07c8"
 SHOT = Path("/root/agent-api-hub/public/prototypes/orchestrator-grove/t_fe2b07c8-bot-tool-carry-public.png")
+IGNORED_WARNING_TEXT = "GPU stall due to ReadPixels"
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     page = browser.new_page(viewport={"width": 420, "height": 280})
     errors: list[str] = []
-    page.on("console", lambda msg: errors.append(f"{msg.type}: {msg.text}") if msg.type in ("error", "warning") else None)
+    page.on(
+        "console",
+        lambda msg: errors.append(f"{msg.type}: {msg.text}")
+        if msg.type in ("error", "warning") and IGNORED_WARNING_TEXT not in msg.text
+        else None,
+    )
     page.on("pageerror", lambda exc: errors.append(f"pageerror: {exc}"))
 
     page.goto(URL, wait_until="domcontentloaded", timeout=20000)
     page.wait_for_function("() => window.getGameState", timeout=20000)
 
-    result = page.evaluate(
-        """
-        async () => {
-          document.body.innerHTML = '<canvas id="botToolSmoke" width="420" height="280" style="width:420px;height:280px"></canvas>';
-          const canvas = document.getElementById('botToolSmoke');
-          const c = canvas.getContext('2d', { willReadFrequently: true });
-          const mod = await import('./src/canvas-renderer.js?v=t_fe2b07c8');
-          const bot = { id: 1, name: 'Bot 1', x: 180, y: 145, r: 11, color: '#80a9c9', inventory: null, tool: null, equipment: {}, facingX: 1, facingY: 0 };
-          const state = {
-            W: canvas.width, H: canvas.height,
-            map: { width: canvas.width, height: canvas.height },
-            camera: { x: 0, y: 0, zoom: 1 },
-            mouse: { hoverBot: null, hoverItem: null, hoverTree: null, hoverStructure: null },
-            holes: [], rocks: [], hempPlants: [], structures: [], projectiles: [], items: [], monsters: [], trees: [], zones: [], floaters: [], mapFeatures: [],
-            bots: [bot],
-            player: { x: -200, y: -200, r: 13, inventory: null, equipment: {}, facingX: 1, facingY: 0 },
-            assistant: { x: -240, y: -240, facingX: 1, facingY: 0 },
-            multiplayer: { enabled: false, players: {} }, placementType: null, zoneDraft: null
-          };
-          function region(cx, cy, w, h) {
-            const x = Math.max(0, Math.round(cx - w / 2));
-            const y = Math.max(0, Math.round(cy - h / 2));
-            return Array.from(c.getImageData(x, y, w, h).data);
-          }
-          function diff(a, b) {
-            let total = 0;
-            for (let i = 0; i < a.length; i += 4) total += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
-            return total;
-          }
-          function capture(type) {
-            bot.inventory = type ? { type, count: 1 } : null;
-            mod.drawWorld(state, c);
-            return { above: region(bot.x, bot.y - 24, 30, 22), hand: region(bot.x + 22, bot.y + 6, 34, 34) };
-          }
-          const empty = capture(null);
-          const tool = capture('crude_axe');
-          const log = capture('log');
-          const importUsed = performance.getEntriesByType('resource').some(e => e.name.includes('canvas-renderer.js?v=t_fe2b07c8'));
-          return {
-            aboveToolDiff: diff(empty.above, tool.above),
-            aboveLogDiff: diff(empty.above, log.above),
-            handToolDiff: diff(empty.hand, tool.hand),
-            handLogDiff: diff(empty.hand, log.hand),
-            importUsed
-          };
-        }
-        """
-    )
+    result = page.evaluate(BOT_TOOL_CAPTURE_JS)
 
     assert result["aboveLogDiff"] > result["aboveToolDiff"] * 2 + 1000, result
     assert result["handToolDiff"] > result["handLogDiff"] * 2 + 1000, result
     assert result["handToolDiff"] > 1500, result
-    assert result["importUsed"], result
+    assert result["pixiLoaded"], result
+    assert result["rendererBackend"] == "pixi", result
     page.screenshot(path=str(SHOT), full_page=False)
     browser.close()
     assert not errors, errors

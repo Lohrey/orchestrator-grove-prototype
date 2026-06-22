@@ -14,6 +14,7 @@ const LIGHT_EMITTING_STRUCTURE_TYPES = new Set([
   'factory',
   'smithery',
   'bowmaker',
+  'arrowmaker',
   'defensetower',
   'portable_3d_printer',
   'assembler',

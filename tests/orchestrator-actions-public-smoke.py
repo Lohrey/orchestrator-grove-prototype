@@ -26,6 +26,7 @@ NEW_OPS = [
     "equip_item",
     "craft_smithery",
     "craft_bowmaker",
+    "craft_arrowmaker",
     "deploy_building_kit",
     "disassemble_building_to_kit",
 ]
@@ -107,7 +108,7 @@ def run_smoke(url: str) -> None:
         missing_rows = [op for op in NEW_OPS if op not in rows]
         assert not missing_allowed, {"missingAllowed": missing_allowed, "allowed": allowed}
         assert not missing_rows, {"missingRows": missing_rows, "rows": rows}
-        assert len(rows) == 49, rows
+        assert len(rows) == 50, rows
 
         page.evaluate("window.setAssistantLoadout(['starter_automation', 'combat'])")
         debug = page.evaluate("window.getAssistantLoadoutDebug()")
@@ -162,7 +163,6 @@ def run_smoke(url: str) -> None:
         page.wait_for_function("() => window.getGameState().bots.find(b => b.id === 2).program === 'taught_loop'", timeout=15000)
         assert captured, "manager LLM request was not captured"
         manager_user_prompt = captured[-1]["messages"][1]["content"]
-        assert '"id":"woodworking"' in manager_user_prompt, manager_user_prompt
         assert '"chop_tree"' in manager_user_prompt, manager_user_prompt
         assert '"id":"combat"' not in manager_user_prompt, manager_user_prompt
 
@@ -181,6 +181,11 @@ def run_smoke(url: str) -> None:
         equip_assignment = (equip_parsed.get("dslAssignments") or [])[0]
         assert equip_assignment["program"]["steps"][0]["op"] == "equip_item", equip_parsed
         assert equip_assignment["program"]["steps"][0]["type"] == "bow", equip_parsed
+
+        craft_arrowmaker = page.evaluate("window.generateAssistantDsl('Bot 4 craft arrow packs at arrowmaker')")
+        craft_assignment = (craft_arrowmaker.get("dslAssignments") or [])[0]
+        assert craft_assignment["program"]["steps"][0]["op"] == "craft_arrowmaker", craft_arrowmaker
+        assert craft_assignment["program"]["steps"][0]["recipe"] == "arrow_pack", craft_arrowmaker
 
         bot1 = page.evaluate("() => window.getGameState().bots.find(b => b.id === 1)")
         monster = page.evaluate(

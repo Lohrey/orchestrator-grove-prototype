@@ -8,7 +8,7 @@ import { createMultiplayerController } from './multiplayer.js?v=t_f62dde4d_modes
 import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f';
 import { createRenderBackend } from './renderers/index.js?v=t_building_kits_0618';
 import { createSimWorkerClient } from './sim/sim-worker-client.js?v=t_building_kits_0618';
-import { LOCAL_AI_PROVIDERS, buildOllamaRequestBody, buildOpenAiCompatibleRequestBody, defaultOllamaEndpoint, formatOllamaFinalPrompt, getDefaultProviderConfig, normalizeAssistantLoadout, normalizeAssistantKnowledgePack, normalizeAssistantPackCatalog, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, summarizeAssistantLoadout, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_building_kits_0618';
+import { LOCAL_AI_PROVIDERS, buildOllamaRequestBody, buildOpenAiCompatibleRequestBody, defaultOllamaEndpoint, estimateTokenCount, formatOllamaFinalPrompt, getDefaultProviderConfig, normalizeAssistantLoadout, normalizeAssistantKnowledgePack, normalizeAssistantPackCatalog, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, summarizeAssistantLoadout, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_building_kits_0618';
 import { createAssistantSemanticRouter } from './assistant-router.js?v=t_building_kits_0618';
 import { formatSemanticRouteSummary } from './semantic-router.js?v=t_building_kits_0618';
 import { escapeHtml } from './utils.js?v=20260613-player-tools';
@@ -21,18 +21,25 @@ export async function startGame() {
     teachPanel: $('teachPanel'), teachCloseBtn: $('teachCloseBtn'), teachRecordBtn: $('teachRecordBtn'), teachAssignBtn: $('teachAssignBtn'), teachBotId: $('teachBotId'), teachStatus: $('teachStatus'), teachSteps: $('teachSteps'),
     sawLogs: $('sawLogs'), sawPlanks: $('sawPlanks'), sawPoles: $('sawPoles'), factoryPlanks: $('factoryPlanks'), factoryRecipe: $('factoryRecipe'), looseLogs: $('looseLogs'), loosePlanks: $('loosePlanks'), looseBase: $('looseBase'), paletteItems: $('paletteItems'), programSelect: $('programSelect'), programView: $('programView'),
     llmMode: $('llmMode'), templateRouting: $('templateRouting'), semanticRouting: $('semanticRouting'), semanticRouterStatus: $('semanticRouterStatus'), semanticRouterPackSelect: $('semanticRouterPackSelect'), semanticRouterTrainBtn: $('semanticRouterTrainBtn'), ollamaEndpoint: $('ollamaEndpoint'), ollamaModel: $('ollamaModel'), refreshModels: $('refreshModels'), benchmarkBtn: $('benchmarkBtn'), ollamaStatus: $('ollamaStatus'), llmProviderLabel: $('llmProviderLabel'), serverOllamaBtn: $('serverOllamaBtn'), localOllamaBtn: $('localOllamaBtn'), localTabbyBtn: $('localTabbyBtn'), localOllamaWindowsHelp: $('localOllamaWindowsHelp'), localTabbyHelp: $('localTabbyHelp'), asrMode: $('asrMode'), asrModeHelp: $('asrModeHelp'), browserSttModel: $('browserSttModel'), browserSttDownloadBtn: $('browserSttDownloadBtn'), browserSttUnloadBtn: $('browserSttUnloadBtn'), browserSttStatus: $('browserSttStatus'), browserSttProgress: $('browserSttProgress'), browserSttProgressText: $('browserSttProgressText'),
-    buildPanel: $('buildPanel'), buildStatus: $('buildStatus'), buildDrawer: $('buildDrawer'), buildDrawerToggle: $('buildDrawerToggle'), zonesPanel: $('zonesPanel'), zonesDrawer: $('zonesDrawer'), zonesDrawerToggle: $('zonesDrawerToggle'), zoneList: $('zoneList'), drawZoneDrawerButton: $('drawZoneDrawerButton'), botMenu: $('botMenu'), structureMenu: $('structureMenu'), templateDrawer: $('templateDrawer'), templateDrawerToggle: $('templateDrawerToggle'), templateSaveForm: $('templateSaveForm'), templateName: $('templateName'), templateStatus: $('templateStatus'), templateList: $('templateList'),
-    settingsOverlay: $('settingsOverlay'), settingsClose: $('settingsClose'), chatOverlay: $('chatOverlay'), chatToggle: $('chatToggle'), chatCollapse: $('chatCollapse'), assignmentToast: $('assignmentToast'),
+    buildPanel: $('buildPanel'), buildStatus: $('buildStatus'), buildDrawer: $('buildDrawer'), buildDrawerToggle: $('buildDrawerToggle'), zonesPanel: $('zonesPanel'), zonesDrawer: $('zonesDrawer'), zonesDrawerToggle: $('zonesDrawerToggle'), zoneList: $('zoneList'), drawZoneDrawerButton: $('drawZoneDrawerButton'), botMenu: $('botMenu'), dogPopup: $('dogPopup'), structureMenu: $('structureMenu'), templateDrawer: $('templateDrawer'), templateDrawerToggle: $('templateDrawerToggle'), templateSaveForm: $('templateSaveForm'), templateName: $('templateName'), templateStatus: $('templateStatus'), templateList: $('templateList'),
+    settingsOverlay: $('settingsOverlay'), settingsClose: $('settingsClose'), openSettingsTabBtn: $('openSettingsTabBtn'), settingsMainPanel: $('settingsMainPanel'), chatOverlay: $('chatOverlay'), chatToggle: $('chatToggle'), chatCollapse: $('chatCollapse'), assignmentToast: $('assignmentToast'),
     aiLog: $('aiLog'), dslWikiView: $('dslWikiView'), botDrawer: $('botDrawer'), botDrawerToggle: $('botDrawerToggle'), botSearch: $('botSearch'), botTeamForm: $('botTeamForm'), botTeamName: $('botTeamName'), botTeamColor: $('botTeamColor'), botTeamCreate: $('botTeamCreate'),
     multiplayerDrawer: $('multiplayerDrawer'), multiplayerDrawerToggle: $('multiplayerDrawerToggle'), multiplayerHostBtn: $('multiplayerHostBtn'), multiplayerJoinCode: $('multiplayerJoinCode'), multiplayerJoinBtn: $('multiplayerJoinBtn'), multiplayerSaveBtn: $('multiplayerSaveBtn'), multiplayerStatus: $('multiplayerStatus'), multiplayerSessionLink: $('multiplayerSessionLink'),
     mainMenuOverlay: $('mainMenuOverlay'), mainMenuCampaignBtn: $('mainMenuCampaignBtn'), mainMenuNewBtn: $('mainMenuNewBtn'), mainMenuModeChoices: $('mainMenuModeChoices'), mainMenuModeLayer: $('mainMenuModeLayer'), mainMenuOnlineLayer: $('mainMenuOnlineLayer'), mainMenuHostLayer: $('mainMenuHostLayer'), mainMenuStartSelectedBtn: $('mainMenuStartSelectedBtn'), mainMenuLoadBtn: $('mainMenuLoadBtn'), mainMenuBackBtn: $('mainMenuBackBtn'), mainMenuLocalAiBtn: $('mainMenuLocalAiBtn'), mainMenuHostBtn: $('mainMenuHostBtn'), mainMenuOnlineHostBtn: $('mainMenuOnlineHostBtn'), mainMenuOnlineBackBtn: $('mainMenuOnlineBackBtn'), mainMenuHostNewBtn: $('mainMenuHostNewBtn'), mainMenuHostLoadBtn: $('mainMenuHostLoadBtn'), mainMenuHostBackBtn: $('mainMenuHostBackBtn'), mainMenuJoinCode: $('mainMenuJoinCode'), mainMenuJoinBtn: $('mainMenuJoinBtn'), mainMenuStatus: $('mainMenuStatus'),
     campaignIntroOverlay: $('campaignIntroOverlay'), campaignIntroKicker: $('campaignIntroKicker'), campaignIntroTitle: $('campaignIntroTitle'), campaignIntroText: $('campaignIntroText'), campaignIntroSceneNo: $('campaignIntroSceneNo'), campaignIntroNextBtn: $('campaignIntroNextBtn'), campaignIntroSkipBtn: $('campaignIntroSkipBtn'),
-    resumeGameBtn: $('resumeGameBtn'), pauseGameBtn: $('pauseGameBtn'), fullscreenToggleBtn: $('fullscreenToggleBtn'), fullscreenStatus: $('fullscreenStatus'), saveGameBtn: $('saveGameBtn'), loadGameBtn: $('loadGameBtn'), quitToMainMenuBtn: $('quitToMainMenuBtn'), quitSavePrompt: $('quitSavePrompt'), saveAndQuitBtn: $('saveAndQuitBtn'), quitWithoutSaveBtn: $('quitWithoutSaveBtn'), cancelQuitBtn: $('cancelQuitBtn'), saveGameStatus: $('saveGameStatus'), saveSlotSelect: $('saveSlotSelect'), saveSlotName: $('saveSlotName'), saveName: $('saveName'), saveEntrySelect: $('saveEntrySelect'), renameSlotBtn: $('renameSlotBtn'), deleteSlotBtn: $('deleteSlotBtn'), renameSaveBtn: $('renameSaveBtn'), deleteSaveBtn: $('deleteSaveBtn'), deleteKeepCount: $('deleteKeepCount'), deleteOldSavesBtn: $('deleteOldSavesBtn'),
-    knowledgePackList: $('knowledgePackList'), knowledgePackStatus: $('knowledgePackStatus'), assistantLoadoutView: $('assistantLoadoutView'), assistantBasePromptView: $('assistantBasePromptView'), assistantPromptPreview: $('assistantPromptPreview'), resetKnowledgePacks: $('resetKnowledgePacks'), actionStepChainTable: $('actionStepChainTable'), customPackId: $('customPackId'), customPackName: $('customPackName'), customPackContextVariables: $('customPackContextVariables'), customPackConcepts: $('customPackConcepts'), customPackVocabulary: $('customPackVocabulary'), customPackExamples: $('customPackExamples'), customPackActionList: $('customPackActionList'), customPackAliasEditor: $('customPackAliasEditor'), saveCustomPack: $('saveCustomPack'), clearCustomPackForm: $('clearCustomPackForm'),
+    resumeGameBtn: $('resumeGameBtn'), pauseGameBtn: $('pauseGameBtn'), fullscreenToggleBtn: $('fullscreenToggleBtn'), fullscreenStatus: $('fullscreenStatus'), saveGameBtn: $('saveGameBtn'), loadGameBtn: $('loadGameBtn'), quitToMainMenuBtn: $('quitToMainMenuBtn'), quitSavePrompt: $('quitSavePrompt'), saveAndQuitBtn: $('saveAndQuitBtn'), quitWithoutSaveBtn: $('quitWithoutSaveBtn'), cancelQuitBtn: $('cancelQuitBtn'), saveGameStatus: $('saveGameStatus'), saveGameManager: $('saveGameManager'), saveFlowPlaceholder: $('saveFlowPlaceholder'), saveSlotSelect: $('saveSlotSelect'), saveSlotSelectLoad: $('saveSlotSelectLoad'), saveSlotName: $('saveSlotName'), saveName: $('saveName'), saveNameLoad: $('saveNameLoad'), saveEntrySelect: $('saveEntrySelect'), renameSlotBtn: $('renameSlotBtn'), deleteSlotBtn: $('deleteSlotBtn'), renameSaveBtn: $('renameSaveBtn'), deleteSaveBtn: $('deleteSaveBtn'), deleteKeepCount: $('deleteKeepCount'), deleteOldSavesBtn: $('deleteOldSavesBtn'),
+    knowledgePackList: $('knowledgePackList'), knowledgePackStatus: $('knowledgePackStatus'), knowledgePackTokenSummary: $('knowledgePackTokenSummary'), assistantLoadoutView: $('assistantLoadoutView'), assistantBasePromptView: $('assistantBasePromptView'), assistantPromptPreview: $('assistantPromptPreview'), assistantPromptTokenSummary: $('assistantPromptTokenSummary'), resetKnowledgePacks: $('resetKnowledgePacks'), actionStepChainTable: $('actionStepChainTable'), customPackId: $('customPackId'), customPackName: $('customPackName'), customPackContextVariables: $('customPackContextVariables'), customPackConcepts: $('customPackConcepts'), customPackVocabulary: $('customPackVocabulary'), customPackExamples: $('customPackExamples'), customPackActionList: $('customPackActionList'), customPackAliasEditor: $('customPackAliasEditor'), saveCustomPack: $('saveCustomPack'), clearCustomPackForm: $('clearCustomPackForm'),
     audioSfxToggle: $('audioSfxToggle'), audioSfxVolume: $('audioSfxVolume'), audioSfxTest: $('audioSfxTest'),
     widgetRoster: $('widgetRoster'), widgetRosterHandle: $('widgetRosterHandle'), radioWidgetToggle: $('radioWidgetToggle'), radioWidgetPanel: $('radioWidgetPanel'), radioStationButtons: $('radioStationButtons'), audioMusicStart: $('radioMusicStart'), audioMusicStop: $('radioMusicStop'), audioMusicVolume: $('radioMusicVolume'), audioMusicStatus: $('radioMusicStatus'),
     mobileControls: $('mobileControls'), mobileSettingsBtn: $('mobileSettingsBtn'), mobileBuildBtn: $('mobileBuildBtn'), mobileChatBtn: $('mobileChatBtn'), mobileInteractBtn: $('mobileInteractBtn'), mobileDropBtn: $('mobileDropBtn'), mobileZoomInBtn: $('mobileZoomInBtn'), mobileZoomOutBtn: $('mobileZoomOutBtn')
   };
+
+  function formatRendererStatus(backendText, probe = null) {
+    const backend = String(backendText || 'Renderer').trim();
+    if (!probe) return backend;
+    const probeText = String(probe.text || '').trim();
+    return probeText ? `${backend} · ${probeText}` : backend;
+  }
 
   function addChat(kind, html) {
     const d = document.createElement('div');
@@ -54,6 +61,10 @@ export async function startGame() {
     try { return JSON.parse(trimmed); }
     catch { return value; }
   }
+  function formatTokenCount(tokens = 0) {
+    const count = Math.max(0, Number(tokens) || 0);
+    return `~${count.toLocaleString()} tokens`;
+  }
   function formatAssistantPromptPreview(prompt) {
     return JSON.stringify({
       systemPrompt: parseJsonPreview(prompt.systemPrompt),
@@ -62,6 +73,12 @@ export async function startGame() {
         role: message.role,
         content: parseJsonPreview(message.content)
       })),
+      tokenCounts: {
+        systemPrompt: prompt.systemPromptTokens ?? estimateTokenCount(prompt.systemPrompt || ''),
+        userPrompt: prompt.userPromptTokens ?? estimateTokenCount(prompt.userPrompt || ''),
+        messages: prompt.messagesTokenCount ?? estimateTokenCount(formatOllamaFinalPrompt(prompt.messages || [])),
+        finalPrompt: prompt.finalPromptTokens ?? estimateTokenCount(prompt.finalPrompt || formatOllamaFinalPrompt(prompt.messages || []))
+      },
       loadoutKnowledge: prompt.loadoutKnowledge,
       equippedPacks: prompt.equippedPacks,
       unlockedOps: prompt.unlockedOps,
@@ -474,14 +491,23 @@ export async function startGame() {
       : buildOllamaRequestBody(requestText, game, { model, enableTemplates: getTemplateRoutingEnabled(), loadout: routedLoadout, knowledgePacks });
     if (dom.assistantBasePromptView) dom.assistantBasePromptView.textContent = prompt.systemPrompt;
     if (dom.assistantLoadoutView) dom.assistantLoadoutView.textContent = JSON.stringify(prompt.loadoutKnowledge, null, 2);
+    if (dom.assistantPromptTokenSummary) dom.assistantPromptTokenSummary.textContent = formatTokenCount(prompt.finalPromptTokens ?? estimateTokenCount(prompt.finalPrompt || ''));
     const previewText = formatAssistantPromptPreview(prompt);
     dom.assistantPromptPreview.textContent = previewText;
     return previewText;
+  }
+  function getSelectedKnowledgePackTokenCount(catalog = getActionPackCatalog(), loadout = assistantLoadout) {
+    const selectedIds = new Set(loadout);
+    return Object.values(catalog || {}).reduce((sum, pack) => sum + (selectedIds.has(pack.id) ? Number(pack.tokenCount || 0) : 0), 0);
   }
   function updateAssistantLoadoutDebug(message = '') {
     const debug = getAssistantLoadoutDebug();
     if (dom.assistantLoadoutView && !game) dom.assistantLoadoutView.textContent = JSON.stringify(debug, null, 2);
     updateAssistantPromptPreview();
+    if (dom.knowledgePackTokenSummary) {
+      const selectedTokens = getSelectedKnowledgePackTokenCount(getActionPackCatalog(), debug.selectedPackIds);
+      dom.knowledgePackTokenSummary.textContent = `${debug.selectedPackIds.length} selected · ${formatTokenCount(selectedTokens)}`;
+    }
     if (dom.knowledgePackStatus) dom.knowledgePackStatus.textContent = message || `${debug.selectedPackIds.length} knowledge/action pack(s) equipped · ${debug.unlockedOps.length} DSL op(s) unlocked.`;
     return debug;
   }
@@ -595,11 +621,15 @@ export async function startGame() {
     }
     const selected = new Set(assistantLoadout);
     const catalog = getActionPackCatalog();
+    if (dom.knowledgePackTokenSummary) {
+      const selectedTokens = getSelectedKnowledgePackTokenCount(catalog, assistantLoadout);
+      dom.knowledgePackTokenSummary.textContent = `${assistantLoadout.length} selected · ${formatTokenCount(selectedTokens)}`;
+    }
     dom.knowledgePackList.innerHTML = Object.values(catalog).map(pack => `
       <article class="knowledge-pack-card" data-knowledge-card="${escapeHtml(pack.id)}">
         <label class="checkline knowledge-pack-title">
           <input type="checkbox" data-knowledge-pack="${escapeHtml(pack.id)}" ${selected.has(pack.id) ? 'checked' : ''} />
-          <span><b>${escapeHtml(pack.name)}</b> <code>${escapeHtml(pack.id)}</code> <span class="knowledge-pack-kind">${pack.custom ? 'custom action pack' : 'built-in'}</span></span>
+          <span><b>${escapeHtml(pack.name)}</b> <code>${escapeHtml(pack.id)}</code> <span class="knowledge-pack-kind">${pack.custom ? 'custom action pack' : 'built-in'}</span> <span class="knowledge-pack-tokens">${escapeHtml(formatTokenCount(pack.tokenCount || 0))}</span></span>
         </label>
         <p class="small"><b>Concepts:</b> ${escapeHtml((pack.concepts || []).join(' · '))}</p>
         <p class="small"><b>Vocabulary:</b> ${escapeHtml((pack.vocabulary || []).join(', '))}</p>
@@ -735,7 +765,12 @@ export async function startGame() {
   });
   game.getDefaultManagerKnowledgePacks = () => getAssistantLoadout();
   game.managerMessageHandler = ({ manager, sender, message }) => handleManagerMessage(manager, message, { source: 'delegate_to_manager', sender });
-  game.renderer = { text: renderBackend.text || renderBackend.kind || 'Renderer ready', webgpu: false, reason: 'active backend', backend: renderBackend.kind };
+  game.renderer = {
+    text: formatRendererStatus(renderBackend.text || renderBackend.kind || 'Renderer ready'),
+    webgpu: false,
+    reason: 'active backend',
+    backend: renderBackend.kind
+  };
   const simWorker = createSimWorkerClient({ enabled: params.get('simWorker') !== '0' });
   const isMobileControlsDevice = () => {
     const coarse = window.matchMedia?.('(pointer: coarse)').matches;
@@ -759,14 +794,23 @@ export async function startGame() {
   game.audio = audio;
   setPerformanceProfileValue(storedPerformanceProfile);
   probeRenderer().then(renderer => {
-    game.renderer = { ...renderer, text: `${renderBackend.text || 'Renderer'} · ${renderer.text || ''}`.trim(), backend: renderBackend.kind };
+    game.renderer = {
+      ...renderer,
+      text: formatRendererStatus(renderBackend.text || 'Renderer', renderer),
+      backend: renderBackend.kind
+    };
     if (storedSettings?.targetFps || storedSettings?.maxBots) {
       syncPerformanceUi('Loaded performance settings from this browser.');
       return;
     }
     applyPerformancePreset(storedPerformanceProfile === 'custom' ? 'auto' : storedPerformanceProfile, { save: true });
   }).catch(err => {
-    game.renderer = { text: `${renderBackend.text || 'Renderer'} · probe failed`, webgpu: false, reason: err.message, backend: renderBackend.kind };
+    game.renderer = {
+      text: formatRendererStatus(renderBackend.text || 'Renderer', { text: 'GPU probe failed' }),
+      webgpu: false,
+      reason: err.message,
+      backend: renderBackend.kind
+    };
     syncPerformanceUi('Renderer probe failed; using conservative fallback heuristics.');
   });
   const multiplayer = createMultiplayerController({ game, dom, addChat });
@@ -795,20 +839,69 @@ export async function startGame() {
     if (open) {
       setMainMenuOpen(false, { keepPaused: true });
       if (!game.multiplayer?.enabled) game.setPaused(true);
-      setBuildDrawerOpen(false); setBotDrawerOpen(false); setTemplateDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.cancelPlacement(); game.cancelZoneDrawing(false); game.hideMenus(); syncSaveUi(); dom.settingsClose.focus();
+      setBuildDrawerOpen(false); setBotDrawerOpen(false); setTemplateDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.cancelPlacement(); game.cancelZoneDrawing(false); game.hideMenus(); syncSaveUi(); setSettingsView('menu'); dom.settingsClose.focus();
     } else if (!game.multiplayer?.enabled) {
       game.setPaused(false);
       syncSaveUi();
     }
   }
   function toggleSettings() { setSettingsOpen(dom.settingsOverlay.hidden); }
+  let saveLoadMode = '';
+  let settingsView = 'menu';
+  function syncSettingsViewUi() {
+    const menuVisible = settingsView !== 'tabs';
+    dom.settingsMainPanel?.classList.toggle('is-active', menuVisible);
+    if (dom.settingsMainPanel) dom.settingsMainPanel.hidden = !menuVisible;
+    document.querySelectorAll('.settings-tabs, .settings-tab-panel').forEach(el => {
+      el.hidden = menuVisible;
+    });
+    if (dom.openSettingsTabBtn) dom.openSettingsTabBtn.textContent = 'Settings';
+  }
+  function setSettingsView(view = 'menu') {
+    settingsView = view === 'tabs' ? 'tabs' : 'menu';
+    syncSettingsViewUi();
+    if (settingsView === 'tabs') {
+      setSettingsTab(document.querySelector('[data-settings-tab].is-active')?.dataset.settingsTab || 'controls');
+      dom.settingsClose.focus();
+    }
+  }
+  function syncSaveLoadModeUi() {
+    const buttons = document.querySelectorAll('[data-save-flow-mode]');
+    const panels = document.querySelectorAll('[data-save-flow-panel]');
+    const active = saveLoadMode === 'save' || saveLoadMode === 'load' ? saveLoadMode : '';
+    buttons.forEach(button => {
+      const selected = button.dataset.saveFlowMode === active;
+      button.classList.toggle('is-active', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+    panels.forEach(panel => {
+      const panelMode = panel.dataset.saveFlowPanel;
+      const visible = !!active && panelMode === active;
+      panel.hidden = !visible;
+    });
+    dom.saveGameManager?.classList.toggle('is-step-selected', !!active);
+    if (dom.saveFlowPlaceholder) dom.saveFlowPlaceholder.hidden = !!active;
+  }
+  function setSaveLoadMode(mode) {
+    const next = mode === 'save' || mode === 'load' ? mode : '';
+    if (saveLoadMode === next) {
+      syncSaveLoadModeUi();
+      return;
+    }
+    saveLoadMode = next;
+    syncSaveLoadModeUi();
+    renderSaveManagerUi();
+  }
   function setSettingsTab(name) {
+    settingsView = 'tabs';
+    syncSettingsViewUi();
     document.querySelectorAll('[data-settings-tab]').forEach(btn => {
       const active = btn.dataset.settingsTab === name;
       btn.classList.toggle('is-active', active);
       btn.setAttribute('aria-selected', String(active));
     });
     document.querySelectorAll('[data-settings-panel]').forEach(panel => panel.classList.toggle('is-active', panel.dataset.settingsPanel === name));
+    if (name === 'save-load') syncSaveLoadModeUi();
   }
   function setChatOpen(open) {
     dom.chatOverlay.classList.toggle('is-collapsed', !open);
@@ -912,6 +1005,10 @@ export async function startGame() {
       game.hideMenus();
       closed = true;
     }
+    if (dom.dogPopup && !dom.dogPopup.hidden) {
+      game.hideMenus();
+      closed = true;
+    }
     if (dom.structureMenu && !dom.structureMenu.hidden) {
       game.hideMenus();
       closed = true;
@@ -968,7 +1065,7 @@ export async function startGame() {
   }
   function renderSaveManagerUi({ message = '', preserve = true } = {}) {
     const mode = currentSaveMode();
-    const selectedSlotId = preserve ? dom.saveSlotSelect?.value : '';
+    const selectedSlotId = preserve ? (dom.saveSlotSelect?.value || dom.saveSlotSelectLoad?.value || '') : '';
     const selectedSaveId = preserve ? dom.saveEntrySelect?.value : '';
     const slots = saveGames.listSlots(mode);
     if (dom.saveSlotSelect) {
@@ -976,14 +1073,21 @@ export async function startGame() {
       const slotExists = slots.some(slot => slot.id === selectedSlotId);
       dom.saveSlotSelect.value = slotExists ? selectedSlotId : (slots[0]?.id || '');
     }
-    const slot = slots.find(entry => entry.id === dom.saveSlotSelect?.value) || null;
+    if (dom.saveSlotSelectLoad) {
+      dom.saveSlotSelectLoad.innerHTML = dom.saveSlotSelect?.innerHTML || '<option value="">+ New slot from typed name</option>';
+      dom.saveSlotSelectLoad.value = dom.saveSlotSelect?.value || '';
+    }
+    const slot = slots.find(entry => entry.id === (dom.saveSlotSelectLoad?.value || dom.saveSlotSelect?.value)) || null;
     if (dom.saveSlotName && !dom.saveSlotName.value) dom.saveSlotName.value = slot?.name || '';
+    if (dom.saveNameLoad && !dom.saveNameLoad.value) dom.saveNameLoad.value = dom.saveName?.value || '';
     const saves = slot?.saves || [];
     if (dom.saveEntrySelect) {
       dom.saveEntrySelect.innerHTML = saves.length ? saves.map(save => `<option value="${escapeHtml(save.id)}">${escapeHtml(save.name)} · ${escapeHtml(formatSaveTime(save.savedAt))}</option>`).join('') : '<option value="">No savegames in this slot</option>';
       const saveExists = saves.some(save => save.id === selectedSaveId);
       dom.saveEntrySelect.value = saveExists ? selectedSaveId : (saves[0]?.id || '');
     }
+    if (dom.saveSlotSelectLoad) dom.saveSlotSelectLoad.disabled = !slots.length;
+    if (dom.saveNameLoad) dom.saveNameLoad.disabled = !slot;
     if (dom.loadGameBtn) dom.loadGameBtn.disabled = !slot || !saves.length;
     if (dom.renameSlotBtn) dom.renameSlotBtn.disabled = !slot;
     if (dom.deleteSlotBtn) dom.deleteSlotBtn.disabled = !slot;
@@ -1100,7 +1204,7 @@ export async function startGame() {
       syncSaveUi();
     }
   }
-  function saveGameToCache({ slotId = dom.saveSlotSelect?.value || '', slotName = dom.saveSlotName?.value || '', saveName = dom.saveName?.value || '' } = {}) {
+  function saveGameToCache({ slotId = dom.saveSlotSelect?.value || dom.saveSlotSelectLoad?.value || '', slotName = dom.saveSlotName?.value || '', saveName = saveLoadMode === 'load' ? (dom.saveNameLoad?.value || dom.saveName?.value || '') : (dom.saveName?.value || dom.saveNameLoad?.value || '') } = {}) {
     const payload = game.exportSave();
     const mode = normalizeGameMode(payload.mode || currentSaveMode());
     const saved = saveGames.save(mode, payload, { slotId, slotName, saveName });
@@ -1110,15 +1214,18 @@ export async function startGame() {
       lastSuccessfulSaveAt = Date.parse(saved.save.savedAt) || Date.now();
       setQuitSavePromptOpen(false);
       if (dom.saveSlotName) dom.saveSlotName.value = saved.slot.name;
+      if (dom.saveSlotSelectLoad) dom.saveSlotSelectLoad.value = saved.slot.id;
       if (dom.saveName) dom.saveName.value = '';
+      if (dom.saveNameLoad) dom.saveNameLoad.value = '';
       renderSaveManagerUi({ message: `Saved ${modeLabel(mode)} → ${saved.slot.name} / ${saved.save.name} at ${formatSaveTime(saved.save.savedAt)}.`, preserve: false });
       if (dom.saveSlotSelect) dom.saveSlotSelect.value = saved.slot.id;
+      if (dom.saveSlotSelectLoad) dom.saveSlotSelectLoad.value = saved.slot.id;
       if (dom.saveEntrySelect) dom.saveEntrySelect.value = saved.save.id;
     }
     syncSaveUi(ok ? `Saved ${modeLabel(mode)} savegame at ${formatSaveTime(saved.save.savedAt)}.` : 'Save failed: browser cache unavailable.');
     return ok ? saved.save.payload : null;
   }
-  function loadGameFromCache({ closeMenus = true, mode = currentSaveMode(), slotId = dom.saveSlotSelect?.value || '', saveId = dom.saveEntrySelect?.value || '', asHost = false } = {}) {
+  function loadGameFromCache({ closeMenus = true, mode = currentSaveMode(), slotId = dom.saveSlotSelectLoad?.value || dom.saveSlotSelect?.value || '', saveId = dom.saveEntrySelect?.value || '', asHost = false } = {}) {
     const normalizedMode = normalizeGameMode(mode);
     const found = saveGames.load(normalizedMode, slotId, saveId);
     if (!found) { syncSaveUi(`No ${modeLabel(normalizedMode)} savegame in browser cache.`); return null; }
@@ -1636,11 +1743,26 @@ export async function startGame() {
   syncFullscreenUi();
   updateAssistantPromptPreview();
   dom.settingsClose.addEventListener('click', () => setSettingsOpen(false));
+  dom.openSettingsTabBtn?.addEventListener('click', () => setSettingsView('tabs'));
   dom.resumeGameBtn?.addEventListener('click', () => setSettingsOpen(false));
   dom.pauseGameBtn?.addEventListener('click', () => { if (!game.multiplayer?.enabled) { game.setPaused(true); syncSaveUi('Game paused.'); } });
   dom.saveGameBtn?.addEventListener('click', () => saveGameToCache());
   dom.loadGameBtn?.addEventListener('click', () => loadGameFromCache());
-  dom.saveSlotSelect?.addEventListener('change', () => { dom.saveSlotName && (dom.saveSlotName.value = ''); renderSaveManagerUi(); });
+  dom.saveSlotSelect?.addEventListener('change', () => {
+    if (dom.saveSlotSelectLoad) dom.saveSlotSelectLoad.value = dom.saveSlotSelect.value;
+    if (dom.saveSlotName) dom.saveSlotName.value = '';
+    renderSaveManagerUi();
+  });
+  dom.saveSlotSelectLoad?.addEventListener('change', () => {
+    if (dom.saveSlotSelect) dom.saveSlotSelect.value = dom.saveSlotSelectLoad.value;
+    if (dom.saveSlotName) dom.saveSlotName.value = '';
+    renderSaveManagerUi();
+  });
+  document.querySelectorAll('[data-save-flow-mode]').forEach(button => {
+    button.addEventListener('click', () => setSaveLoadMode(button.dataset.saveFlowMode));
+  });
+  syncSettingsViewUi();
+  syncSaveLoadModeUi();
   dom.saveEntrySelect?.addEventListener('change', () => renderSaveManagerUi());
   dom.renameSlotBtn?.addEventListener('click', () => {
     const ok = saveGames.renameSlot(currentSaveMode(), dom.saveSlotSelect?.value || '', dom.saveSlotName?.value || '');
@@ -1652,8 +1774,9 @@ export async function startGame() {
     syncSaveUi(ok ? 'Save slot deleted.' : 'Choose a slot to delete.');
   });
   dom.renameSaveBtn?.addEventListener('click', () => {
-    const ok = saveGames.renameSave(currentSaveMode(), dom.saveSlotSelect?.value || '', dom.saveEntrySelect?.value || '', dom.saveName?.value || '');
+    const ok = saveGames.renameSave(currentSaveMode(), dom.saveSlotSelectLoad?.value || dom.saveSlotSelect?.value || '', dom.saveEntrySelect?.value || '', dom.saveNameLoad?.value || dom.saveName?.value || '');
     if (dom.saveName) dom.saveName.value = '';
+    if (dom.saveNameLoad) dom.saveNameLoad.value = '';
     syncSaveUi(ok ? 'Savegame renamed.' : 'Choose a savegame and type a new save name first.');
   });
   dom.deleteSaveBtn?.addEventListener('click', () => {
@@ -1821,6 +1944,11 @@ export async function startGame() {
     tickCombat: seconds => { game.updatePlayer(Number(seconds) || 0); game.updateRangedAttackStructures(Number(seconds) || 0); game.updateProjectiles(Number(seconds) || 0); return window.getGameState(); },
     tickWorld: seconds => { game.update(Number(seconds) || 0); return window.getGameState(); }
   };
+  window.dogDebug = {
+    fetch: (botId, text) => game.setDogFetchCommand(botId, text),
+    praise: botId => game.praiseDogFetch(botId),
+    reject: botId => game.rejectDogFetch(botId)
+  };
   window.validateAssistantToolCalls = raw => validateToolCalls(raw, game, { loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
   window.validateAssistantDslAssignments = raw => validateDslAssignments(raw, game, { loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
   window.voiceInputDebug = {
@@ -1830,6 +1958,12 @@ export async function startGame() {
     transcribeUrl: chat.transcribeUrl,
     getChatSelection: chat.getSelection,
     getAsrMode,
+    isRecording: chat.isRecording,
+    startVoice: chat.startVoice,
+    stopVoice: chat.stopVoice,
+    toggleVoice: chat.toggleVoice,
+    setVoiceTargetInput: chat.setVoiceTargetInput,
+    clearVoiceTargetInput: chat.clearVoiceTargetInput,
     getBrowserSttState: () => browserStt.getState?.(),
     loadBrowserSttModel: (modelId = dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL) => browserStt.loadModel(modelId, { backend: 'auto' }),
     transcribeBrowserAudio: (audio, sampleRate = 16000, modelId = dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL) => browserStt.transcribe(audio, sampleRate, { modelId, backend: 'auto' })
@@ -1881,3 +2015,4 @@ export async function startGame() {
   if (!params.get('multiplayer')) setMainMenuOpen(true);
   startGameLoop(game);
 }
+

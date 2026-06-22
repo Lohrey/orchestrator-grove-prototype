@@ -20,7 +20,7 @@ const KNOWN_GPU_PROFILES = [
 
 const FALLBACK_GPU_PROFILES = {
   webgpu_unknown: { label: 'Unknown WebGPU-capable GPU', inferredVramGb: null, preset: 'balanced', recommendedTargetFps: 45, recommendedMaxBots: 96, maxBotsCap: 300, confidence: 'low' },
-  no_webgpu: { label: 'Canvas 2D fallback', inferredVramGb: null, preset: 'battery_saver', recommendedTargetFps: 30, recommendedMaxBots: 48, maxBotsCap: 120, confidence: 'low' }
+  no_webgpu: { label: 'WebGPU unavailable', inferredVramGb: null, preset: 'battery_saver', recommendedTargetFps: 30, recommendedMaxBots: 48, maxBotsCap: 120, confidence: 'low' }
 };
 
 function compactString(value) {
@@ -84,7 +84,7 @@ export async function probeRenderer({ userAgent = navigator.userAgent, gpu = nav
   if (!gpu || /HeadlessChrome/.test(userAgent)) {
     const inferred = inferGpuProfile({}, false);
     return {
-      text: 'Canvas 2D fallback',
+      text: 'WebGPU unavailable',
       webgpu: false,
       reason: 'navigator.gpu unavailable or headless',
       adapterInfo: {},
@@ -100,7 +100,7 @@ export async function probeRenderer({ userAgent = navigator.userAgent, gpu = nav
     await adapter.requestDevice();
     const inferred = inferGpuProfile(adapterInfo, true);
     return {
-      text: inferred.gpuText ? `Canvas 2D + WebGPU probe (${inferred.gpuText})` : 'Canvas 2D + WebGPU probe',
+      text: inferred.gpuText ? `WebGPU probe (${inferred.gpuText})` : 'WebGPU probe',
       webgpu: true,
       reason: 'ok',
       adapterInfo,
@@ -110,7 +110,7 @@ export async function probeRenderer({ userAgent = navigator.userAgent, gpu = nav
   } catch (e) {
     const inferred = inferGpuProfile({}, false);
     return {
-      text: 'Canvas 2D fallback',
+      text: 'WebGPU unavailable',
       webgpu: false,
       reason: e.message,
       adapterInfo: {},
