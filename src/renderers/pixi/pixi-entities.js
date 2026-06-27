@@ -17,6 +17,11 @@ import {
   getCharacterAnimationFrame,
   getCharacterFrameTexture
 } from './pixi-character-assets.js?v=t_renderer_split_0627';
+import {
+  isDogSpriteReady,
+  getDogSpriteAssets,
+  getDogFrameTexture
+} from './pixi-dog-spritesheet.js?v=t_dog_spritesheet_0627';
 
 // ── Tree views ─────────────────────────────────────────────────────
 export function createTreeView(PIXI, tree, getNameTagTexture) {
@@ -299,11 +304,15 @@ function createDogView(PIXI, bot, getItemTexture) {
   const container = new PIXI.Container();
   container.shadow = new PIXI.Graphics();
   container.body = new PIXI.Graphics();
+  // Spritesheet sprite (hidden until assets are ready)
+  container.sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
+  container.sprite.anchor.set(0.5, 0.85);
+  container.sprite.visible = false;
   container.inventory = new PIXI.Sprite();
   container.inventory.anchor.set(0.5);
   container.label = createText(PIXI, bot.name || 'Dog', { fontSize: 11, fontWeight: '700' });
   container.label.anchor.set(0.5, 0);
-  container.addChild(container.shadow, container.body, container.inventory, container.label);
+  container.addChild(container.shadow, container.body, container.sprite, container.inventory, container.label);
   updateBotView(container, bot, false, getItemTexture, () => null);
   return container;
 }
@@ -357,18 +366,52 @@ export function updateBotView(container, bot, hover, getItemTexture, getToolText
 
 function updateDogView(container, bot, hover, getItemTexture) {
   const radius = bot.r || 12;
+  const now = performance.now();
   container.position.set(bot.x || 0, bot.y || 0);
   container.zIndex = getDepthAnchorY('bot', bot);
   container.shadow.clear();
   fillPath(container.shadow, 0x000000, 0.25, path => path.ellipse(0, radius + 6, radius + 9, 5));
-  container.body.clear();
-  if (hover) {
-    fillPath(container.body, 0xfff4d0, 0.15, path => path.circle(0, 0, radius + 10));
+
+  // Determine if dog is moving (has a target/destination)
+  const isMoving = !!(bot.target || bot.dogFetchState || (bot.vx && bot.vy && (Math.abs(bot.vx) > 0.1 || Math.abs(bot.vy) > 0.1)));
+
+  // Try spritesheet rendering first
+  const dogAssets = getDogSpriteAssets();
+  if (dogAssets && dogAssets.ready && dogAssets.textures.length > 0) {
+    // Show sprite, hide vector body
+    container.sprite.visible = true;
+    container.body.visible = false;
+
+    // Animate walk cycle
+    const frameTexture = getDogFrameTexture(container.sprite, dogAssets, isMoving, now);
+    if (frameTexture) {
+      container.sprite.texture = frameTexture;
+    }
+
+    // Scale relative to bot radius
+    const spriteScale = (radius / 12) * 0.38;
+    container.sprite.scale.set(spriteScale);
+
+    // Flip sprite if facing left
+    const facingRight = (bot.facingX ?? 1) >= 0;
+    container.sprite.scale.x = facingRight ? spriteScale : -spriteScale;
+
+    // Position sprite centered on the dog
+    container.sprite.position.set(0, 0);
+  } else {
+    // Vector fallback rendering
+    container.sprite.visible = false;
+    container.body.visible = true;
+    container.body.clear();
+    if (hover) {
+      fillPath(container.body, 0xfff4d0, 0.15, path => path.circle(0, 0, radius + 10));
+    }
+    fillAndStrokePath(container.body, { fill: 0x8a6246, fillAlpha: 1, stroke: hover ? 0xfff4d0 : 0x3c281f, strokeWidth: hover ? 3 : 2 }, path => {
+      path.roundRect(-radius - 3, -radius + 2, (radius + 3) * 2, radius * 1.45, 8);
+    });
+    fillPath(container.body, 0x9d7457, 1, path => path.ellipse(0, -radius * 0.2, radius * 0.95, radius * 0.78));
   }
-  fillAndStrokePath(container.body, { fill: 0x8a6246, fillAlpha: 1, stroke: hover ? 0xfff4d0 : 0x3c281f, strokeWidth: hover ? 3 : 2 }, path => {
-    path.roundRect(-radius - 3, -radius + 2, (radius + 3) * 2, radius * 1.45, 8);
-  });
-  fillPath(container.body, 0x9d7457, 1, path => path.ellipse(0, -radius * 0.2, radius * 0.95, radius * 0.78));
+
   container.inventory.visible = !!bot.inventory?.type;
   if (bot.inventory?.type) {
     container.inventory.texture = getItemTexture(bot.inventory.type);

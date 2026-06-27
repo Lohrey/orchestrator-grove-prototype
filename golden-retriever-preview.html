@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Golden Retriever Walk Cycle — Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  h1 {
+    color: #e8c97a;
+    font-size: 1.5rem;
+    margin-bottom: 4px;
+  }
+  .subtitle { color: #8b949e; font-size: 0.85rem; margin-bottom: 20px; }
+
+  .container { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; }
+
+  .panel {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .panel h2 { font-size: 1rem; margin-bottom: 12px; color: #e8c97a; }
+
+  /* Animated preview */
+  .preview-area {
+    width: 320px;
+    height: 320px;
+    background:
+      linear-gradient(180deg, #1c2433 0%, #243040 50%, #2a3548 100%);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+  .ground-line {
+    position: absolute;
+    bottom: 50px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: rgba(255,255,255,0.15);
+  }
+  #animatedDog {
+    image-rendering: pixelated;
+    width: 256px;
+    height: 256px;
+  }
+
+  /* Controls */
+  .controls { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .control-row { display: flex; align-items: center; gap: 10px; }
+  label { font-size: 0.8rem; color: #8b949e; min-width: 90px; }
+  input[type="range"] { width: 180px; accent-color: #e8c97a; }
+  button {
+    background: #2362cc; color: #fff; border: none; padding: 8px 16px;
+    border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+  }
+  button:hover { background: #2f74d0; }
+  .btn-pause { background: #3a4250; }
+  .btn-pause:hover { background: #4a5260; }
+
+  /* Full spritesheet display */
+  .sheet-display {
+    width: 512px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 10px;
+  }
+  #fullSheet {
+    width: 100%;
+    image-rendering: pixelated;
+    display: block;
+    border-radius: 4px;
+  }
+  .grid-overlay {
+    position: relative;
+    margin-top: 8px;
+  }
+
+  /* Frame strip */
+  .frame-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 12px;
+    max-width: 512px;
+  }
+  .frame-cell {
+    width: 60px;
+    text-align: center;
+  }
+  .frame-cell canvas {
+    width: 60px; height: 60px;
+    background: #1a2230;
+    border-radius: 4px;
+    image-rendering: pixelated;
+  }
+  .frame-cell span {
+    font-size: 0.65rem;
+    color: #8b949e;
+    display: block;
+    margin-top: 2px;
+  }
+
+  .info { color: #8b949e; font-size: 0.75rem; margin-top: 8px; }
+  .status { color: #e8c97a; font-weight: 700; font-size: 0.8rem; }
+</style>
+</head>
+<body>
+  <h1>🐕 Golden Retriever Walk Cycle</h1>
+  <p class="subtitle">16-frame spritesheet · 4×4 grid · 1024×1024 (256px per frame) · transparent background</p>
+
+  <div class="container">
+    <!-- Animated Preview -->
+    <div class="panel">
+      <h2>Animated Preview</h2>
+      <div class="preview-area">
+        <div class="ground-line"></div>
+        <canvas id="animatedDog" width="256" height="256"></canvas>
+      </div>
+      <div class="controls">
+        <div class="control-row">
+          <label>Speed</label>
+          <input type="range" id="speedSlider" min="2" max="30" value="12">
+          <span id="speedVal">12 fps</span>
+        </div>
+        <div class="control-row">
+          <label>Scale</label>
+          <input type="range" id="scaleSlider" min="50" max="200" value="100">
+          <span id="scaleVal">100%</span>
+        </div>
+        <div class="control-row">
+          <button id="playBtn" class="btn-pause">⏸ Pause</button>
+          <button id="stepBtn">⏭ Step Frame</button>
+        </div>
+        <div class="status">Frame: <span id="frameNum">1</span> / 16</div>
+      </div>
+    </div>
+
+    <!-- Full Sheet -->
+    <div class="panel">
+      <h2>Full Spritesheet (4×4 Grid)</h2>
+      <div class="sheet-display">
+        <img id="fullSheet" src="assets/golden_retriever_walk_16f.png" alt="Golden retriever spritesheet">
+      </div>
+      <div class="frame-strip" id="frameStrip"></div>
+      <p class="info">Each cell = 256×256px. Frame 16 loops into Frame 1 seamlessly.</p>
+    </div>
+  </div>
+
+<script>
+const FRAME_COUNT = 16;
+const GRID_COLS = 4;
+const FRAME_SIZE = 256;
+const SHEET_SIZE = 1024;
+
+const SPRITE_URL = 'assets/golden_retriever_walk_16f.png';
+
+let spriteImage = null;
+let currentFrame = 0;
+let playing = true;
+let fps = 12;
+let lastTime = 0;
+let accumulator = 0;
+let scale = 1.0;
+
+const canvas = document.getElementById('animatedDog');
+const ctx = canvas.getContext('2d');
+
+// Load spritesheet
+const img = new Image();
+img.onload = () => {
+  spriteImage = img;
+  buildFrameStrip();
+  requestAnimationFrame(animate);
+};
+img.onerror = () => {
+  ctx.fillStyle = '#c86b5f';
+  ctx.font = '14px system-ui';
+  ctx.fillText('Failed to load spritesheet', 30, 128);
+};
+img.src = SPRITE_URL;
+
+function animate(time) {
+  if (!spriteImage) return;
+
+  if (playing) {
+    const frameDuration = 1000 / fps;
+    if (lastTime) accumulator += time - lastTime;
+    if (accumulator >= frameDuration) {
+      accumulator = 0;
+      currentFrame = (currentFrame + 1) % FRAME_COUNT;
+      document.getElementById('frameNum').textContent = currentFrame + 1;
+    }
+  }
+  lastTime = time;
+
+  // Draw current frame
+  ctx.clearRect(0, 0, 256, 256);
+  const col = currentFrame % GRID_COLS;
+  const row = Math.floor(currentFrame / GRID_COLS);
+  const sx = col * FRAME_SIZE;
+  const sy = row * FRAME_SIZE;
+
+  const drawW = 256 * scale;
+  const drawH = 256 * scale;
+  const dx = (256 - drawW) / 2;
+  const dy = (256 - drawH) / 2 + 20; // offset for ground line
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(spriteImage, sx, sy, FRAME_SIZE, FRAME_SIZE, dx, dy, drawW, drawH);
+
+  requestAnimationFrame(animate);
+}
+
+function buildFrameStrip() {
+  const strip = document.getElementById('frameStrip');
+  strip.innerHTML = '';
+  for (let i = 0; i < FRAME_COUNT; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'frame-cell';
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    const cx = c.getContext('2d');
+    const col = i % GRID_COLS;
+    const row = Math.floor(i / GRID_COLS);
+    cx.imageSmoothingEnabled = false;
+    cx.drawImage(spriteImage, col * FRAME_SIZE, row * FRAME_SIZE, FRAME_SIZE, FRAME_SIZE, 0, 0, 64, 64);
+    cell.appendChild(c);
+    const label = document.createElement('span');
+    label.textContent = `F${i + 1}`;
+    cell.appendChild(label);
+    cell.onclick = () => {
+      currentFrame = i;
+      document.getElementById('frameNum').textContent = i + 1;
+    };
+    cell.style.cursor = 'pointer';
+    strip.appendChild(cell);
+  }
+}
+
+// Controls
+document.getElementById('speedSlider').oninput = (e) => {
+  fps = parseInt(e.target.value);
+  document.getElementById('speedVal').textContent = fps + ' fps';
+};
+document.getElementById('scaleSlider').oninput = (e) => {
+  scale = parseInt(e.target.value) / 100;
+  document.getElementById('scaleVal').textContent = e.target.value + '%';
+};
+document.getElementById('playBtn').onclick = () => {
+  playing = !playing;
+  document.getElementById('playBtn').textContent = playing ? '⏸ Pause' : '▶ Play';
+};
+document.getElementById('stepBtn').onclick = () => {
+  playing = false;
+  document.getElementById('playBtn').textContent = '▶ Play';
+  currentFrame = (currentFrame + 1) % FRAME_COUNT;
+  document.getElementById('frameNum').textContent = currentFrame + 1;
+};
+</script>
+</body>
+</html>

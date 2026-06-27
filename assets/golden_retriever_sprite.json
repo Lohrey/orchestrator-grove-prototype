@@ -1,0 +1,118 @@
+{
+  "name": "Golden Retriever Walk Cycle",
+  "description": "16-frame side-view golden retriever dog walk cycle spritesheet",
+  "source": "Procedurally generated with Python/PIL (golden retriever walk cycle)",
+  "frameCount": 16,
+  "frameSize": {
+    "width": 256,
+    "height": 256
+  },
+  "grid": {
+    "cols": 4,
+    "rows": 4
+  },
+  "totalSize": {
+    "width": 1024,
+    "height": 1024
+  },
+  "runtimeSize": {
+    "width": 512,
+    "height": 512,
+    "frameWidth": 128,
+    "frameHeight": 128
+  },
+  "fps": 12,
+  "animationSpeed": 0.15,
+  "anchor": {
+    "x": 0.5,
+    "y": 0.85
+  },
+  "loop": true,
+  "facing": "right",
+  "variants": {
+    "master": "golden_retriever_walk_16f.png",
+    "runtime": "golden_retriever_walk_16f_512.png"
+  },
+  "frames": [
+    {
+      "index": 0,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "index": 1,
+      "x": 256,
+      "y": 0
+    },
+    {
+      "index": 2,
+      "x": 512,
+      "y": 0
+    },
+    {
+      "index": 3,
+      "x": 768,
+      "y": 0
+    },
+    {
+      "index": 4,
+      "x": 0,
+      "y": 256
+    },
+    {
+      "index": 5,
+      "x": 256,
+      "y": 256
+    },
+    {
+      "index": 6,
+      "x": 512,
+      "y": 256
+    },
+    {
+      "index": 7,
+      "x": 768,
+      "y": 256
+    },
+    {
+      "index": 8,
+      "x": 0,
+      "y": 512
+    },
+    {
+      "index": 9,
+      "x": 256,
+      "y": 512
+    },
+    {
+      "index": 10,
+      "x": 512,
+      "y": 512
+    },
+    {
+      "index": 11,
+      "x": 768,
+      "y": 512
+    },
+    {
+      "index": 12,
+      "x": 0,
+      "y": 768
+    },
+    {
+      "index": 13,
+      "x": 256,
+      "y": 768
+    },
+    {
+      "index": 14,
+      "x": 512,
+      "y": 768
+    },
+    {
+      "index": 15,
+      "x": 768,
+      "y": 768
+    }
+  ]
+}

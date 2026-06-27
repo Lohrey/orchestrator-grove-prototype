@@ -27,6 +27,7 @@ import {
   loadCharacterAssets,
   inferPlayerAction
 } from './pixi/pixi-character-assets.js?v=t_renderer_split_0627';
+import { loadDogSpriteSheet } from './pixi/pixi-dog-spritesheet.js?v=t_dog_spritesheet_0627';
 import {
   buildTerrainBaseTexture,
   buildTerrainDetailTexture,
@@ -94,6 +95,11 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
     Object.assign(characterAssets, assets);
   }).catch(error => {
     console.warn('Character sprites failed to load; using fallback actor rendering.', error);
+  });
+
+  // Load golden retriever spritesheet for dog entities (non-blocking, vector fallback used on failure)
+  loadDogSpriteSheet(PIXI).catch(error => {
+    console.warn('Dog spritesheet failed to load; using vector fallback for dogs.', error);
   });
 
   const textureCache = new Map();

@@ -9,6 +9,7 @@ import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f'
 import { createRenderBackend } from './renderers/index.js?v=t_building_kits_0618';
 import { createSimWorkerClient } from './sim/sim-worker-client.js?v=t_building_kits_0618';
 import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js?v=t_campaign_scenes_0623';
+import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=t_intro_cinematic_0627';
 import { LOCAL_AI_PROVIDERS, defaultOllamaEndpoint, getDefaultProviderConfig, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_building_kits_0618';
 import { escapeHtml } from './utils.js?v=20260613-player-tools';
 // UI module imports — extracted from the monolithic startGame() closure
@@ -60,6 +61,7 @@ export async function startGame() {
   const RECENT_SAVE_MS = 30000;
   let campaignIntroActive = false;
   let campaignIntroSceneIndex = 0;
+  let campaignCinematic = null;
   const PERFORMANCE_PRESETS = {
     battery_saver: { label: 'Battery saver', targetFps: 30, maxBots: 48 },
     balanced: { label: 'Balanced', targetFps: 45, maxBots: 96 },
@@ -663,6 +665,7 @@ export async function startGame() {
   }
   function closeCampaignIntro({ resume = false, message = '' } = {}) {
     campaignIntroActive = false;
+    if (campaignCinematic) { campaignCinematic.destroy(); campaignCinematic = null; }
     if (dom.campaignIntroOverlay) {
       dom.campaignIntroOverlay.hidden = true;
       dom.campaignIntroOverlay.classList.add('is-hidden');
@@ -700,11 +703,21 @@ export async function startGame() {
     campaignIntroActive = true;
     campaignIntroSceneIndex = 0;
     game.setPaused(true);
-    renderCampaignIntroScene();
-    dom.campaignIntroOverlay.hidden = false;
-    dom.campaignIntroOverlay.classList.remove('is-hidden');
-    syncSaveUi('Campaign intro playing. Press Esc to skip.');
-    setTimeout(() => dom.campaignIntroNextBtn?.focus(), 0);
+    // Hide the static HTML overlay — cinematic draws directly on canvas
+    dom.campaignIntroOverlay.hidden = true;
+    dom.campaignIntroOverlay.classList.add('is-hidden');
+    // Clean up any previous cinematic instance
+    if (campaignCinematic) { campaignCinematic.destroy(); campaignCinematic = null; }
+    // Create and start the canvas cinematic
+    campaignCinematic = createCampaignIntroCinematic({
+      canvas: game.canvas,
+      audio: audio,
+      scenes: CAMPAIGN_INTRO_SCENES,
+      onComplete: (reason) => { campaignCinematic = null; finishCampaignIntro(reason === 'skip' ? 'skip' : 'finished'); },
+      onSkip: () => { campaignCinematic = null; finishCampaignIntro('skip'); }
+    });
+    campaignCinematic.start();
+    syncSaveUi('Campaign intro cinematic playing. Press Esc to skip.');
     return true;
   }
   function setMainMenuOpen(open, { keepPaused = false } = {}) {

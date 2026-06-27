@@ -8,8 +8,9 @@ world model, assistant chat, rendering entry points, and the action-step registr
 repo-wide Action Step Mechanism Chain depends on.
 
 Key files (not exhaustive): `main.js`, `world.js`, `action-steps.js`, `data.js`, `assistant.js`,
-`chat.js`, `audio.js`, `browser-runtime.js`, `canvas-renderer.js`, `depth-sort.js`, `fog-of-war.js`,
-`render-state.js`, `savegames.js`, `multiplayer.js`, `utils.js`, `visual-assets.js`.
+`chat.js`, `audio.js`, `browser-runtime.js`, `canvas-renderer.js`, `campaign-scenes.js`,
+`campaign-intro-cinematic.js`, `depth-sort.js`, `fog-of-war.js`, `render-state.js`,
+`savegames.js`, `multiplayer.js`, `utils.js`, `visual-assets.js`.
 
 ## Ownership
 Orchestrator Grove prototype maintainers. The backend working code in `world.js` is the ultimate
