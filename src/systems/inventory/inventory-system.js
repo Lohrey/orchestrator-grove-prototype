@@ -194,6 +194,7 @@ export function installInventorySystem(Game, deps) {
       bot.targetItemId = null;
       bot.targetItemPurpose = null;
       bot.target = null;
+      if (bot.kind === 'dog') this.emitSound('dog_bark', { cooldownKey: `dog_bark:${bot.id}`, minGapMs: 400 });
       return true;
     },
     canStructureAcceptItemWhenIdle(s, type) {

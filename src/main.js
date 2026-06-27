@@ -9,10 +9,16 @@ import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f'
 import { createRenderBackend } from './renderers/index.js?v=t_building_kits_0618';
 import { createSimWorkerClient } from './sim/sim-worker-client.js?v=t_building_kits_0618';
 import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js?v=t_campaign_scenes_0623';
-import { LOCAL_AI_PROVIDERS, buildOllamaRequestBody, buildOpenAiCompatibleRequestBody, defaultOllamaEndpoint, estimateTokenCount, formatOllamaFinalPrompt, getDefaultProviderConfig, normalizeAssistantLoadout, normalizeAssistantKnowledgePack, normalizeAssistantPackCatalog, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, summarizeAssistantLoadout, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_building_kits_0618';
-import { createAssistantSemanticRouter } from './assistant-router.js?v=t_building_kits_0618';
-import { formatSemanticRouteSummary } from './semantic-router.js?v=t_building_kits_0618';
+import { LOCAL_AI_PROVIDERS, defaultOllamaEndpoint, getDefaultProviderConfig, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_building_kits_0618';
 import { escapeHtml } from './utils.js?v=20260613-player-tools';
+// UI module imports — extracted from the monolithic startGame() closure
+import { createDomHelpers } from './ui/dom-helpers.js?v=t_ui_refactor_0627';
+import { createChatUi } from './ui/chat-ui.js?v=t_ui_refactor_0627';
+import { createRendererSettings } from './ui/renderer-settings.js?v=t_ui_refactor_0627';
+import { createPerformanceUi } from './ui/performance-ui.js?v=t_ui_refactor_0627';
+import { createProviderUi } from './ui/provider-ui.js?v=t_ui_refactor_0627';
+import { createFullscreenUi } from './ui/fullscreen-ui.js?v=t_ui_refactor_0627';
+import { createAssistantUi } from './ui/assistant-ui.js?v=t_ui_refactor_0627';
 
 export async function startGame() {
   const $ = id => document.getElementById(id);
@@ -35,88 +41,20 @@ export async function startGame() {
     mobileControls: $('mobileControls'), mobileSettingsBtn: $('mobileSettingsBtn'), mobileBuildBtn: $('mobileBuildBtn'), mobileChatBtn: $('mobileChatBtn'), mobileInteractBtn: $('mobileInteractBtn'), mobileDropBtn: $('mobileDropBtn'), mobileZoomInBtn: $('mobileZoomInBtn'), mobileZoomOutBtn: $('mobileZoomOutBtn')
   };
 
-  function formatRendererStatus(backendText, probe = null) {
-    const backend = String(backendText || 'Renderer').trim();
-    if (!probe) return backend;
-    const probeText = String(probe.text || '').trim();
-    return probeText ? `${backend} · ${probeText}` : backend;
-  }
+  // ── UI module factory invocations (pure helpers, no game dependency) ───
+  const { storageGet, storageSet, readJson, formatRendererStatus, stringifyLog, parseJsonPreview } = createDomHelpers();
+  const { addChat, formatTokenCount, formatAssistantPromptPreview, logChatAi, responseRawText, parsedOrError, sentFinalPrompt } = createChatUi({ dom });
+  const { fullscreenElement, syncFullscreenUi, toggleFullscreen } = createFullscreenUi({ dom });
+  const assistantModule = createAssistantUi({ dom });
+  const semanticRouter = assistantModule.semanticRouter;
 
-  function addChat(kind, html) {
-    const d = document.createElement('div');
-    const labels = { user: 'You', assistant: 'Orchestrator', system: 'System', error: 'Error' };
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    d.className = `message ${kind}`;
-    d.innerHTML = `<div class="message-meta"><span>${labels[kind] || kind}</span><time>${time}</time></div><div class="message-body">${html}</div>`;
-    dom.chatLog.appendChild(d);
-    dom.chatLog.scrollTop = dom.chatLog.scrollHeight;
-  }
-  function stringifyLog(value) {
-    try { return typeof value === 'string' ? value : JSON.stringify(value, null, 2); }
-    catch { return String(value); }
-  }
-  function parseJsonPreview(value) {
-    if (typeof value !== 'string') return value;
-    const trimmed = value.trim();
-    if (!trimmed) return value;
-    try { return JSON.parse(trimmed); }
-    catch { return value; }
-  }
-  function formatTokenCount(tokens = 0) {
-    const count = Math.max(0, Number(tokens) || 0);
-    return `~${count.toLocaleString()} tokens`;
-  }
-  function formatAssistantPromptPreview(prompt) {
-    return JSON.stringify({
-      systemPrompt: parseJsonPreview(prompt.systemPrompt),
-      userPrompt: parseJsonPreview(prompt.userPrompt),
-      messages: (prompt.messages || []).map(message => ({
-        role: message.role,
-        content: parseJsonPreview(message.content)
-      })),
-      tokenCounts: {
-        systemPrompt: prompt.systemPromptTokens ?? estimateTokenCount(prompt.systemPrompt || ''),
-        userPrompt: prompt.userPromptTokens ?? estimateTokenCount(prompt.userPrompt || ''),
-        messages: prompt.messagesTokenCount ?? estimateTokenCount(formatOllamaFinalPrompt(prompt.messages || [])),
-        finalPrompt: prompt.finalPromptTokens ?? estimateTokenCount(prompt.finalPrompt || formatOllamaFinalPrompt(prompt.messages || []))
-      },
-      loadoutKnowledge: prompt.loadoutKnowledge,
-      equippedPacks: prompt.equippedPacks,
-      unlockedOps: prompt.unlockedOps,
-      knowledge: prompt.knowledge
-    }, null, 2);
-  }
-  function sentFinalPrompt(sent) {
-    return sent?.finalPrompt || (sent?.body?.messages ? formatOllamaFinalPrompt(sent.body.messages) : 'Not available.');
-  }
-  function responseRawText(returned) {
-    if (!returned) return '';
-    if (returned.rawResponse !== undefined) return returned.rawResponse;
-    if (returned.content !== undefined) return returned.content;
-    if (returned.rawHttpBody !== undefined) return returned.rawHttpBody;
-    return stringifyLog(returned);
-  }
-  function parsedOrError(returned) {
-    if (!returned) return 'No returned data.';
-    if (returned.parsed !== undefined) return returned.parsed;
-    return { error: returned.error || returned.parseError || 'No parsed JSON.', parseError: returned.parseError || null, validationErrors: returned.validationErrors || null };
-  }
-  function logChatAi({ mode, sent, returned }) {
-    const stamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const entry = { time: stamp, mode, sent, returned };
-    console.info('[Orchestrator chat AI]', entry);
-    if (!dom.aiLog) return;
-    const block = `[${stamp}] ${mode}\nRequest:\n${stringifyLog(sent?.request || sent?.body || sent)}\nFinal prompt:\n${sentFinalPrompt(sent)}\nLLM answer:\n${responseRawText(returned) || '(no raw LLM answer; mock parser result below)'}\nParsed JSON / error:\n${stringifyLog(parsedOrError(returned))}\n\n`;
-    const previous = dom.aiLog.textContent === 'No chat requests yet.' ? '' : (dom.aiLog.textContent || '');
-    dom.aiLog.textContent = `${block}${previous}`.slice(0, 100000);
-  }
   const ASR_MODE_KEY = 'orchestratorGrove.asrMode';
   const TEMPLATE_ROUTING_KEY = 'orchestratorGrove.templateRoutingEnabled';
   const SEMANTIC_ROUTING_KEY = 'orchestratorGrove.semanticRoutingEnabled';
   const ASSISTANT_LOADOUT_KEY = 'orchestratorGrove.assistantLoadout.v1';
   const CUSTOM_ACTION_PACKS_KEY = 'orchestratorGrove.customActionPacks.v1';
   const SETTINGS_KEY = 'orchestratorGrove.settings.v1';
-  const DEFAULT_RENDERER_SETTINGS = Object.freeze({ highResolution: true, antialias: true });
+  // ── Constants & config (kept in main.js as the orchestrator) ──────────
   const SAVE_KEY = 'orchestratorGrove.save.v1';
   const SAVE_LIBRARY_KEY = 'orchestratorGrove.saveLibrary.v2';
   const RECENT_SAVE_MS = 30000;
@@ -146,573 +84,125 @@ export async function startGame() {
       help: 'download once into the browser cache, then record locally and run inference on your machine with no server upload.'
     }
   };
-  const storageGet = key => { try { return localStorage.getItem(key); } catch { return null; } };
-  const storageSet = (key, value) => { try { localStorage.setItem(key, value); return true; } catch { return false; } };
-  const readJson = (key, fallback = null) => {
-    const raw = storageGet(key);
-    if (!raw) return fallback;
-    try { return JSON.parse(raw); } catch { return fallback; }
-  };
-  function normalizeRendererSettings(settings = null) {
-    return {
-      highResolution: settings?.highResolution !== false,
-      antialias: settings?.antialias !== false
-    };
+
+  // ── Wire UI modules with shared dependencies ──────────────────────────
+  let game = null;
+
+  // Renderer settings: re-create with real game + PERFORMANCE_PRESETS after game exists
+  const rendererModule = createRendererSettings({ dom, game: null, PERFORMANCE_PRESETS });
+  const { DEFAULT_RENDERER_SETTINGS, normalizeRendererSettings, getRendererSettingsFromUi, getRendererModeFromUi, syncRendererModeUi, syncRendererSettingsUi } = rendererModule;
+  const perfModule = createPerformanceUi({ dom, game: null, PERFORMANCE_PRESETS });
+  const { clampBotLimit, setMaxBotsUiLimit, setPerformanceProfileValue } = perfModule;
+  const providerModule = createProviderUi({ dom, game: null });
+  const { getSelectedProvider, getCurrentLocalAiConfig } = providerModule;
+
+  // Wrapper functions that adapt module factories to the closure pattern.
+  // These are assigned after game is created; they bridge modules and closure scope.
+
+  function getRendererRecommendation() {
+    return rendererModule.getRendererRecommendation();
   }
-  function getSelectedProvider() {
-    return dom.llmMode?.value === 'tabbyapi' ? 'tabbyapi' : 'ollama';
-  }
-  function getCurrentLocalAiConfig() {
-    const provider = getSelectedProvider();
-    const defaults = getDefaultProviderConfig(provider);
-    return {
-      provider,
-      endpoint: (dom.ollamaEndpoint?.value || defaults.endpoint || '').trim().replace(/\/$/, '') || defaults.endpoint,
-      model: dom.ollamaModel?.value || defaults.model
-    };
-  }
-  function saveBrowserSettings() {
-    const rendererSettings = getRendererSettingsFromUi();
-    const settings = {
-      llmMode: dom.llmMode?.value || 'mock',
-      templateRouting: getTemplateRoutingEnabled(),
-      semanticRouting: getSemanticRoutingEnabled(),
-      asrMode: getAsrMode(),
-      performanceProfile: dom.performanceProfile?.value || 'auto',
-      targetFps: Number(dom.targetFps?.value || game?.targetFps || 60),
-      maxBots: Number(dom.maxBots?.value || game?.maxBots || 12),
-      fogOfWar: getFogOfWarEnabled(),
-      lightingEffects: getLightingEffectsEnabled(),
-      dynamicShadows: getDynamicShadowsEnabled(),
-      showFpsOverlay: getShowFpsOverlayEnabled(),
-      rendererMode: getRendererModeFromUi(),
-      rendererSettings,
-      browserSttModel: dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL,
-      ai: getCurrentLocalAiConfig()
-    };
-    return storageSet(SETTINGS_KEY, JSON.stringify(settings));
-  }
-  const clampBotLimit = value => {
-    const min = Number(dom.maxBots?.min || 4);
-    const max = Number(dom.maxBots?.max || 1000);
-    return Math.max(min, Math.min(max, Math.round(Number(value) || min)));
-  };
-  function getRendererSettingsFromUi() {
-    return normalizeRendererSettings({
-      highResolution: dom.pixiHighResolution?.checked ?? DEFAULT_RENDERER_SETTINGS.highResolution,
-      antialias: dom.pixiAntialias?.checked ?? DEFAULT_RENDERER_SETTINGS.antialias
-    });
-  }
-  function getRendererModeFromUi() {
-    return dom.useCanvas2dRenderer?.checked ? 'canvas2d' : 'pixi';
-  }
-  function syncRendererModeUi(mode = 'canvas2d') {
-    const normalized = String(mode || 'canvas2d').toLowerCase();
-    if (dom.useCanvas2dRenderer) dom.useCanvas2dRenderer.checked = normalized === 'canvas2d';
-    return normalized;
-  }
-  function syncRendererSettingsUi(settings = DEFAULT_RENDERER_SETTINGS) {
-    const normalized = normalizeRendererSettings(settings);
-    if (dom.pixiHighResolution) dom.pixiHighResolution.checked = normalized.highResolution;
-    if (dom.pixiAntialias) dom.pixiAntialias.checked = normalized.antialias;
-    return normalized;
-  }
-  function applyRendererSettings(settings, { save = true, message = '' } = {}) {
-    const normalized = syncRendererSettingsUi(settings);
-    const result = game?.renderBackend?.updateSettings?.(normalized) || { settings: normalized, reloadRequired: false };
-    if (message) {
-      syncPerformanceUi(result.reloadRequired ? `${message} Reload the page to apply the antialiasing change.` : message);
-    }
-    if (save) saveBrowserSettings();
-    return result;
-  }
-  function getRendererRecommendation(renderer = game?.renderer) {
-    const profile = renderer?.preset || 'balanced';
-    const recommendedTargetFps = Number(renderer?.recommendedTargetFps || PERFORMANCE_PRESETS[profile]?.targetFps || PERFORMANCE_PRESETS.balanced.targetFps);
-    const recommendedMaxBots = Number(renderer?.recommendedMaxBots || PERFORMANCE_PRESETS[profile]?.maxBots || PERFORMANCE_PRESETS.balanced.maxBots);
-    const maxBotsCap = Math.max(recommendedMaxBots, Number(renderer?.maxBotsCap || 300));
-    return {
-      profile,
-      gpuText: renderer?.gpuText || renderer?.label || renderer?.text || 'Unknown GPU',
-      inferredVramGb: renderer?.inferredVramGb ?? null,
-      recommendedTargetFps,
-      recommendedMaxBots,
-      maxBotsCap,
-      notes: Array.isArray(renderer?.notes) ? renderer.notes : [],
-      rendererText: renderer?.text || 'Canvas 2D fallback',
-      webgpu: !!renderer?.webgpu,
-      confidence: renderer?.confidence || 'low'
-    };
-  }
-  function setMaxBotsUiLimit(limit) {
-    if (!dom.maxBots) return;
-    const safeLimit = Math.max(Number(dom.maxBots.min || 4), Math.min(1000, Math.round(Number(limit) || 1000)));
-    dom.maxBots.max = String(safeLimit);
-    dom.maxBots.step = '1';
-    if (Number(dom.maxBots.value) > safeLimit) dom.maxBots.value = String(safeLimit);
-    if (game && Number(game.maxBots) > safeLimit) game.maxBots = safeLimit;
-  }
-  function setPerformanceProfileValue(profile) {
-    if (!dom.performanceProfile) return;
-    dom.performanceProfile.value = dom.performanceProfile.querySelector(`option[value="${profile}"]`) ? profile : 'custom';
-  }
-  const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
-  function syncFullscreenUi(message = '') {
-    const active = !!fullscreenElement();
-    if (dom.fullscreenToggleBtn) dom.fullscreenToggleBtn.textContent = active ? 'Exit fullscreen' : 'Enter fullscreen';
-    if (dom.fullscreenStatus) dom.fullscreenStatus.textContent = message || `Fullscreen is ${active ? 'on' : 'off'}.`;
-    return active;
-  }
-  async function toggleFullscreen() {
-    const active = !!fullscreenElement();
-    try {
-      if (active) {
-        if (document.exitFullscreen) await document.exitFullscreen();
-        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-      } else {
-        const root = document.documentElement;
-        if (root.requestFullscreen) await root.requestFullscreen();
-        else if (root.webkitRequestFullscreen) root.webkitRequestFullscreen();
-        else {
-          syncFullscreenUi('Fullscreen is not supported by this browser.');
-          return false;
-        }
-      }
-      return syncFullscreenUi();
-    } catch (err) {
-      syncFullscreenUi(`Fullscreen failed: ${err.message || 'browser denied the request'}.`);
-      return active;
-    }
+  function applyRendererSettings(settings, opts = {}) {
+    return rendererModule.applyRendererSettings(settings, { ...opts, syncPerformanceUi: msg => syncPerformanceUi(msg), saveBrowserSettings: () => saveBrowserSettings() });
   }
   function syncPerformanceUi(message = '') {
-    const recommendation = getRendererRecommendation();
-    setMaxBotsUiLimit(recommendation.maxBotsCap);
-    if (dom.targetFpsValue) dom.targetFpsValue.textContent = String(game.targetFps);
-    if (dom.maxBotsValue) dom.maxBotsValue.textContent = String(game.maxBots);
-    if (dom.rendererStatus) dom.rendererStatus.textContent = `Renderer: ${recommendation.rendererText}`;
-    if (dom.detectedGpu) dom.detectedGpu.textContent = recommendation.gpuText;
-    if (dom.detectedVram) dom.detectedVram.textContent = recommendation.inferredVramGb ? `~${recommendation.inferredVramGb} GB` : 'Unknown / browser not exposed';
-    if (dom.detectedProfile) dom.detectedProfile.textContent = recommendation.profile.replace(/_/g, ' ');
-    if (dom.recommendedBots) dom.recommendedBots.textContent = `${recommendation.recommendedMaxBots} (cap ${recommendation.maxBotsCap})`;
-    if (dom.recommendedFps) dom.recommendedFps.textContent = String(recommendation.recommendedTargetFps);
-    if (dom.performanceNotes) {
-      const noteText = recommendation.notes.filter(Boolean).join(' ');
-      dom.performanceNotes.textContent = message || noteText || `Using a ${recommendation.confidence}-confidence hardware heuristic.`;
-    }
+    perfModule.syncPerformanceUi(message, () => getRendererRecommendation());
   }
   function applyPerformancePreset(profile, { save = true } = {}) {
-    const recommendation = getRendererRecommendation();
-    const targetProfile = profile === 'auto' ? recommendation.profile : profile;
-    const preset = PERFORMANCE_PRESETS[targetProfile] || PERFORMANCE_PRESETS.balanced;
-    const nextFps = profile === 'auto' ? recommendation.recommendedTargetFps : preset.targetFps;
-    const baseBots = profile === 'auto' ? recommendation.recommendedMaxBots : preset.maxBots;
-    game.targetFps = Number(nextFps);
-    setMaxBotsUiLimit(recommendation.maxBotsCap);
-    game.maxBots = clampBotLimit(Math.min(baseBots, recommendation.maxBotsCap));
-    if (dom.targetFps) dom.targetFps.value = String(game.targetFps);
-    if (dom.maxBots) dom.maxBots.value = String(game.maxBots);
-    setPerformanceProfileValue(profile);
-    syncPerformanceUi(profile === 'auto' ? 'Applied hardware-based performance recommendation.' : `Applied ${preset.label.toLowerCase()} preset.`);
-    if (save) saveBrowserSettings();
+    perfModule.applyPerformancePreset(profile, { save, getRendererRecommendation: () => getRendererRecommendation(), syncPerformanceUi: msg => syncPerformanceUi(msg), saveBrowserSettings: () => saveBrowserSettings() });
   }
   function syncProviderUi() {
-    const provider = getSelectedProvider();
-    const providerConfig = LOCAL_AI_PROVIDERS[provider];
-    if (dom.llmProviderLabel) dom.llmProviderLabel.textContent = `Provider: ${provider === 'tabbyapi' ? providerConfig.backendLabel : providerConfig.label}`;
-    const endpoint = (dom.ollamaEndpoint.value || '').trim().replace(/\/$/, '');
-    const isLocalOllama = provider === 'ollama' && endpoint === 'http://127.0.0.1:11434';
-    if (dom.localOllamaWindowsHelp) dom.localOllamaWindowsHelp.hidden = !isLocalOllama;
-    if (dom.localTabbyHelp) dom.localTabbyHelp.hidden = provider !== 'tabbyapi';
-    if (dom.serverOllamaBtn) dom.serverOllamaBtn.disabled = provider === 'tabbyapi';
-    if (dom.localOllamaBtn) dom.localOllamaBtn.disabled = provider === 'tabbyapi';
+    providerModule.syncProviderUi();
   }
-  function setLocalAiProvider(provider, { endpoint, model, status } = {}) {
-    const defaults = getDefaultProviderConfig(provider);
-    dom.llmMode.value = provider;
-    dom.ollamaEndpoint.value = (endpoint || defaults.endpoint || '').replace(/\/$/, '');
-    dom.ollamaModel.value = model || defaults.model;
-    if (status) dom.ollamaStatus.textContent = status;
-    syncProviderUi();
+  function setLocalAiProvider(provider, opts) {
+    providerModule.setLocalAiProvider(provider, opts);
     updateAssistantPromptPreview();
     saveBrowserSettings();
   }
-  function splitPackText(value) {
-    if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean);
-    return String(value || '').split(/[\n,]+/).map(item => item.trim()).filter(Boolean);
-  }
-  function flattenPartAliases(partAliases = {}) {
-    return [
-      ...((partAliases.step || [])),
-      ...Object.values(partAliases.args || {}).flatMap(values => values || [])
-    ];
-  }
-  function actionRowsByOp() {
-    return Object.fromEntries(getActionStepChainRows().map(row => [row.op, row]));
-  }
-  function defaultPackActionAliases(selectedOps = [], source = {}) {
-    const rowsByOp = actionRowsByOp();
-    return Object.fromEntries(selectedOps.map(op => {
-      const sourceAliases = source?.[op];
-      const rowAliases = rowsByOp[op]?.aliases || { step: [], args: {} };
-      return [op, {
-        step: [...(sourceAliases?.step || rowAliases.step || [])],
-        args: Object.fromEntries((rowsByOp[op]?.args || []).map(arg => [arg, [...(sourceAliases?.args?.[arg] || rowAliases.args?.[arg] || [])]]))
-      }];
-    }));
-  }
-  function readAliasTextValue(value) {
-    return [...new Set(splitPackText(value).map(item => item.toLowerCase()))];
-  }
-  function packIdFromName(name = '') {
-    return `custom_${String(name || 'action_pack').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48) || 'action_pack'}`;
-  }
-  function readCustomActionPacks() {
-    const raw = storageGet(CUSTOM_ACTION_PACKS_KEY);
-    if (!raw) return {};
-    try {
-      const parsed = JSON.parse(raw);
-      const entries = Array.isArray(parsed) ? parsed : Object.values(parsed || {});
-      return Object.fromEntries(entries
-        .map(pack => normalizeAssistantKnowledgePack({ ...pack, custom: true }))
-        .filter(pack => pack.id && !ASSISTANT_KNOWLEDGE_PACKS[pack.id])
-        .map(pack => [pack.id, pack]));
-    } catch {
-      return {};
-    }
-  }
-  let customActionPacks = readCustomActionPacks();
-  function getActionPackCatalog() {
-    return normalizeAssistantPackCatalog({ ...ASSISTANT_KNOWLEDGE_PACKS, ...customActionPacks });
-  }
-  function persistCustomActionPacks(message = 'Custom action packs saved to this browser.') {
-    const ok = storageSet(CUSTOM_ACTION_PACKS_KEY, JSON.stringify(Object.values(customActionPacks)));
-    assistantLoadout = normalizeAssistantLoadout(assistantLoadout, getActionPackCatalog());
-    storageSet(ASSISTANT_LOADOUT_KEY, JSON.stringify(assistantLoadout));
-    renderKnowledgePackSelector(ok ? message : 'Custom action pack changed, but browser storage is unavailable.');
-    game?.setManagerKnowledgePackCatalog?.(getActionPackCatalog());
-    semanticRouter.syncCatalog(getActionPackCatalog(), getAssistantLoadout()).catch(() => {});
-    updateSemanticRouterUi(semanticRouter.getLastRoute?.());
-    return customActionPacks;
-  }
-  function readAssistantLoadout() {
-    const raw = storageGet(ASSISTANT_LOADOUT_KEY);
-    if (!raw) return normalizeAssistantLoadout(DEFAULT_ASSISTANT_LOADOUT, getActionPackCatalog());
-    try { return normalizeAssistantLoadout(JSON.parse(raw), getActionPackCatalog()); }
-    catch { return normalizeAssistantLoadout(DEFAULT_ASSISTANT_LOADOUT, getActionPackCatalog()); }
-  }
-  let assistantLoadout = readAssistantLoadout();
-  const getAssistantLoadout = () => assistantLoadout.slice();
-  const semanticRouter = createAssistantSemanticRouter();
-  let semanticRouteTimer = null;
-  semanticRouter.onStateChange(state => {
-    updateSemanticRouterUi(state?.lastRoute || semanticRouter.getLastRoute?.());
-    if (state?.lastRoute?.requestText && state.lastRoute.requestText === getChatDraftText()) {
-      updateAssistantPromptPreview();
-    }
-  });
-  function getSemanticRoutingEnabled() {
-    return dom.semanticRouting?.checked !== false;
-  }
-  function getChatDraftText() {
-    return String(dom.chatInput?.value || '').trim();
-  }
-  function renderSemanticRouterPackSelector(selectedPackId = '') {
-    if (!dom.semanticRouterPackSelect) return;
-    const catalog = getActionPackCatalog();
-    const packs = Object.values(catalog);
-    const previousValue = dom.semanticRouterPackSelect.value;
-    dom.semanticRouterPackSelect.innerHTML = packs.map(pack => `<option value="${escapeHtml(pack.id)}">${escapeHtml(pack.name || pack.id)}</option>`).join('');
-    const route = semanticRouter.getLastRoute?.();
-    const nextSelected = selectedPackId || previousValue || route?.bestId || assistantLoadout[0] || '';
-    if (nextSelected) dom.semanticRouterPackSelect.value = nextSelected;
-  }
-  function updateSemanticRouterUi(route = semanticRouter.getLastRoute?.()) {
-    if (dom.semanticRouterStatus) {
-      if (!getSemanticRoutingEnabled()) {
-        dom.semanticRouterStatus.textContent = 'Semantic routing disabled. The assistant uses the full equipped loadout.';
-      } else if (!route) {
-        dom.semanticRouterStatus.textContent = 'Semantic router idle. Type in chat to route the request before parsing.';
-      } else {
-        dom.semanticRouterStatus.textContent = formatSemanticRouteSummary(route);
-      }
-    }
-    if (dom.semanticRouterTrainBtn) dom.semanticRouterTrainBtn.disabled = !getSemanticRoutingEnabled();
-    renderSemanticRouterPackSelector(route?.bestId || '');
-    return route;
-  }
-  function scheduleSemanticRoutePreview() {
-    if (semanticRouteTimer) clearTimeout(semanticRouteTimer);
-    if (!getSemanticRoutingEnabled()) {
-      updateSemanticRouterUi(semanticRouter.getLastRoute?.());
-      return;
-    }
-    const text = getChatDraftText();
-    if (!text) {
-      updateSemanticRouterUi(semanticRouter.getLastRoute?.());
-      return;
-    }
-    semanticRouteTimer = setTimeout(async () => {
-      try {
-        await semanticRouter.route(text, { knowledgePacks: getActionPackCatalog(), loadout: getAssistantLoadout() });
-        updateSemanticRouterUi(semanticRouter.getLastRoute?.());
-        updateAssistantPromptPreview();
-      } catch (error) {
-        if (dom.semanticRouterStatus) dom.semanticRouterStatus.textContent = `Semantic router error: ${error.message}`;
-      }
-    }, 140);
-  }
-  async function getRoutedAssistantLoadout(text, { loadout = getAssistantLoadout(), knowledgePacks = getActionPackCatalog() } = {}) {
-    if (!getSemanticRoutingEnabled()) return { route: null, loadout };
-    try {
-      const route = await semanticRouter.route(text, { knowledgePacks, loadout });
-      const routedLoadout = route?.useRecommendedLoadout && route?.selectedLoadout?.length ? route.selectedLoadout : loadout;
-      updateSemanticRouterUi(route);
-      return { route, loadout: routedLoadout };
-    } catch (error) {
-      if (dom.semanticRouterStatus) dom.semanticRouterStatus.textContent = `Semantic router failed: ${error.message}`;
-      return { route: null, loadout };
-    }
-  }
-  function getAssistantLoadoutDebug() {
-    const catalog = getActionPackCatalog();
-    const summary = summarizeAssistantLoadout(assistantLoadout, catalog);
-    return {
-      selectedPackIds: summary.ids,
-      selectedPackNames: summary.names,
-      unlockedOps: summary.unlockedOps,
-      optionalContext: summary.optionalContext,
-      vocabulary: summary.vocabulary,
-      concepts: summary.concepts,
-      packs: summary.packs
-    };
-  }
-  function updateAssistantPromptPreview() {
-    if (!dom.assistantPromptPreview) return '';
-    if (!game) {
-      dom.assistantPromptPreview.textContent = JSON.stringify({ status: 'Prompt preview will appear after the world loads.' }, null, 2);
-      return dom.assistantPromptPreview.textContent;
-    }
-    const requestText = (dom.chatInput?.value || '').trim() || '[current user request will appear here]';
-    const { provider, model } = getCurrentLocalAiConfig();
-    const knowledgePacks = getActionPackCatalog();
-    const lastRoute = semanticRouter.getLastRoute?.();
-    const routedLoadout = getSemanticRoutingEnabled() && lastRoute?.requestText === requestText && lastRoute?.useRecommendedLoadout && lastRoute?.selectedLoadout?.length
-      ? lastRoute.selectedLoadout
-      : getAssistantLoadout();
-    const { prompt } = provider === 'tabbyapi'
-      ? buildOpenAiCompatibleRequestBody(requestText, game, { model, enableTemplates: getTemplateRoutingEnabled(), loadout: routedLoadout, knowledgePacks, temperature: 0.1 })
-      : buildOllamaRequestBody(requestText, game, { model, enableTemplates: getTemplateRoutingEnabled(), loadout: routedLoadout, knowledgePacks });
-    if (dom.assistantBasePromptView) dom.assistantBasePromptView.textContent = prompt.systemPrompt;
-    if (dom.assistantLoadoutView) dom.assistantLoadoutView.textContent = JSON.stringify(prompt.loadoutKnowledge, null, 2);
-    if (dom.assistantPromptTokenSummary) dom.assistantPromptTokenSummary.textContent = formatTokenCount(prompt.finalPromptTokens ?? estimateTokenCount(prompt.finalPrompt || ''));
-    const previewText = formatAssistantPromptPreview(prompt);
-    dom.assistantPromptPreview.textContent = previewText;
-    return previewText;
-  }
-  function getSelectedKnowledgePackTokenCount(catalog = getActionPackCatalog(), loadout = assistantLoadout) {
-    const selectedIds = new Set(loadout);
-    return Object.values(catalog || {}).reduce((sum, pack) => sum + (selectedIds.has(pack.id) ? Number(pack.tokenCount || 0) : 0), 0);
-  }
-  function updateAssistantLoadoutDebug(message = '') {
-    const debug = getAssistantLoadoutDebug();
-    if (dom.assistantLoadoutView && !game) dom.assistantLoadoutView.textContent = JSON.stringify(debug, null, 2);
-    updateAssistantPromptPreview();
-    if (dom.knowledgePackTokenSummary) {
-      const selectedTokens = getSelectedKnowledgePackTokenCount(getActionPackCatalog(), debug.selectedPackIds);
-      dom.knowledgePackTokenSummary.textContent = `${debug.selectedPackIds.length} selected · ${formatTokenCount(selectedTokens)}`;
-    }
-    if (dom.knowledgePackStatus) dom.knowledgePackStatus.textContent = message || `${debug.selectedPackIds.length} knowledge/action pack(s) equipped · ${debug.unlockedOps.length} DSL op(s) unlocked.`;
-    return debug;
-  }
-  let customPackAliasDraft = {};
-  function readCustomPackAliasEditor(selectedOps = null) {
-    const ops = selectedOps || [...(dom.customPackActionList?.querySelectorAll('[data-action-pack-op]:checked') || [])].map(input => input.dataset.actionPackOp);
-    if (!dom.customPackAliasEditor) return defaultPackActionAliases(ops, customPackAliasDraft);
-    const defaults = defaultPackActionAliases(ops, customPackAliasDraft);
-    return Object.fromEntries(ops.map(op => {
-      const card = dom.customPackAliasEditor.querySelector(`[data-action-alias-card="${op}"]`);
-      if (!card) return [op, defaults[op]];
-      const row = actionRowsByOp()[op];
-      return [op, {
-        step: readAliasTextValue(card.querySelector('[data-action-alias-step]')?.value || ''),
-        args: Object.fromEntries((row?.args || []).map(arg => [arg, readAliasTextValue(card.querySelector(`[data-action-alias-arg="${arg}"]`)?.value || '')]))
-      }];
-    }));
-  }
-  function renderCustomPackAliasEditor(selectedOps = [], sourceAliases = {}) {
-    if (!dom.customPackAliasEditor) return;
-    const rowsByOp = actionRowsByOp();
-    const aliasesByOp = defaultPackActionAliases(selectedOps, sourceAliases);
-    if (!selectedOps.length) {
-      dom.customPackAliasEditor.innerHTML = '<p class="small">Select action steps to review and tweak default alias wording per step part.</p>';
-      return;
-    }
-    dom.customPackAliasEditor.innerHTML = selectedOps.map(op => {
-      const row = rowsByOp[op];
-      const aliases = aliasesByOp[op] || { step: [], args: {} };
-      return `
-        <section class="knowledge-pack-card" data-action-alias-card="${escapeHtml(op)}">
-          <p class="small"><b>${escapeHtml(row.label)}</b> <code>${escapeHtml(op)}</code></p>
-          <label>Action words
-            <textarea data-action-alias-step rows="2" placeholder="comma or newline separated">${escapeHtml((aliases.step || []).join('\n'))}</textarea>
-          </label>
-          ${(row.args || []).map(arg => `
-            <label>${escapeHtml(arg)} aliases
-              <textarea data-action-alias-arg="${escapeHtml(arg)}" rows="2" placeholder="comma or newline separated">${escapeHtml(((aliases.args || {})[arg] || []).join('\n'))}</textarea>
-            </label>
-          `).join('')}
-        </section>
-      `;
-    }).join('');
-  }
-  function renderCustomPackActionSelector(selectedOps = []) {
-    if (!dom.customPackActionList) return;
-    const selected = new Set(selectedOps);
-    const rows = getActionStepChainRows();
-    dom.customPackActionList.innerHTML = rows.map(row => `
-      <label class="checkline" title="${escapeHtml(row.description || row.promptSignature || row.op)}">
-        <input type="checkbox" data-action-pack-op="${escapeHtml(row.op)}" ${selected.has(row.op) ? 'checked' : ''} />
-        <span><b>${escapeHtml(row.label)}</b> <code>${escapeHtml(row.op)}</code><br><small>${escapeHtml((row.args || []).length ? `args: ${row.args.join(', ')}` : 'no args')}</small></span>
-      </label>
-    `).join('');
-  }
-  function clearCustomPackForm(pack = {}) {
-    if (dom.customPackId) dom.customPackId.value = pack.id || '';
-    if (dom.customPackName) dom.customPackName.value = pack.name || '';
-    if (dom.customPackContextVariables) dom.customPackContextVariables.value = (pack.contextVariables || pack.optionalContext || []).join('\n');
-    if (dom.customPackConcepts) dom.customPackConcepts.value = (pack.concepts || []).join('\n');
-    if (dom.customPackVocabulary) dom.customPackVocabulary.value = (pack.vocabulary || []).join('\n');
-    if (dom.customPackExamples) dom.customPackExamples.value = Array.isArray(pack.examples) ? pack.examples.map(example => typeof example === 'string' ? example : JSON.stringify(example)).join('\n') : '';
-    const selectedOps = pack.unlockedOps || [];
-    customPackAliasDraft = defaultPackActionAliases(selectedOps, pack.actionPartAliases || {});
-    renderCustomPackActionSelector(selectedOps);
-    renderCustomPackAliasEditor(selectedOps, customPackAliasDraft);
-  }
-  function readCustomPackForm() {
-    const name = String(dom.customPackName?.value || '').trim();
-    const rawId = String(dom.customPackId?.value || '').trim();
-    const id = (rawId || packIdFromName(name)).toLowerCase().replace(/[^a-z0-9_:-]/g, '_');
-    const unlockedOps = [...(dom.customPackActionList?.querySelectorAll('[data-action-pack-op]:checked') || [])].map(input => input.dataset.actionPackOp);
-    const actionPartAliases = readCustomPackAliasEditor(unlockedOps);
-    return normalizeAssistantKnowledgePack({
-      id,
-      name: name || id,
-      custom: true,
-      unlockedOps,
-      actionPartAliases,
-      contextVariables: splitPackText(dom.customPackContextVariables?.value || ''),
-      concepts: splitPackText(dom.customPackConcepts?.value || ''),
-      vocabulary: splitPackText(dom.customPackVocabulary?.value || ''),
-      examples: splitPackText(dom.customPackExamples?.value || '')
+  function saveBrowserSettings() {
+    return providerModule.saveBrowserSettings({
+      getRendererSettingsFromUi,
+      getTemplateRoutingEnabled: () => assistantModule.getTemplateRoutingEnabled(),
+      getSemanticRoutingEnabled: () => assistantModule.getSemanticRoutingEnabled(),
+      getAsrMode,
+      getFogOfWarEnabled,
+      getLightingEffectsEnabled,
+      getDynamicShadowsEnabled,
+      getShowFpsOverlayEnabled,
+      getRendererModeFromUi,
+      storageSet,
+      SETTINGS_KEY
     });
   }
-  function upsertCustomActionPack(input) {
-    const rawId = input.id || packIdFromName(input.name);
-    const id = String(rawId || '').toLowerCase().replace(/[^a-z0-9_:-]/g, '_');
-    const pack = normalizeAssistantKnowledgePack({ ...input, custom: true, id });
-    if (!pack.id) throw new Error('Custom action pack needs an id or name.');
-    if (ASSISTANT_KNOWLEDGE_PACKS[pack.id]) throw new Error(`Custom action pack id ${pack.id} conflicts with a built-in pack.`);
-    if (!pack.unlockedOps.length) throw new Error('Select at least one valid action step for the custom pack.');
-    customActionPacks = { ...customActionPacks, [pack.id]: pack };
-    persistCustomActionPacks(`Saved custom action pack ${pack.name}.`);
-    return pack;
+
+  // Assistant module wiring
+  function getActionPackCatalog() { return assistantModule.getActionPackCatalog(); }
+  function getAssistantLoadout() { return assistantModule.getAssistantLoadout(); }
+  function getAssistantLoadoutDebug() { return assistantModule.getAssistantLoadoutDebug(); }
+  function getSemanticRoutingEnabled() { return assistantModule.getSemanticRoutingEnabled(); }
+  function getTemplateRoutingEnabled() { return assistantModule.getTemplateRoutingEnabled(); }
+  function getChatDraftText() { return assistantModule.getChatDraftText(); }
+  function getRoutedAssistantLoadout(text, opts) { return assistantModule.getRoutedAssistantLoadout(text, opts); }
+  function updateSemanticRouterUi(route) { return assistantModule.updateSemanticRouterUi(route); }
+  function scheduleSemanticRoutePreview() { return assistantModule.scheduleSemanticRoutePreview({ updateAssistantPromptPreview: () => updateAssistantPromptPreview() })(); }
+  function renderActionStepChainTable() { return assistantModule.renderActionStepChainTable(); }
+  function readCustomPackForm() { return assistantModule.readCustomPackForm(); }
+  function clearCustomPackForm(pack) { return assistantModule.clearCustomPackForm(pack); }
+  function renderCustomPackActionSelector(ops) { return assistantModule.renderCustomPackActionSelector(ops); }
+  function renderCustomPackAliasEditor(ops, src) { return assistantModule.renderCustomPackAliasEditor(ops, src); }
+  function readCustomPackAliasEditor(ops) { return assistantModule.readCustomPackAliasEditor(ops); }
+  function defaultPackActionAliases(ops, src) { return assistantModule.defaultPackActionAliases(ops, src); }
+  function actionRowsByOp() { return assistantModule.actionRowsByOp(); }
+  function flattenPartAliases(aliases) { return assistantModule.flattenPartAliases(aliases); }
+
+  function updateAssistantPromptPreview() {
+    return assistantModule.updateAssistantPromptPreview({
+      game, getCurrentLocalAiConfig,
+      getTemplateRoutingEnabled: () => getTemplateRoutingEnabled(),
+      formatAssistantPromptPreview
+    })();
   }
-  function deleteCustomActionPack(id) {
-    if (!customActionPacks[id]) return false;
-    const { [id]: _removed, ...rest } = customActionPacks;
-    customActionPacks = rest;
-    assistantLoadout = assistantLoadout.filter(packId => packId !== id);
-    persistCustomActionPacks(`Deleted custom action pack ${id}.`);
-    clearCustomPackForm();
-    return true;
+  function updateAssistantLoadoutDebug(message) {
+    return assistantModule.updateAssistantLoadoutDebug({
+      game, updateAssistantPromptPreview: () => updateAssistantPromptPreview()
+    })(message);
   }
-  function renderKnowledgePackSelector(message = '') {
-    if (!dom.knowledgePackList) return updateAssistantLoadoutDebug(message);
-    if (dom.customPackActionList && !dom.customPackActionList.children.length) {
-      renderCustomPackActionSelector();
-      renderCustomPackAliasEditor([], {});
-    }
-    const selected = new Set(assistantLoadout);
-    const catalog = getActionPackCatalog();
-    if (dom.knowledgePackTokenSummary) {
-      const selectedTokens = getSelectedKnowledgePackTokenCount(catalog, assistantLoadout);
-      dom.knowledgePackTokenSummary.textContent = `${assistantLoadout.length} selected · ${formatTokenCount(selectedTokens)}`;
-    }
-    dom.knowledgePackList.innerHTML = Object.values(catalog).map(pack => `
-      <article class="knowledge-pack-card" data-knowledge-card="${escapeHtml(pack.id)}">
-        <label class="checkline knowledge-pack-title">
-          <input type="checkbox" data-knowledge-pack="${escapeHtml(pack.id)}" ${selected.has(pack.id) ? 'checked' : ''} />
-          <span><b>${escapeHtml(pack.name)}</b> <code>${escapeHtml(pack.id)}</code> <span class="knowledge-pack-kind">${pack.custom ? 'custom action pack' : 'built-in'}</span> <span class="knowledge-pack-tokens">${escapeHtml(formatTokenCount(pack.tokenCount || 0))}</span></span>
-        </label>
-        <p class="small"><b>Concepts:</b> ${escapeHtml((pack.concepts || []).join(' · '))}</p>
-        <p class="small"><b>Vocabulary:</b> ${escapeHtml((pack.vocabulary || []).join(', '))}</p>
-        <p class="small"><b>Context variables:</b> ${escapeHtml((pack.contextVariables || pack.optionalContext || []).join(', ') || 'none')}</p>
-        <p class="small"><b>Ops:</b> ${pack.unlockedOps.map(op => `<code>${escapeHtml(op)}</code>`).join(' ')}</p>
-        <p class="small"><b>Injected action details:</b> ${(pack.actions || []).map(action => `<code>${escapeHtml(`${action.op} ${action.dslSnippet}`)}</code>`).join(' ')}</p>
-        <p class="small"><b>Alias context:</b> ${(pack.actions || []).map(action => `<code>${escapeHtml(`${action.op}: ${(flattenPartAliases(action.partAliases || {})).join(', ') || 'none'}`)}</code>`).join(' ')}</p>
-        ${pack.custom ? `<div class="knowledge-pack-actions"><button type="button" data-edit-custom-pack="${escapeHtml(pack.id)}">Edit</button><button type="button" data-delete-custom-pack="${escapeHtml(pack.id)}">Delete</button></div>` : ''}
-      </article>
-    `).join('');
-    return updateAssistantLoadoutDebug(message);
-  }
-  function inlineList(items = [], empty = 'none') {
-    const values = items.filter(Boolean);
-    return values.length ? values.map(value => `<code>${escapeHtml(value)}</code>`).join(' ') : `<span class="muted-cell">${escapeHtml(empty)}</span>`;
-  }
-  function renderActionStepChainTable() {
-    if (!dom.actionStepChainTable) return [];
-    const rows = getActionStepChainRows();
-    dom.actionStepChainTable.innerHTML = `
-      <table class="action-step-chain-table">
-        <thead>
-          <tr>
-            <th>Step</th>
-            <th>DSL args</th>
-            <th>DSL snippet</th>
-            <th>Backend</th>
-            <th>Packs</th>
-            <th>Templates</th>
-            <th>Recorder</th>
-            <th>UI card</th>
-            <th>Aliases</th>
-            <th>Prompt signature</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map(row => `
-            <tr>
-              <td><b>${escapeHtml(row.label)}</b><code>${escapeHtml(row.op)}</code>${row.notes ? `<small>${escapeHtml(row.notes)}</small>` : ''}</td>
-              <td>${inlineList(row.args, 'none')}</td>
-              <td><code>${escapeHtml(row.dslSnippet || '')}</code></td>
-              <td>${escapeHtml(row.backend)}</td>
-              <td>${inlineList(row.packs, 'not exposed')}</td>
-              <td>${inlineList(row.templates, 'none')}</td>
-              <td>${row.recordable ? '<span class="chain-ok">recordable</span>' : '<span class="muted-cell">not recorded</span>'}</td>
-              <td>${escapeHtml(row.uiCard || 'generic DSL card')}</td>
-              <td>${inlineList(row.aliasVocabulary || [], 'none')}</td>
-              <td><code>${escapeHtml(row.promptSignature || 'not in prompt')}</code></td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
-    return rows;
+  function renderKnowledgePackSelector(message) {
+    return assistantModule.renderKnowledgePackSelector({
+      game, updateAssistantLoadoutDebug: msg => updateAssistantLoadoutDebug(msg)
+    })(message);
   }
   function persistAssistantLoadout(nextLoadout) {
-    assistantLoadout = normalizeAssistantLoadout(nextLoadout, getActionPackCatalog());
-    const ok = storageSet(ASSISTANT_LOADOUT_KEY, JSON.stringify(assistantLoadout));
-    renderKnowledgePackSelector(ok ? 'Knowledge pack loadout saved to this browser.' : 'Knowledge pack loadout changed, but browser storage is unavailable.');
-    game?.setManagerKnowledgePackCatalog?.(getActionPackCatalog());
-    semanticRouter.syncCatalog(getActionPackCatalog(), getAssistantLoadout()).catch(() => {});
-    updateSemanticRouterUi(semanticRouter.getLastRoute?.());
-    return assistantLoadout;
+    return assistantModule.persistAssistantLoadout({
+      storageSet, renderKnowledgePackSelector: msg => renderKnowledgePackSelector(msg),
+      game, updateSemanticRouterUi: route => updateSemanticRouterUi(route)
+    })(nextLoadout);
   }
+  function persistCustomActionPacks(message) {
+    return assistantModule.persistCustomActionPacks({
+      storageGet, storageSet,
+      renderKnowledgePackSelector: msg => renderKnowledgePackSelector(msg),
+      game, updateSemanticRouterUi: route => updateSemanticRouterUi(route)
+    })(message);
+  }
+  function upsertCustomActionPack(input) {
+    return assistantModule.upsertCustomActionPack({ persistFn: msg => persistCustomActionPacks(msg) })(input);
+  }
+  function deleteCustomActionPack(id) {
+    return assistantModule.deleteCustomActionPack({
+      persistFn: msg => persistCustomActionPacks(msg),
+      clearForm: () => clearCustomPackForm()
+    })(id);
+  }
+
   const getAsrMode = () => (ASR_MODES[dom.asrMode?.value] ? dom.asrMode.value : 'zipformer_whisper');
-  const getTemplateRoutingEnabled = () => dom.templateRouting?.checked === true;
   const getFogOfWarEnabled = () => dom.fogOfWarToggle?.checked !== false;
   const getLightingEffectsEnabled = () => dom.lightingEffects?.checked !== false;
-  const getDynamicShadowsEnabled = () => dom.dynamicShadows?.checked === true;
+  const getDynamicShadowsEnabled = () => dom.dynamicShadows?.checked !== false;
   const getShowFpsOverlayEnabled = () => dom.showFpsOverlay?.checked !== false;
+
+  // Initialize assistant module state (loads custom packs, loadout from storage)
+  assistantModule.init({ storageGet, storageSet, game: null });
   function syncAsrModeUi() {
     const cfg = ASR_MODES[getAsrMode()];
     if (dom.asrStatus) dom.asrStatus.textContent = cfg.status;
@@ -745,7 +235,6 @@ export async function startGame() {
     }
   }
 
-  let game;
   const params = new URLSearchParams(window.location.search);
   const storedSettings = readJson(SETTINGS_KEY, null);
   const storedRendererMode = String(storedSettings?.rendererMode || 'canvas2d').toLowerCase();

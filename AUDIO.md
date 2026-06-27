@@ -12,10 +12,18 @@ Task: `t_cb4d09e8`
 
 | Cue / source | Type | File/URL | Used for |
 | --- | --- | --- | --- |
-| SomaFM Groove Salad | online radio stream | `https://ice2.somafm.com/groovesalad-128-mp3` | Cozy chill/downtempo background option |
-| SomaFM Drone Zone | online radio stream | `https://ice1.somafm.com/dronezone-128-mp3` | Cozy ambient background option |
+| SomaFM Groove Salad | online radio stream | `https://ice1.somafm.com/groovesalad-64-aac` | Cozy chill/downtempo background option |
+| SomaFM Drone Zone | online radio stream | `https://ice1.somafm.com/dronezone-64-aac` | Cozy ambient background option |
+| SomaFM Mission Control | online radio stream | `https://ice1.somafm.com/missioncontrol-64-aac` | Space ambience option |
+| SomaFM Vaporwaves | online radio stream | `https://ice1.somafm.com/vaporwaves-64-aac` | Retro synth/game-room mood |
+| SomaFM DEF CON | online radio stream | `https://ice1.somafm.com/defcon-64-aac` | Cyber/gaming energy |
 | `ui_click` | generated Web Audio | none | Generic menu/action fallback |
+| `ui_hover` | generated Web Audio | none | UI hover feedback |
 | `ui_error` | generated Web Audio | none | Invalid deposit / blocked action |
+| `menu_arrive` | generated Web Audio | none | Menu panel open transition |
+| `menu_confirm` | generated Web Audio | none | Menu confirm/selection |
+| `menu_back` | generated Web Audio | none | Menu back/cancel |
+| `menu_whoosh` | generated Web Audio | none | Menu slide animation |
 | `move` | generated Web Audio | none | Right-click move orders |
 | `build` | generated Web Audio | none | Placing structures |
 | `bot_online` | generated Web Audio | none | Bot creation / factory bot output |
@@ -36,6 +44,22 @@ Task: `t_cb4d09e8`
 | `hit` | generated Web Audio | none | Monster/throne damage |
 | `victory` | generated Web Audio | none | Enemy defeated / throne destroyed |
 | `switch` | generated Web Audio | none | Recipe mode and weapon-set switching |
+| `demolish` | generated Web Audio | none | Structure demolished with hammer (heavy thud + debris) |
+| `disassemble` | generated Web Audio | none | Structure disassembled into building kit (mechanical winding down) |
+| `night_fall` | generated Web Audio | none | Day→night transition (ominous low descending drone) |
+| `dawn` | generated Web Audio | none | Night→day transition (bright ascending major chord) |
+| `monster_spawn` | generated Web Audio | none | Night monster spawns (threatening low growl burst) |
+| `player_hurt` | generated Web Audio | none | Player takes damage (sharp pain yelp) |
+| `bot_defeat` | generated Web Audio | none | Bot destroyed/defeated (sad power-down descending tones) |
+| `teach_start` | generated Web Audio | none | Teach recording begins (clean two-tone ascending beep) |
+| `teach_stop` | generated Web Audio | none | Teach recording stops (pleasant three-note confirm chime) |
+| `zone_create` | generated Web Audio | none | Zone drawn/created (warm mid-tone + soft noise sweep) |
+| `promote` | generated Web Audio | none | Bot promoted to manager (small trumpet-ish fanfare) |
+| `save` | generated Web Audio | none | Game saved (short digital chirp — wired when main.js save available) |
+| `dog_bark` | generated Web Audio | none | Dog bot fetches item (playful double yap) |
+| `team_create` | generated Web Audio | none | Bot team created (chord stab) |
+| `level_up` | generated Web Audio | none | Milestone/achievement (bright ascending arpeggio + shimmer) |
+| `warn` | generated Web Audio | none | Warning/alert for low HP or danger (urgent double square pulse) |
 
 ## Action and object coverage checked
 
@@ -58,6 +82,10 @@ Task: `t_cb4d09e8`
 | Chop hemp | hemp plant with crude_axe | `harvest` / `chop` |
 | Attack | passive monster, enemy throne | `hit`, `victory` when destroyed |
 | Switch weapon set | player equipment sets | `switch` |
+| Player takes damage | player HP reduced | `player_hurt` |
+| Demolish structure | placed structure with hammer | `demolish` |
+| Disassemble structure | structure with building kit | `disassemble` |
+| Draw zone | map area (rect/radius) | `zone_create` |
 
 ### Building / production interactions
 
@@ -86,7 +114,45 @@ Task: `t_cb4d09e8`
 | `plant_seed` | dug_hole | `plant` |
 | `craft_workbench`, `process_sawbench`, `process_poles`, `assemble_bot` | production buildings | `craft_start` / `craft_done` |
 | `drop_item` | ground | `drop` |
+| `deploy_building_kit` | building kit on ground | `build` |
+| `disassemble_building_to_kit` | existing structure | `disassemble` |
 | `wait`, `loop`, `if_inventory`, `find_*`, `idle_parking` | control/selection-only ops | no sound by design |
+
+### Bot management actions
+
+| Action | Sound cue |
+| --- | --- |
+| Create bot team | `team_create` |
+| Promote bot to manager | `promote` |
+| Bot defeated in combat | `bot_defeat` |
+| Dog bot fetches item | `dog_bark` |
+
+### World / ambient events
+
+| Event | Sound cue |
+| --- | --- |
+| Day→night transition | `night_fall` |
+| Night→day transition (dawn) | `dawn` |
+| Night monster spawns | `monster_spawn` |
+| Teach recording starts | `teach_start` |
+| Teach recording stops | `teach_stop` |
+| Game save (pending main.js wiring) | `save` recipe available, wiring deferred to main.js refactor |
+| Level-up / milestone | `level_up` recipe available, not yet triggered in game loop |
+| Low HP / danger warning | `warn` recipe available, not yet triggered in game loop |
+
+## Recipes available but not yet wired
+
+These recipes exist in `src/audio.js` and are ready to be triggered via `emitSound(name, opts)` once the appropriate game-event hooks are added:
+
+- `save` — game save confirm. `main.js` handles autosave; wiring deferred since main.js is being refactored by another worker.
+- `level_up` — achievement/milestone fanfare. Needs a milestone-tracking hook (e.g. first bot, first craft, etc.).
+- `warn` — low HP / danger alert. Needs a threshold check in the player HP update loop.
+
+## Recipe design notes
+
+Each recipe is a self-contained function `(ctx) => { tone(ctx, {...}); noise(ctx, {...}); }` that synthesizes the sound using the Web Audio API at runtime. The `tone()` helper creates an oscillator with a frequency ramp and gain envelope. The `noise()` helper creates a filtered white-noise burst. Recipes are cooldown-throttled per-key via `play(name, { cooldownKey, minGapMs })`.
+
+All 16 new recipes follow the same compact one-liner style as the original 24, using only `tone()` and `noise()` primitives with different parameters for character.
 
 ## Future replacement plan
 

@@ -9,6 +9,14 @@ import { installInventorySystem } from './systems/inventory/inventory-system.js?
 import { assemblerRecipe as getAssemblerRecipe, DEFAULT_SMITHERY_RECIPE, DEFAULT_WORKBENCH_RECIPE, installProductionSystem, productionInputCount, productionInputNeeds as getProductionInputNeeds, SMITHERY_RECIPES, smitheryInputFor, smitheryRecipe, WORKBENCH_TOOL_RECIPES, workbenchRecipe } from './systems/production/production-system.js?v=t_production_system_0627';
 import { FOG_CELL_SIZE, createFogOfWar, fogRevealSources as createFogRevealSources, getFogStats, isLightEmittingStructure as isFogLightEmittingStructure, normalizeFogOfWar, revealFogCircle, serializeFogOfWar, structureLightRadius as fogStructureLightRadius, updateFogOfWarState } from './fog-of-war.js?v=t_building_kits_0618';
 import { clamp, rand, distXY, nearest, pointInRect, rectDistance, canvasPoint, escapeHtml } from './utils.js?v=20260613-player-tools';
+import { installCameraSystem } from './systems/camera-system.js?v=t_camera_system_0627';
+import { installPlayerSystem } from './systems/player-system.js?v=t_player_system_0627';
+import { installMonsterSystem } from './systems/monster-system.js?v=t_monster_system_0627';
+import { installStructureSystem } from './systems/structure-system.js?v=t_structure_system_0627';
+import { installBotSystem } from './systems/bot-system.js?v=t_bot_system_0627';
+import { installTeachSystem } from './systems/teach-system.js?v=t_teach_system_0627';
+import { installSpawnSystem } from './systems/spawn-system.js?v=t_spawn_system_0627';
+import { installInteractionSystem } from './systems/interaction-system.js?v=t_interaction_system_0627';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 const rectCenter = z => ({ x: z.x + z.w / 2, y: z.y + z.h / 2 });
@@ -234,270 +242,18 @@ export class Game {
     window.addEventListener('resize', () => this.resizeCanvas(true), { passive: true });
   }
 
-  resizeCanvas(clampEntities = true) {
-    const canvasRect = this.canvas.getBoundingClientRect();
-    const parentRect = (this.canvas.parentElement || this.canvas).getBoundingClientRect();
-    const rect = canvasRect.width && canvasRect.height ? canvasRect : parentRect;
-    const w = Math.max(1, Math.round(rect.width || window.innerWidth || this.canvas.width));
-    const h = Math.max(1, Math.round(rect.height || window.innerHeight || this.canvas.height));
-    if (this.canvas.width === w && this.canvas.height === h) return;
-    this.canvas.width = w;
-    this.canvas.height = h;
-    this.W = w;
-    this.H = h;
-    if (clampEntities && this.player) {
-      this.player.x = clamp(this.player.x, 20, Math.max(20, this.map.width - 20));
-      this.player.y = clamp(this.player.y, 20, Math.max(20, this.map.height - 20));
-      this.assistant.x = clamp(this.assistant.x, 20, Math.max(20, this.map.width - 20));
-      this.assistant.y = clamp(this.assistant.y, 20, Math.max(20, this.map.height - 20));
-    }
-    this.clampCamera();
-    this.renderBackend?.resize?.({ width: w, height: h, canvas: this.canvas });
-  }
 
-  clampCamera() {
-    const zoom = clamp(this.camera.zoom || 1, CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM);
-    this.camera.zoom = zoom;
-    const viewW = this.W / zoom;
-    const viewH = this.H / zoom;
-    const edgePadX = Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2);
-    const edgePadY = Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2);
-    const maxX = Math.max(0, this.map.width - viewW) + edgePadX;
-    const maxY = Math.max(0, this.map.height - viewH) + edgePadY;
-    this.camera.x = clamp(this.camera.x, -edgePadX, maxX);
-    this.camera.y = clamp(this.camera.y, -edgePadY, maxY);
-  }
 
-  screenToWorld(screenX, screenY) {
-    const zoom = this.camera.zoom || 1;
-    return {
-      x: clamp(screenX / zoom + this.camera.x, 0, this.map.width),
-      y: clamp(screenY / zoom + this.camera.y, 0, this.map.height)
-    };
-  }
-  worldToScreen(worldX, worldY) {
-    const zoom = this.camera.zoom || 1;
-    const rect = this.canvas.getBoundingClientRect();
-    const scaleX = rect.width / Math.max(1, this.canvas.width);
-    const scaleY = rect.height / Math.max(1, this.canvas.height);
-    return {
-      x: rect.left + ((worldX - this.camera.x) * zoom * scaleX),
-      y: rect.top + ((worldY - this.camera.y) * zoom * scaleY)
-    };
-  }
 
-  refreshMouseWorld() {
-    const world = this.screenToWorld(this.mouse.screenX || 0, this.mouse.screenY || 0);
-    this.mouse.x = world.x;
-    this.mouse.y = world.y;
-  }
 
-  setCameraZoom(nextZoom, anchorScreenX = this.W / 2, anchorScreenY = this.H / 2) {
-    const oldZoom = this.camera.zoom || 1;
-    const zoom = clamp(nextZoom, CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM);
-    if (Math.abs(zoom - oldZoom) < 0.001) return false;
-    const anchorWorldX = anchorScreenX / oldZoom + this.camera.x;
-    const anchorWorldY = anchorScreenY / oldZoom + this.camera.y;
-    this.camera.zoom = zoom;
-    this.camera.x = anchorWorldX - anchorScreenX / zoom;
-    this.camera.y = anchorWorldY - anchorScreenY / zoom;
-    this.clampCamera();
-    this.refreshMouseWorld();
-    this.updateHover();
-    return true;
-  }
 
   emitSound(name, detail = {}) {
     const alias = { pickup_item: 'pickup', take_from_storage: 'storage', deposit_to_structure: 'deposit', search_tree: 'search', search_hemp: 'search', chop_tree: 'chop', chop_hemp: 'chop', mine_stone: 'mine', attack_target: 'hit', attack_throne: 'hit', structure_processing: 'craft_start' };
     try { this.audio?.play?.(alias[name] || name, detail); } catch {}
   }
 
-  canvasToWorld(event) {
-    const p = canvasPoint(this.canvas, event);
-    const world = this.screenToWorld(p.x, p.y);
-    return {
-      ...p,
-      screenX: p.x,
-      screenY: p.y,
-      x: world.x,
-      y: world.y
-    };
-  }
 
-  normalizePlayerTarget(x, y, options = {}) {
-    return { x: clamp(x, 20, this.map.width - 20), y: clamp(y, 20, this.map.height - 20), ...options };
-  }
-  announcePlayerTarget(target, floatText = 'Move target', color = '#80a9c9') {
-    if (!target) return;
-    this.addFloat(floatText, target.x, target.y - 18, color);
-    this.emitSound(target.action || 'move', { cooldownKey: `player:${target.action || 'move'}`, minGapMs: 120 });
-  }
-  reservePlayerTarget(target) {
-    if (target?.action === 'pickup_item' && target.itemId) {
-      const item = this.items.find(i => i.id === target.itemId);
-      if (item) item.reservedBy = 'player';
-    } else if (target?.action === 'deploy_loose_building_kit' && target.itemId) {
-      const item = this.items.find(i => i.id === target.itemId);
-      if (item) item.reservedBy = 'player';
-    } else if (target?.action === 'search_tree' && target.resourceId) {
-      const tree = this.trees.find(t => t.id === target.resourceId);
-      if (tree) tree.searchReservedBy = 'player';
-    }
-  }
-  activatePlayerTarget(target, { floatText, color = '#80a9c9' } = {}) {
-    this.player.target = target || null;
-    if (!target) return null;
-    const dx = target.x - this.player.x;
-    const dy = target.y - this.player.y;
-    const len = Math.hypot(dx, dy);
-    if (len > 0.001) { this.player.facingX = dx / len; this.player.facingY = dy / len; }
-    this.reservePlayerTarget(target);
-    this.announcePlayerTarget(target, floatText || target.floatText || 'Move target', color);
-    return target;
-  }
-  advancePlayerTargetQueue() {
-    this.player.target = null;
-    if (!Array.isArray(this.player.targetQueue) || !this.player.targetQueue.length) return false;
-    const next = this.player.targetQueue.shift();
-    this.activatePlayerTarget(next, { floatText: next.floatText || 'Queued command', color: '#9abf8f' });
-    return true;
-  }
-  clearPlayerTargetQueue() {
-    this.releasePlayerTargetReservation();
-    this.player.target = null;
-    this.player.targetQueue = [];
-  }
-  setPlayerDestination(x, y, options = {}, { append = false } = {}) {
-    const target = this.normalizePlayerTarget(x, y, options);
-    if (append && this.player.target) {
-      this.player.targetQueue ||= [];
-      this.player.targetQueue.push(target);
-      this.announcePlayerTarget(target, `Queued: ${options.floatText || 'Move target'}`, '#9abf8f');
-      return target;
-    }
-    this.releasePlayerTargetReservation();
-    if (!append) this.player.targetQueue = [];
-    return this.activatePlayerTarget(target, { floatText: options.floatText });
-  }
-  releasePlayerTargetReservation() {
-    const target = this.player?.target;
-    if (target?.action === 'pickup_item' && target.itemId) {
-      const item = this.items.find(i => i.id === target.itemId && i.reservedBy === 'player');
-      if (item) item.reservedBy = null;
-    }
-    if (target?.action === 'deploy_loose_building_kit' && target.itemId) {
-      const item = this.items.find(i => i.id === target.itemId && i.reservedBy === 'player');
-      if (item) item.reservedBy = null;
-    }
-    if (target?.action === 'search_tree' && target.resourceId) {
-      const tree = this.trees.find(t => t.id === target.resourceId && t.searchReservedBy === 'player');
-      if (tree) tree.searchReservedBy = null;
-    }
-    if (target?.action === 'search_hemp' && target.resourceId) {
-      const hemp = this.hempPlants.find(h => h.id === target.resourceId && h.searchReservedBy === 'player');
-      if (hemp) hemp.searchReservedBy = null;
-    }
-  }
-  queuePlayerItemPickup(item, { append = false } = {}) {
-    if (!item) return false;
-    if (this.player.inventory && !this.isEquipmentItem(item.type)) {
-      this.addFloat(`No free space: carrying ${itemLabel(this.player.inventory.type)}`, item.x, item.y - 24, '#c86b5f');
-      return false;
-    }
-    const verb = this.isEquipmentItem(item.type) ? 'Equip' : 'Pick up';
-    this.setPlayerDestination(item.x, item.y, { action: 'pickup_item', itemId: item.id, floatText: `${verb} ${itemLabel(item.type)}` }, { append });
-    return true;
-  }
-  completePlayerTarget(target) {
-    if (target?.action === 'pickup_item' && target.itemId) {
-      const item = this.items.find(i => i.id === target.itemId);
-      const picked = this.manualPickupItem(item);
-      if (!picked && item?.reservedBy === 'player') item.reservedBy = null;
-      return;
-    }
-    if (target?.action === 'deploy_loose_building_kit' && target.itemId) {
-      this.startPlayerBuildingKitAction(target);
-      return;
-    }
-    if (target?.action === 'deploy_building_kit') {
-      this.startPlayerBuildingKitAction(target);
-      return;
-    }
-    if (target?.action === 'plant_seed' && target.holeId) {
-      const hole = this.holes.find(h => h.id === target.holeId && !h.planted);
-      if (hole) this.manualPlantSeedAtHole(hole);
-      return;
-    }
-    if (target?.action === 'chop_tree' && target.resourceId) { const tree = this.trees.find(t => t.id === target.resourceId); if (tree) this.startPlayerResourceWork(target, tree, 'chopping tree'); return; }
-    if (target?.action === 'mine_stone' && target.resourceId) { const rock = this.rocks.find(r => r.id === target.resourceId && !r.depleted); if (rock) this.startPlayerResourceWork(target, rock, 'mining stone'); return; }
-    if (target?.action === 'attack_target') { this.playerAttackTargetByRef(target.targetRef); return; }
-    if (target?.action === 'attack_throne' && target.structureId) { const throne = this.structures.find(st => st.id === target.structureId); this.damageThrone(throne, this.playerMeleeDamage()); return; }
-    if (target?.action === 'demolish_structure' && target.structureId) { this.finishPlayerDemolishStructure(target); return; }
-    if (target?.action === 'disassemble_building_to_kit' && target.structureId) { this.startPlayerBuildingKitAction(target); return; }
-    if (target?.action === 'take_from_storage' && target.structureId) {
-      const s = this.structures.find(st => st.id === target.structureId);
-      this.manualTakeFromPalette(s);
-      return;
-    }
-    if (target?.action === 'deposit_to_structure' && target.structureId) {
-      const s = this.structures.find(st => st.id === target.structureId);
-      const held = this.player.inventory?.type;
-      if (!s || !held) return;
-      const deposited = this.manualDepositToStructure(s, { waitIfProcessing: true });
-      if (!deposited && this.player.inventory?.type === held && this.isStructureProcessing(s)) {
-        if (!target.waiting) this.addFloat(`Waiting for ${s.name}`, s.x, s.y - 35, '#c7b683');
-        this.player.target = { ...target, x: s.x, y: s.y, waiting: true };
-      }
-    }
-  }
-  queuePlayerStructureDeposit(s, { append = false } = {}) {
-    const held = this.player.inventory?.type;
-    if (!s || !held || !this.canStructureAcceptItemWhenIdle(s, held)) return false;
-    this.setPlayerDestination(s.x, s.y, { action: 'deposit_to_structure', structureId: s.id, itemType: held, floatText: `Deposit ${itemLabel(held)} into ${s.name}` }, { append });
-    return true;
-  }
-  queuePlayerPlantSeedAtHole(hole, { append = false } = {}) {
-    if (!hole || hole.planted) return false;
-    if (this.player.inventory?.type !== 'tree_seed') return false;
-    this.setPlayerDestination(hole.x, hole.y, { action: 'plant_seed', holeId: hole.id, floatText: `Plant tree seed in ${hole.ref}` }, { append });
-    return true;
-  }
-  queuePlayerPaletteInteraction(s, { append = false } = {}) {
-    if (!s || !STORAGE_STRUCTURE_TYPES.includes(s.type)) return false;
-    const held = this.player.inventory?.type;
-    if (held) {
-      if (!this.canStructureAcceptItem(s, held)) {
-        const reason = (s.stored || 0) >= (s.capacity || 0) ? `${s.name} is full` : `${s.name} stores ${itemLabel(s.storageType || held)}`;
-        this.addFloat(reason, s.x, s.y - 35, '#c86b5f');
-        return true;
-      }
-      this.setPlayerDestination(s.x, s.y, { action: 'deposit_to_structure', structureId: s.id, itemType: held, floatText: `Store ${itemLabel(held)} in ${s.name}` }, { append });
-      return true;
-    }
-    if (!s.storageType || (s.stored || 0) <= 0) {
-      this.addFloat(`${s.name} is empty`, s.x, s.y - 35, '#c86b5f');
-      return true;
-    }
-    this.setPlayerDestination(s.x, s.y, { action: 'take_from_storage', structureId: s.id, itemType: s.storageType, floatText: `Take ${itemLabel(s.storageType)} from ${s.name}` }, { append });
-    return true;
-  }
 
-  updateCamera(dt) {
-    let dx = 0, dy = 0;
-    if (this.keys.has('arrowleft') || this.keys.has('a')) dx--;
-    if (this.keys.has('arrowright') || this.keys.has('d')) dx++;
-    if (this.keys.has('arrowup') || this.keys.has('w')) dy--;
-    if (this.keys.has('arrowdown') || this.keys.has('s')) dy++;
-    if (dx || dy) {
-      const len = Math.hypot(dx, dy);
-      const speed = this.camera.speed * (this.keys.has('shift') ? (this.camera.fastMultiplier || 2.35) : 1);
-      this.camera.x += (dx / len) * speed * dt;
-      this.camera.y += (dy / len) * speed * dt;
-      this.clampCamera();
-      this.refreshMouseWorld();
-      this.updateHover();
-    }
-  }
 
   dayNightPhase() { return (((this.worldTime || 0) % DAY_NIGHT_CYCLE_SECONDS) + DAY_NIGHT_CYCLE_SECONDS) % DAY_NIGHT_CYCLE_SECONDS / DAY_NIGHT_CYCLE_SECONDS; }
   getDayNightState() {
@@ -529,55 +285,6 @@ export class Game {
     this._lastFogSignature = signature;
     this.fogOfWar = updateFogOfWarState(this.fogOfWar, { map: this.map, sources, time: this.worldTime });
   }
-  playerOwnedStructures() {
-    const playerId = this.multiplayer?.playerId || 'p1';
-    return this.structures.filter(s => (s.hp ?? 1) > 0 && (!s.ownerId || s.ownerId === playerId || s.ownerId === 'neutral'));
-  }
-  nightMonsterDistanceToBuildings(point) {
-    const buildings = this.playerOwnedStructures();
-    if (!buildings.length) return Infinity;
-    return Math.min(...buildings.map(s => rectDistance(point.x, point.y, s)));
-  }
-  findNightMonsterSpawnPoint() {
-    const structures = this.playerOwnedStructures();
-    const origin = structures.length ? rectCenter(structures[0]) : this.player;
-    let best = null;
-    for (let i = 0; i < 80; i++) {
-      const angle = rand(0, Math.PI * 2);
-      const distance = rand(NIGHT_MONSTER_CONFIG.minDistanceFromPlayer, Math.max(NIGHT_MONSTER_CONFIG.minDistanceFromPlayer + 80, NIGHT_MONSTER_CONFIG.minDistanceFromStructures * 2.2));
-      const point = { x: clamp(origin.x + Math.cos(angle) * distance, 40, this.map.width - 40), y: clamp(origin.y + Math.sin(angle) * distance, 40, this.map.height - 40) };
-      const buildingDistance = this.nightMonsterDistanceToBuildings(point);
-      const playerDistance = distXY(point.x, point.y, this.player.x, this.player.y);
-      const score = Math.min(buildingDistance, playerDistance);
-      if (!best || score > best.score) best = { ...point, score };
-      if (buildingDistance >= NIGHT_MONSTER_CONFIG.minDistanceFromStructures && playerDistance >= NIGHT_MONSTER_CONFIG.minDistanceFromPlayer) return point;
-    }
-    return best || { x: clamp(this.player.x + 900, 40, this.map.width - 40), y: clamp(this.player.y + 650, 40, this.map.height - 40) };
-  }
-  spawnNightMonster() {
-    const point = this.findNightMonsterSpawnPoint();
-    const monster = this.spawnMonster(point.x, point.y, {
-      kind: 'night_monster', type: 'night_monster', name: 'night monster', passive: false, hostile: true, ownerId: 'wild', ownerLabel: 'Night', hp: 12, maxHp: 12,
-      speed: rand(42, 58), roamRadius: NIGHT_MONSTER_CONFIG.roamRadius, avoidRadius: NIGHT_MONSTER_CONFIG.avoidRadius, aggroRange: 130
-    });
-    monster.spawnedAtNight = true;
-    monster.homeX = point.x; monster.homeY = point.y;
-    return monster;
-  }
-  updateNightMonsterSpawns(dt) {
-    const night = this.isNightTime();
-    const state = this.nightSpawns ||= { active: false, timer: 1.5, spawnedThisNight: 0 };
-    if (!night) { state.active = false; state.timer = 1.5; state.spawnedThisNight = 0; return; }
-    if (!state.active) { state.active = true; state.timer = Math.min(state.timer ?? 1.5, 1.5); state.spawnedThisNight = 0; }
-    state.timer = (state.timer ?? NIGHT_MONSTER_CONFIG.spawnEverySeconds) - dt;
-    if (state.timer > 0) return;
-    const activeNightMonsters = this.monsters.filter(m => (m.hp || 0) > 0 && m.type === 'night_monster').length;
-    if (activeNightMonsters < NIGHT_MONSTER_CONFIG.maxActive && state.spawnedThisNight < NIGHT_MONSTER_CONFIG.maxPerNight) {
-      this.spawnNightMonster();
-      state.spawnedThisNight++;
-    }
-    state.timer += NIGHT_MONSTER_CONFIG.spawnEverySeconds;
-  }
 
   initWorld() {
     [
@@ -593,403 +300,14 @@ export class Game {
     this.spawnItem('log', 285, 500, 3); this.spawnItem('stick', 410, 500, 5); this.spawnItem('tree_seed', 535, 500, 3); this.spawnItem('crude_axe', 610, 500, STARTING_AXE_COUNT); this.spawnItem('crude_pickaxe', 665, 500, STARTING_PICKAXE_COUNT); this.spawnItem('crude_shovel', 720, 500, STARTING_SHOVEL_COUNT);
   }
 
-  handleCanvasTap(p, { allowMoveOnEmpty = false } = {}) {
-    Object.assign(this.mouse, p);
-    if (this.justDraggedZone) { this.justDraggedZone = false; return true; }
-    if (this.justDrewZone) { this.justDrewZone = false; return true; }
-    if (this.zoneDraft?.active) return true;
-    if (this.placementType) { this.placeStructure(this.placementType, p.x, p.y); return true; }
-    if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return true; }
-    this.hideMenus();
-    const bot = this.botAt(p.x, p.y);
-    if (bot) {
-      if (this.isDogBot(bot)) { this.showDogPopup(bot, bot.inventory ? 'reward' : 'progress'); return true; }
-      this.showBotMenu(bot, p.clientX, p.clientY, { refreshEdit: true });
-      return true;
-    }
-    const s = this.structureAt(p.x, p.y); if (s) { this.showStructureMenu(s, p.clientX, p.clientY); return true; }
-    const tree = this.treeAt(p.x, p.y); if (tree) { this.showTreeMenu(tree, p.clientX, p.clientY); return true; }
-    const hole = this.holeAt(p.x, p.y); if (hole) { this.showHoleMenu(hole, p.clientX, p.clientY); return true; }
-    const z = this.zoneAt(p.x, p.y); if (z) { this.showZoneMenu(z, p.clientX, p.clientY); return true; }
-    if (allowMoveOnEmpty) { this.setPlayerDestination(p.x, p.y); return true; }
-    return false;
-  }
 
-  handleCanvasContextAction(p) {
-    Object.assign(this.mouse, p);
-    if (this.zoneDraft?.active) return true;
-    if (this.placementType) { this.cancelPlacement(); return true; }
-    if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return true; }
-    this.hideMenus();
-    const append = this.keys.has('shift');
-    const friendlyBot = this.botAt(p.x, p.y);
-    if (friendlyBot && !this.isHostileTarget(friendlyBot)) {
-      if (this.isDogBot(friendlyBot)) { this.showDogPopup(friendlyBot, friendlyBot.inventory ? 'reward' : 'progress'); return true; }
-      this.showBotMenu(friendlyBot, p.clientX, p.clientY, { refreshEdit: true });
-      return true;
-    }
-    const attackTarget = this.attackTargetAt(p.x, p.y); if (attackTarget && this.queuePlayerAttackTarget(attackTarget, { append })) return true;
-    const item = this.itemAt(p.x, p.y);
-    if (item) return isBuildingKitItemType(item.type) ? (this.showBuildingKitItemMenu(item, p.clientX, p.clientY), true) : this.queuePlayerItemPickup(item, { append });
-    const s = this.structureAt(p.x, p.y);
-    if (s) {
-      if (this.queuePlayerDemolishStructure(s, { append })) return true;
-      if (STORAGE_STRUCTURE_TYPES.includes(s.type)) return this.queuePlayerPaletteInteraction(s, { append });
-      if (this.queuePlayerThroneAttack(s, { append })) return true;
-      return this.queuePlayerStructureDeposit(s, { append }) || (this.showStructureMenu(s, p.clientX, p.clientY), true);
-    }
-    const hole = this.holeAt(p.x, p.y); if (hole) { if (this.player.inventory?.type === 'tree_seed' && this.queuePlayerPlantSeedAtHole(hole, { append })) return true; this.showHoleMenu(hole, p.clientX, p.clientY); return true; }
-    const hemp = this.hempAt(p.x, p.y); if (hemp && this.queuePlayerHempAction(hemp, { append })) return true;
-    const tree = this.treeAt(p.x, p.y);
-    if (tree) {
-      if (this.player.inventory?.type === 'crude_axe' && this.queuePlayerResourceAction(tree, 'chop_tree', { append })) return true;
-      if (!this.player.inventory && this.queuePlayerTreeSearch(tree)) return true;
-      this.showTreeMenu(tree, p.clientX, p.clientY);
-      return true;
-    }
-    const rock = this.rockAt(p.x, p.y); if (rock && this.queuePlayerResourceAction(rock, 'mine_stone', { append })) return true;
-    if (this.queuePlayerDeployHeldKit(p.x, p.y, { append })) return true;
-    this.setPlayerDestination(p.x, p.y, {}, { append });
-    return true;
-  }
 
-  bindCanvas() {
-    this.canvas.addEventListener('wheel', e => {
-      e.preventDefault();
-      const p = canvasPoint(this.canvas, e);
-      Object.assign(this.mouse, { ...p, screenX: p.x, screenY: p.y });
-      const factor = Math.exp(-e.deltaY * CAMERA_WHEEL_SENSITIVITY);
-      this.setCameraZoom((this.camera.zoom || 1) * factor, p.x, p.y);
-    }, { passive: false });
-    this.canvas.addEventListener('mousemove', e => {
-      Object.assign(this.mouse, this.canvasToWorld(e));
-      if (this.zoneResize?.active) {
-        const d = this.zoneResize;
-        this.resizeZoneFromPointer(d, this.mouse.x, this.mouse.y);
-        d.moved = d.moved || distXY(this.mouse.x, this.mouse.y, d.startMouseX, d.startMouseY) > 2;
-        this.updateHover();
-        e.preventDefault();
-        return;
-      }
-      if (this.zoneDrag?.active) {
-        const d = this.zoneDrag;
-        this.moveZoneFromPointer(d, this.mouse.x, this.mouse.y);
-        const pt = this.zoneAnchorPoint(d.zone);
-        d.moved = d.moved || distXY(pt.x, pt.y, d.startAnchorX, d.startAnchorY) > 2;
-        this.updateHover();
-        e.preventDefault();
-        return;
-      }
-      if (this.zoneDraft?.active && this.zoneDraft.started) {
-        this.zoneDraft.x2 = this.mouse.x; this.zoneDraft.y2 = this.mouse.y;
-        if (this.zoneDraft.kind === 'radius') this.zoneDraft.radius = Math.max(8, distXY(this.zoneDraft.x1, this.zoneDraft.y1, this.mouse.x, this.mouse.y));
-      }
-      this.updateHover();
-    });
-    this.canvas.addEventListener('mouseleave', () => { this.finishZoneResize(); this.finishZoneDrag(); this.mouse.hoverBot = null; this.mouse.hoverStructure = null; this.mouse.hoverMonster = null; this.mouse.hoverTree = null; this.mouse.hoverHole = null; this.mouse.hoverItem = null; this.mouse.hoverHemp = null; this.mouse.hoverZone = null; this.canvas.style.cursor = 'default'; });
-    this.canvas.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
-      const chatRectMode = !this.zoneDraft?.active && !this.placementType && this.isChatActive?.();
-      const p = this.canvasToWorld(e); Object.assign(this.mouse, p);
-      if (!this.zoneDraft?.active && !this.placementType && !this.teachLocationEdit) {
-        const resizeHit = this.zoneResizeHandleAt(p.x, p.y);
-        if (resizeHit) {
-          this.zoneResize = { active: true, zone: resizeHit.zone, handle: resizeHit.handle, startMouseX: p.x, startMouseY: p.y, startBounds: this.zoneBounds(resizeHit.zone), moved: false };
-          this.hideMenus();
-          e.preventDefault();
-          return;
-        }
-        const z = this.zoneAt(p.x, p.y);
-        if (z && !z.builtIn) {
-          const b = this.zoneBounds(z);
-          this.zoneDrag = { active: true, zone: z, offsetX: p.x - b.x, offsetY: p.y - b.y, startAnchorX: b.x, startAnchorY: b.y, moved: false };
-          this.hideMenus();
-          e.preventDefault();
-          return;
-        }
-      }
-      if (!this.zoneDraft?.active && !chatRectMode) return;
-      if (chatRectMode) this.zoneDraft = { active: true, started: false, x1: 0, y1: 0, x2: 0, y2: 0, fromChatDrag: true };
-      this.zoneDraft.started = true; this.zoneDraft.x1 = p.x; this.zoneDraft.y1 = p.y; this.zoneDraft.x2 = p.x; this.zoneDraft.y2 = p.y;
-      e.preventDefault();
-    });
-    this.canvas.addEventListener('mouseup', e => {
-      if (this.zoneResize?.active && e.button === 0) {
-        const p = this.canvasToWorld(e); Object.assign(this.mouse, p);
-        this.finishZoneResize();
-        e.preventDefault();
-        return;
-      }
-      if (this.zoneDrag?.active && e.button === 0) {
-        const p = this.canvasToWorld(e); Object.assign(this.mouse, p);
-        this.finishZoneDrag();
-        e.preventDefault();
-        return;
-      }
-      if (!this.zoneDraft?.active || !this.zoneDraft.started || e.button !== 0) return;
-      const p = this.canvasToWorld(e); this.zoneDraft.x2 = p.x; this.zoneDraft.y2 = p.y;
-      const zone = this.finishZoneDrawing();
-      if (zone && ['draw_zone', 'draw_radius'].includes(this.teachLocationEdit?.mode)) this.applyTeachZoneToStep(zone);
-      else if (zone) this.chat.insertAtCursor(this.zoneText(zone));
-      this.justDrewZone = Boolean(zone);
-      e.preventDefault();
-    });
 
-    const touchPointers = new Map();
-    let longPressTimer = 0;
-    let longPressFired = false;
-    let activeTouchGesture = null;
-    const clearLongPress = () => { clearTimeout(longPressTimer); longPressTimer = 0; };
-    const touchPointFromEvent = event => {
-      const p = this.canvasToWorld(event);
-      return { id: event.pointerId, clientX: event.clientX, clientY: event.clientY, screenX: p.screenX, screenY: p.screenY, x: p.x, y: p.y };
-    };
-    const startLongPress = pointerId => {
-      clearLongPress();
-      longPressFired = false;
-      longPressTimer = setTimeout(() => {
-        const entry = touchPointers.get(pointerId);
-        if (!entry || activeTouchGesture?.pinching || entry.panned || entry.moved) return;
-        longPressFired = true;
-        this.suppressNextClick = true;
-        this.handleCanvasContextAction({ clientX: entry.clientX, clientY: entry.clientY, screenX: entry.screenX, screenY: entry.screenY, x: entry.x, y: entry.y });
-      }, 560);
-    };
-    const pinchMetrics = () => {
-      const pts = [...touchPointers.values()];
-      if (pts.length < 2) return null;
-      const a = pts[0], b = pts[1];
-      return {
-        distance: Math.max(1, Math.hypot(a.screenX - b.screenX, a.screenY - b.screenY)),
-        centerX: (a.screenX + b.screenX) / 2,
-        centerY: (a.screenY + b.screenY) / 2
-      };
-    };
-    const beginPinch = () => {
-      const metrics = pinchMetrics();
-      if (!metrics) return;
-      clearLongPress();
-      activeTouchGesture = { pinching: true, startDistance: metrics.distance, startZoom: this.camera.zoom || 1, lastCenterX: metrics.centerX, lastCenterY: metrics.centerY };
-    };
-    this.canvas.addEventListener('pointerdown', e => {
-      if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
-      e.preventDefault();
-      try { this.canvas.setPointerCapture?.(e.pointerId); } catch {}
-      const p = touchPointFromEvent(e);
-      touchPointers.set(e.pointerId, { ...p, startScreenX: p.screenX, startScreenY: p.screenY, lastScreenX: p.screenX, lastScreenY: p.screenY, moved: false, panned: false });
-      Object.assign(this.mouse, p);
-      this.updateHover();
-      if (touchPointers.size >= 2) beginPinch();
-      else {
-        activeTouchGesture = { pinching: false, panning: false };
-        startLongPress(e.pointerId);
-      }
-    }, { passive: false });
-    this.canvas.addEventListener('pointermove', e => {
-      if (!touchPointers.has(e.pointerId)) return;
-      e.preventDefault();
-      const p = touchPointFromEvent(e);
-      const entry = touchPointers.get(e.pointerId);
-      const dx = p.screenX - entry.lastScreenX;
-      const dy = p.screenY - entry.lastScreenY;
-      const movedFromStart = Math.hypot(p.screenX - entry.startScreenX, p.screenY - entry.startScreenY);
-      Object.assign(entry, p, { moved: entry.moved || movedFromStart > 8 });
-      Object.assign(this.mouse, p);
-      if (touchPointers.size >= 2) {
-        if (!activeTouchGesture?.pinching) beginPinch();
-        const metrics = pinchMetrics();
-        if (metrics && activeTouchGesture?.pinching) {
-          const ratio = metrics.distance / activeTouchGesture.startDistance;
-          this.setCameraZoom(activeTouchGesture.startZoom * ratio, metrics.centerX, metrics.centerY);
-          this.camera.x -= (metrics.centerX - activeTouchGesture.lastCenterX) / (this.camera.zoom || 1);
-          this.camera.y -= (metrics.centerY - activeTouchGesture.lastCenterY) / (this.camera.zoom || 1);
-          this.clampCamera();
-          activeTouchGesture.lastCenterX = metrics.centerX;
-          activeTouchGesture.lastCenterY = metrics.centerY;
-          this.refreshMouseWorld();
-          this.updateHover();
-        }
-        return;
-      }
-      if (entry.moved) clearLongPress();
-      if (entry.moved && !longPressFired && !this.zoneDraft?.active && !this.placementType) {
-        activeTouchGesture = { pinching: false, panning: true };
-        entry.panned = true;
-        this.camera.x -= dx / (this.camera.zoom || 1);
-        this.camera.y -= dy / (this.camera.zoom || 1);
-        this.clampCamera();
-        this.refreshMouseWorld();
-        this.updateHover();
-      }
-      entry.lastScreenX = p.screenX;
-      entry.lastScreenY = p.screenY;
-    }, { passive: false });
-    const finishTouchPointer = e => {
-      const entry = touchPointers.get(e.pointerId);
-      if (!entry) return;
-      e.preventDefault();
-      clearLongPress();
-      const wasPinching = !!activeTouchGesture?.pinching || touchPointers.size > 1;
-      const p = touchPointFromEvent(e);
-      touchPointers.delete(e.pointerId);
-      try { this.canvas.releasePointerCapture?.(e.pointerId); } catch {}
-      if (wasPinching) {
-        this.suppressNextClick = true;
-        activeTouchGesture = touchPointers.size >= 2 ? activeTouchGesture : null;
-        if (touchPointers.size >= 2) beginPinch();
-        return;
-      }
-      if (!longPressFired && !entry.panned && !entry.moved) {
-        this.suppressNextClick = true;
-        this.handleCanvasTap(p, { allowMoveOnEmpty: true });
-      } else {
-        this.suppressNextClick = true;
-      }
-      longPressFired = false;
-      activeTouchGesture = null;
-    };
-    this.canvas.addEventListener('pointerup', finishTouchPointer, { passive: false });
-    this.canvas.addEventListener('pointercancel', e => {
-      if (!touchPointers.has(e.pointerId)) return;
-      e.preventDefault();
-      clearLongPress();
-      touchPointers.delete(e.pointerId);
-      longPressFired = false;
-      activeTouchGesture = null;
-      this.suppressNextClick = true;
-    }, { passive: false });
-    this.canvas.addEventListener('click', e => {
-      if (this.suppressNextClick) { this.suppressNextClick = false; e.preventDefault(); return; }
-      const p = this.canvasToWorld(e);
-      this.handleCanvasTap(p, { allowMoveOnEmpty: false });
-    });
-    this.canvas.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      const p = this.canvasToWorld(e);
-      this.handleCanvasContextAction(p);
-    });
-  }
 
-  finishZoneDrag() {
-    const d = this.zoneDrag;
-    if (!d?.active) return null;
-    this.zoneDrag = null;
-    this.justDraggedZone = Boolean(d.moved);
-    if (d.moved) {
-      this.syncZonesUi();
-      const p = this.zoneAnchorPoint(d.zone);
-      this.addFloat(`Moved ${d.zone.name}`, p.x, p.y - 8, '#d3a95f');
-      this.updateHover();
-    }
-    return d.zone;
-  }
 
-  finishZoneResize() {
-    const d = this.zoneResize;
-    if (!d?.active) return null;
-    this.zoneResize = null;
-    this.justDraggedZone = Boolean(d.moved);
-    if (d.moved) {
-      this.syncZonesUi();
-      const p = this.zoneAnchorPoint(d.zone);
-      this.addFloat(`Resized ${d.zone.name}`, p.x, p.y - 8, '#d3a95f');
-      this.updateHover();
-    }
-    return d.zone;
-  }
 
-  updateHover() {
-    this.mouse.hoverBot = this.botAt(this.mouse.x, this.mouse.y);
-    this.mouse.hoverStructure = !this.mouse.hoverBot ? this.structureAt(this.mouse.x, this.mouse.y) : null;
-    this.mouse.hoverMonster = !this.mouse.hoverBot && !this.mouse.hoverStructure ? this.monsterAt(this.mouse.x, this.mouse.y) : null;
-    this.mouse.hoverItem = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster ? this.itemAt(this.mouse.x, this.mouse.y) : null;
-    this.mouse.hoverTree = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverItem ? this.treeAt(this.mouse.x, this.mouse.y) : null;
-    this.mouse.hoverHole = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverItem ? this.holeAt(this.mouse.x, this.mouse.y) : null;
-    this.mouse.hoverHemp = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverHole && !this.mouse.hoverItem ? this.hempAt(this.mouse.x, this.mouse.y) : null;
-    this.mouse.hoverZone = !this.mouse.hoverStructure && !this.mouse.hoverBot && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverHole && !this.mouse.hoverItem && !this.mouse.hoverHemp ? this.zoneAt(this.mouse.x, this.mouse.y) : null;
-    const resizeHit = !this.zoneDraft?.active && !this.placementType ? this.zoneResizeHandleAt(this.mouse.x, this.mouse.y) : null;
-    this.canvas.style.cursor = this.zoneDraft?.active || this.placementType ? 'crosshair' : (this.zoneResize?.active ? 'nwse-resize' : (this.zoneDrag?.active ? 'grabbing' : (resizeHit ? (resizeHit.handle === 'e' ? 'ew-resize' : 'nwse-resize') : (this.mouse.hoverBot || this.mouse.hoverStructure || this.mouse.hoverMonster || this.mouse.hoverTree || this.mouse.hoverHole || this.mouse.hoverItem || this.mouse.hoverHemp || this.mouse.hoverZone ? 'pointer' : 'default'))));
-  }
 
-  addStructure(type, x, y, options = {}) {
-    const def = BUILDING_TYPES[type]; const id = this.nextStructureId++;
-    const countSame = this.structures.filter(s => s.type === type).length + 1;
-    const baseName = type === 'factory' ? 'factory' : type === 'item_palette' ? 'item palette' : type === 'workbench' ? 'tool bench' : type === 'smithery' ? 'smithery' : type === 'bowmaker' ? 'bowmaker' : type === 'arrowmaker' ? 'arrowmaker' : type === 'defensetower' ? 'defense tower' : type === 'throne' ? 'throne' : type === 'camper_van' ? 'white camper' : type === 'hammock_camp' ? 'hammock camp' : type === 'ultrabook_desk' ? 'ultrabook desk' : type === 'solar_array' ? 'solar array' : type === 'power_station' ? 'power station' : type === 'portable_3d_printer' ? '3d printer' : type === 'assembler' ? 'assembler' : type === 'robotics_parts_bin' ? 'parts bin' : 'sawbench';
-    const s = { id, ref: `structure:${id}`, type, name: `${baseName} ${countSame}`, label: def.label, x, y, w: def.w, h: def.h, placed: !!options.placed, logs: 0, planks: 0, poles: 0, sticks: 0, stones: 0, tree_seeds: 0, axes: 0, pickaxes: 0, shovels: 0, hammers: 0, swords: 0, shields: 0, hemps: 0, bows: 0, arrow_packs: 0, timer: 0, processing: null };
-    if (type === 'throne') Object.assign(s, { hp: def.maxHp || THRONE_HP, maxHp: def.maxHp || THRONE_HP, ownerId: null, ownerLabel: 'unclaimed' });
-    if (type === 'workbench') s.workbenchRecipe = DEFAULT_WORKBENCH_RECIPE;
-    if (type === 'assembler') s.assemblerRecipe = DEFAULT_ASSEMBLER_RECIPE;
-    if (type === 'player_storage') Object.assign(s, { storageType: this.player.inventory?.type || null, stored: this.player.inventory ? 1 : 0, capacity: 1 });
-    if (type === 'smithery') s.smitheryRecipe = DEFAULT_SMITHERY_RECIPE;
-    if (type === 'defensetower') Object.assign(s, { hp: 20, maxHp: 20, ownerId: null, ownerLabel: 'neutral', rangedAttack: createRangedAttackComponent({ range: def.attackRange, damage: def.attackDamage, cooldown: def.attackCooldown }) });
-    if (['item_palette', 'power_station', 'robotics_parts_bin'].includes(type)) Object.assign(s, { storageType: null, stored: 0, capacity: def.capacity || 40 });
-    this.structures.push(s); this.addFloat(`Built ${s.name}`, x, y - 35, '#d3a95f'); this.emitSound('build', { cooldownKey: `build:${type}`, minGapMs: 120 }); return s;
-  }
-  placeStructure(type, x, y) { this.addStructure(type, clamp(x, 70, this.map.width - 70), clamp(y, 80, this.map.height - 70), { placed: true }); this.placementType = null; this.syncBuildUi(); }
-  setPlacement(type) { this.cancelZoneDrawing(false); this.placementType = type; this.syncBuildUi(); }
-  cancelPlacement() { this.placementType = null; this.syncBuildUi(); }
 
-  beginZoneDrawing() {
-    this.cancelPlacement(); this.hideMenus();
-    this.zoneDraft = { active: true, started: false, kind: 'rect', x1: 0, y1: 0, x2: 0, y2: 0 };
-    this.addFloat('Drag a rectangle; coordinates will be inserted into chat', this.player.x, this.player.y - 34, '#9abf8f');
-  }
-  cancelZoneDrawing(showFloat = true) { if (this.zoneDraft?.active && showFloat) this.addFloat('Zone draw cancelled', this.player.x, this.player.y - 34, '#c86b5f'); this.zoneDraft = null; }
-  finishZoneDrawing() {
-    const d = this.zoneDraft; this.zoneDraft = null;
-    if (!d) return null;
-    const numericId = this.nextZoneId++;
-    if (d.kind === 'radius') {
-      const radius = clamp(Number(d.radius || distXY(d.x1, d.y1, d.x2, d.y2) || DEFAULT_RESOURCE_RADIUS), 40, 420);
-      const z = { id: `zone:${numericId}`, numericId, name: `radius ${numericId}`, kind: 'radius', x: clamp(d.x1, 0, this.map.width), y: clamp(d.y1, 0, this.map.height), radius, color: '#d3a95f', builtIn: false, hidden: false };
-      this.zones.push(z); this.syncZonesUi(); this.addFloat(`Created ${z.name}`, z.x, z.y - radius - 8, '#d3a95f'); return z;
-    }
-    const x = clamp(Math.min(d.x1, d.x2), 0, this.map.width), y = clamp(Math.min(d.y1, d.y2), 0, this.map.height);
-    const w = clamp(Math.abs(d.x2 - d.x1), 0, this.map.width - x), h = clamp(Math.abs(d.y2 - d.y1), 0, this.map.height - y);
-    if (w < MIN_DRAWN_ZONE_SIZE || h < MIN_DRAWN_ZONE_SIZE) { this.addFloat('Zone too small', this.player.x, this.player.y - 34, '#c86b5f'); return null; }
-    const z = { id: `zone:${numericId}`, numericId, name: `zone ${numericId}`, kind: 'rect', x, y, w, h, color: '#d3a95f', builtIn: false, hidden: false };
-    this.zones.push(z); this.syncZonesUi(); this.addFloat(`Created ${z.name}`, x + w / 2, y - 8, '#d3a95f'); return z;
-  }
-
-  createBot(x, y, program = 'idle', force = false) {
-    if (!force && this.bots.length >= this.maxBots) { this.addFloat(`Max bots ${this.maxBots}`, x, y - 18, '#c86b5f'); return null; }
-    const id = this.nextBotId++;
-    const bot = { id, ref: `bot:${id}`, name: `Bot ${id}`, kind: 'bot', status: 'worker', managerKnowledgePacks: [], knowledgePacks: [], teamId: null, x, y, r: 11, speed: 118, program, state: program, message: 'Waiting for assistant.', inventory: null, equipment: createEquipment(), ammunition: 0, hp: 10, maxHp: 10, hostile: false, target: null, targetItemId: null, targetItemPurpose: null, targetHoleId: null, targetStructureId: null, sourceStructureId: null, sourcePaletteId: null, targetFactoryId: null, targetWorkbenchId: null, zoneId: null, zoneSpec: null, pickupItemType: 'log', taughtLoopRepeat: true, timer: 0, runtime: { pc: 0, memory: {}, wait: 0 }, dogFetchMemory: { praiseCounts: {}, preferredType: null, lastTargetType: null }, dogFetchState: null, color: ['#80a9c9','#9abf8f','#d3a95f','#c7b683','#8fb9b5'][id % 5] };
-    this.bots.push(bot); this.addFloat(`Bot ${id} online`, x, y - 18, '#80a9c9'); this.emitSound('bot_online', { cooldownKey: 'bot_online', minGapMs: 120 }); return bot;
-  }
-  spawnTree(x, y, options = {}) {
-    const stage = options.growthStage || 'grown_tree';
-    const stats = TREE_GROWTH[stage] || TREE_GROWTH.grown_tree;
-    const id = this.nextTreeId++;
-    const tree = {
-      id, ref: `tree:${id}`, x, y,
-      hp: options.hp ?? stats.maxHp,
-      maxHp: options.maxHp ?? stats.maxHp,
-      stump: false, regrow: 0,
-      radius: options.radius ?? (stage === 'grown_tree' ? rand(17, 24) : stats.radius),
-      planted: !!options.planted,
-      growthStage: stage,
-      growTimer: options.growTimer ?? stats.growSeconds
-    };
-    this.trees.push(tree);
-    return tree;
-  }
-  spawnItem(type, x, y, count = 1) { for (let i=0;i<count;i++) { const id = this.nextItemId++; this.items.push({ id, ref: `item:${id}`, type, x: x + rand(-13,13), y: y + rand(-10,10), reservedBy: null, bob: rand(0, Math.PI*2) }); } this.emitSound('drop', { cooldownKey: `spawn:${type}`, minGapMs: 160 }); }
-  spawnHemp(x, y) { const id = this.nextHempId++; const plant = { id, ref: `hemp:${id}`, type: 'hemp_plant', x, y, radius: rand(12, 16), searched: false, harvested: false, searchReservedBy: null }; this.hempPlants.push(plant); return plant; }
-  spawnMonster(x, y, options = {}) {
-    const id = this.nextMonsterId++;
-    const monster = {
-      id, ref: `monster:${id}`, kind: options.kind || 'passive_monster', type: options.type || 'passive_monster', name: options.name || `passive monster ${id}`,
-      x: clamp(x, 30, this.map.width - 30), y: clamp(y, 30, this.map.height - 30),
-      homeX: options.homeX ?? x, homeY: options.homeY ?? y, radius: options.radius ?? rand(17, 21),
-      hp: options.hp ?? 10, maxHp: options.maxHp ?? 10, passive: options.passive ?? true, hostile: options.hostile ?? true, ownerId: options.ownerId || 'neutral', ownerLabel: options.ownerLabel || null, speed: options.speed ?? rand(38, 52),
-      roamRadius: options.roamRadius ?? MONSTER_ROAM_RADIUS, avoidRadius: options.avoidRadius ?? MONSTER_AVOID_STRUCTURE_RADIUS,
-      laneTargetRef: options.laneTargetRef || null, aggroRange: options.aggroRange ?? 140, autoAttack: createAutoAttackComponent(options.autoAttack || MONSTER_MELEE_ATTACK),
-      wanderTarget: null, phase: rand(0, Math.PI * 2)
-    };
-    this.monsters.push(monster);
-    return monster;
-  }
   findTargetByRef(ref) {
     if (!ref) return null;
     if (ref === 'player:local') { Object.assign(this.player, { ref: 'player:local', id: this.multiplayer?.playerId || 'p1' }); return (this.player.hp ?? 1) > 0 ? this.player : null; }
@@ -999,58 +317,9 @@ export class Game {
     if (ref.startsWith('structure:')) return this.structures.find(st => st.ref === ref && (st.hp ?? 1) > 0) || null;
     return null;
   }
-  damageMonster(monster, damage = 1) {
-    if (!monster || (monster.hp || 0) <= 0) return false;
-    monster.hp = Math.max(0, (monster.hp || monster.maxHp || 1) - damage);
-    this.addFloat(`${monster.name || 'enemy'} -${damage} HP`, monster.x, monster.y - 34, monster.hp <= 0 ? '#c86b5f' : '#d3a95f');
-    if (monster.hp <= 0) this.addFloat(`${monster.name || 'enemy'} defeated`, monster.x, monster.y - 50, '#9abf8f');
-    this.emitSound(monster.hp <= 0 ? 'victory' : 'hit', { cooldownKey: `hit:${monster.ref || monster.id}`, minGapMs: 130 });
-    return true;
-  }
-  monsterStructureDistance(monster, structure) { return structure ? Math.max(0, rectDistance(monster.x, monster.y, structure) - (monster.radius || 18)) : Infinity; }
-  nearestStructureToMonster(monster) { return nearest(this.structures, monster.x, monster.y, () => true); }
-  monsterTargetAwayFromStructure(monster, structure) {
-    const dx = monster.x - structure.x, dy = monster.y - structure.y;
-    const len = Math.hypot(dx, dy) || 1;
-    return { x: clamp(monster.x + dx / len * monster.avoidRadius, 30, this.map.width - 30), y: clamp(monster.y + dy / len * monster.avoidRadius, 30, this.map.height - 30) };
-  }
-  pickMonsterWanderTarget(monster) {
-    for (let i = 0; i < 14; i++) {
-      const angle = rand(0, Math.PI * 2);
-      const distance = rand(45, monster.roamRadius);
-      const target = { x: clamp(monster.homeX + Math.cos(angle) * distance, 30, this.map.width - 30), y: clamp(monster.homeY + Math.sin(angle) * distance, 30, this.map.height - 30) };
-      const nearStructure = nearest(this.structures, target.x, target.y, () => true);
-      if (!nearStructure || rectDistance(target.x, target.y, nearStructure) >= monster.avoidRadius) return target;
-    }
-    return { x: clamp(monster.homeX, 30, this.map.width - 30), y: clamp(monster.homeY, 30, this.map.height - 30) };
-  }
-  dropProducedItem(structure, type, count = 1) {
-    if (!structure) return;
-    const w = structure.w || BUILDING_TYPES[structure.type]?.w || 80;
-    const h = structure.h || BUILDING_TYPES[structure.type]?.h || 50;
-    const x = clamp(structure.x + w / 2 + 24, 16, this.map.width - 16);
-    const y = clamp(structure.y + h / 2 + 18, 16, this.map.height - 16);
-    this.spawnItem(type, x, y, count);
-  }
-  spawnStoneDeposit(x, y) { const id = this.nextRockId++; const maxHp = 5; this.rocks.push({ id, ref: `rock:${id}`, type: 'stone_deposit', x, y, hp: maxHp, maxHp, radius: rand(14,20), respawn: 0 }); return this.rocks[this.rocks.length - 1]; }
-  spawnHole(x, y) {
-    const id = this.nextHoleId++;
-    const hole = { id, ref: `hole:${id}`, kind: 'dug_hole', x: clamp(x, 12, this.map.width - 12), y: clamp(y, 12, this.map.height - 12), radius: HOLE_VISUAL_RADIUS, blockRadius: HOLE_BLOCK_RADIUS, planted: false, reservedBy: null, treeId: null };
-    this.holes.push(hole);
-    return hole;
-  }
   openHoleInZone(hole, zone, anchor = null) { return hole && !hole.planted && this.objectInZone(hole, zone, anchor); }
   nearestOpenHole(x, y, zone = null, maxDistance = Infinity, reservedBy = null, anchor = null) {
     return nearest(this.holes, x, y, h => this.openHoleInZone(h, zone, anchor) && (!h.reservedBy || h.reservedBy === reservedBy) && distXY(x, y, h.x, h.y) <= maxDistance);
-  }
-  plantSeedInHole(hole, actor = null) {
-    if (!hole || hole.planted) return false;
-    this.spawnTree(hole.x, hole.y, { planted: true, growthStage: 'sapling' });
-    this.holes = this.holes.filter(h => h.id !== hole.id);
-    this.addFloat('Planted tree seed', hole.x, hole.y - 18, '#9abf8f');
-    this.emitSound('plant', { cooldownKey: 'plant', minGapMs: 120 });
-    if (actor) actor.targetHoleId = null;
-    return true;
   }
   addFloat(text, x, y, color = '#e5ece8') {
     const existing = this.floaters.find(f => f.text === text && distXY(f.x, f.y, x, y) < 8);
@@ -1061,293 +330,6 @@ export class Game {
     this.floaters.push({ text, x, y, color, life: 1.3, max: 1.3 });
   }
 
-  clearTeachConcreteLocation(step) {
-    for (const key of ['structureId', 'structureRef', 'structureType', 'structureName', 'holeId', 'holeRef', 'holeName', 'treeId', 'treeRef', 'treeName', 'hempId', 'hempRef', 'hempName', 'rockId', 'rockRef', 'rockName', 'target']) delete step[key];
-  }
-  clearTeachZoneLocation(step) { delete step.zoneId; delete step.zoneSpec; delete step.zoneLabel; }
-  resourceRadiusStep(op, resource, label = 'resource', radius = DEFAULT_RESOURCE_RADIUS) {
-    const x = Math.round(resource?.x || this.player.x), y = Math.round(resource?.y || this.player.y);
-    const zoneSpec = { kind: 'radius', x, y, radius, name: `${radius}px radius around ${label}` };
-    return { op, zoneSpec, zoneLabel: zoneSpec.name };
-  }
-  digRadiusStep(x = this.player.x, y = this.player.y, radius = DIG_ZONE_RADIUS) {
-    const zoneSpec = { kind: 'radius', x: Math.round(x), y: Math.round(y), radius, name: `${radius}px dig radius` };
-    return { op: 'dig_hole', zoneSpec, zoneLabel: zoneSpec.name };
-  }
-  dropItemStep(typeOrX = this.player.x, xOrY = this.player.y, yMaybe = null) {
-    const hasExplicitType = typeof typeOrX === 'string' && typeof xOrY === 'number';
-    const x = hasExplicitType ? xOrY : typeOrX;
-    const y = hasExplicitType ? (typeof yMaybe === 'number' ? yMaybe : this.player.y) : xOrY;
-    const zoneSpec = { kind: 'radius', x: Math.round(x), y: Math.round(y), radius: 64, name: 'drop zone' };
-    return { op: 'drop_item', zoneSpec, zoneLabel: zoneSpec.name };
-  }
-  deployBuildingKitStep(type, x = this.player.x, y = this.player.y) {
-    const kitType = this.normalizeBuildingKitItemType(type);
-    const label = itemLabel(kitType || type);
-    const zoneSpec = { kind: 'radius', x: Math.round(x), y: Math.round(y), radius: 64, name: `deployment zone for ${label}` };
-    return { op: 'deploy_building_kit', type: kitType || type, zoneSpec, zoneLabel: zoneSpec.name };
-  }
-  stepText(step) {
-    const where = step.zoneLabel ? ` in ${step.zoneLabel}` : '';
-    if (step.op === 'pick_up') return `pick up nearest ${itemLabel(step.type)}${where}`;
-    if (step.op === 'pick_up_from_storage') return `pick up ${itemLabel(step.type)} from ${step.structureName || step.target || 'storage'}`;
-    if (step.op === 'move_to_structure') return `move_to ${step.structureName || step.target || 'structure'}`;
-    if (step.op === 'deposit_to_structure') return `move to ${step.structureName || step.target || 'structure'} and deposit ${itemLabel(step.type)}`;
-    if (step.op === 'deposit_to_player') return `bring ${itemLabel(step.type)} to player`;
-    if (step.op === 'take_from_player') return `take ${itemLabel(step.type)} from player`;
-    if (step.op === 'drop_item') return `drop item in hand on ground${where}`;
-    if (step.op === 'deploy_building_kit') return `deploy ${itemLabel(step.type)}${where}`;
-    if (step.op === 'disassemble_building_to_kit') return `disassemble ${step.structureName || step.target || 'building'} into kit`;
-    if (step.op === 'plant_seed') return step.holeName ? `plant tree seed in ${step.holeName}` : `plant tree seed in dug hole${where}`;
-    if (step.op === 'dig_hole') return `dig hole${where}`;
-    if (step.op === 'chop_tree') return step.treeName ? `chop ${step.treeName}` : `chop nearest tree${where}`;
-    if (step.op === 'search_tree') return step.treeName ? `move to ${step.treeName} and search for sticks and seeds` : `search trees${where} for sticks and seeds`;
-    if (step.op === 'chop_hemp') return step.hempName ? `chop ${step.hempName}` : `chop nearest hemp${where}`;
-    if (step.op === 'search_hemp') return step.hempName ? `move to ${step.hempName} and search for hemp seed` : `search hemp${where} for seeds`;
-    if (step.op === 'mine_stone') return step.rockName ? `mine ${step.rockName}` : `mine nearest stone deposit${where}`;
-    if (step.op === 'assign_template') return `assign ${step.botName || (step.botId ? `Bot ${step.botId}` : 'bot')} template ${step.templateName || 'template'}`;
-    if (step.op === 'rename_bot') return `rename ${step.targetName || step.botName || (step.botId ? `Bot ${step.botId}` : 'this bot')} to ${step.name || 'name'}`;
-    if (step.op === 'promote_to_manager') return `promote ${step.targetName || (step.botId ? `Bot ${step.botId}` : 'this bot')} to manager`;
-    if (step.op === 'delegate_to_manager') return `delegate to ${step.recipientName || step.recipient || 'manager'}: ${step.message || 'message'}`;
-    if (step.op === 'follow') return `follow ${step.targetName || step.target || step.targetRef || 'player'}${step.distance ? ` at ${step.distance}px` : ''}`;
-    if (step.op === 'attack') return `attack ${step.targetName || step.target || step.type || 'hostiles'}${where}${step.radius ? ` within ${step.radius}px` : ''}`;
-    return step.op;
-  }
-  activeTeachSteps() { return this.recorder.steps.length ? this.recorder.steps : this.recordedLoop; }
-  openTeachPanel(botId = null) {
-    if (botId != null) this.recorder.targetBotId = Number(botId);
-    this.teachPanelOpened = true;
-    if (this.dom?.teachPanel) this.dom.teachPanel.hidden = false;
-    if (this.dom?.teachBotId && this.recorder.targetBotId) this.dom.teachBotId.value = String(this.recorder.targetBotId);
-  }
-  closeTeachPanel() {
-    this.teachPanelOpened = false;
-    if (this.dom?.teachPanel) this.dom.teachPanel.hidden = true;
-    this.syncTeachUi();
-    return this.getRecorderState();
-  }
-  teachStepLocationText(step) {
-    if (step.zoneLabel) return step.zoneLabel;
-    if (step.structureName) return step.structureName;
-    if (step.holeName) return step.holeName;
-    if (step.treeName) return step.treeName;
-    if (step.hempName) return step.hempName;
-    if (step.rockName) return step.rockName;
-    return 'nearest';
-  }
-  renderStepLocationControls(index, prefix = 'step', step = {}) {
-    const attr = prefix === 'bot-step' ? 'bot-step-location' : 'step-location';
-    const menuAttr = prefix === 'bot-step' ? 'bot-step-location-menu' : 'step-location-menu';
-    const options = '<option value="">Location…</option><option value="select_zone">Select zone</option><option value="draw_zone">Draw zone</option><option value="draw_radius">Draw radius</option><option value="nearest">Nearest</option>';
-    return `<button class="step-location-pill" type="button" data-${attr}="${index}">${escapeHtml(this.teachStepLocationText(step))}</button><select aria-label="Location mode" data-${menuAttr}="${index}">${options}</select>`;
-  }
-  renderStepCard(step, index, { mode = 'teach' } = {}) {
-    const botEdit = mode === 'bot-edit';
-    const cardIndexAttr = botEdit ? `data-bot-step-index="${index}"` : `data-step-index="${index}"`;
-    const prefix = botEdit ? 'bot-step' : 'step';
-    const locationControls = this.renderStepLocationControls(index, prefix, step);
-    const opOptions = botEdit ? ALLOWED_OPS.map(op => `<option value="${escapeHtml(op)}"${op === step.op ? ' selected' : ''}>${escapeHtml(op)}</option>`).join('') : '';
-    const type = botEdit && step.op !== 'drop_item' ? (step.type || step.itemType || step.item || step.resource || '') : '';
-    const renameFields = botEdit && step.op === 'rename_bot'
-      ? `<label>name <input data-bot-step-name="${index}" value="${escapeHtml(step.name || '')}" placeholder="2-32 chars"></label><label>target <input data-bot-step-target="${index}" value="${escapeHtml(step.target || step.botId || '')}" placeholder="optional bot"></label>`
-      : '';
-    const managerFields = botEdit && step.op === 'promote_to_manager'
-      ? `<label>packs <input data-bot-step-packs="${index}" value="${escapeHtml((step.knowledgePacks || []).join(', '))}" placeholder="woodworking, combat"></label><label>target <input data-bot-step-target="${index}" value="${escapeHtml(step.target || step.botId || '')}" placeholder="optional bot"></label>`
-      : botEdit && step.op === 'delegate_to_manager'
-        ? `<label>recipient <input data-bot-step-recipient="${index}" value="${escapeHtml(step.recipient || step.recipientBotId || '')}" placeholder="manager bot"></label><label>message <input data-bot-step-message="${index}" value="${escapeHtml(step.message || '')}" placeholder="instruction"></label>`
-        : '';
-    const editFields = botEdit ? `<label>op <select data-bot-step-op="${index}">${opOptions}</select></label>${step.op !== 'drop_item' ? `<label>type <input data-bot-step-type="${index}" value="${escapeHtml(type)}" placeholder="optional"></label>` : ''}${renameFields}${managerFields}` : '';
-    const up = botEdit ? `data-bot-step-up="${index}" aria-label="Move DSL step up"` : `data-step-up="${index}" aria-label="Move step up"`;
-    const down = botEdit ? `data-bot-step-down="${index}" aria-label="Move DSL step down"` : `data-step-down="${index}" aria-label="Move step down"`;
-    const del = botEdit ? `data-bot-step-delete="${index}" aria-label="Delete DSL step"` : `data-delete-step="${index}" aria-label="Delete step"`;
-    return `<li class="teach-step-card${botEdit ? ' bot-program-step-card' : ''}" draggable="true" ${cardIndexAttr}><div class="step-card-main"><b class="step-card-number">${index + 1}.</b>${editFields}<code>${escapeHtml(this.stepText(step))}</code></div><div class="step-card-actions">${locationControls}<button type="button" ${up}>↑</button><button type="button" ${down}>↓</button><button type="button" ${del}>Delete</button></div></li>`;
-  }
-  renderTeachSteps(steps) {
-    if (!steps.length) return '<li class="empty">No recorded steps yet.</li>';
-    return steps.map((s, i) => this.renderStepCard(s, i, { mode: 'teach' })).join('');
-  }
-  syncTeachStepList(root, steps = this.activeTeachSteps()) {
-    if (!root) return;
-    root.innerHTML = this.renderTeachSteps(steps);
-    this.bindTeachStepControls(root);
-  }
-  syncTeachUi() {
-    if (!this.dom?.teachStatus) return;
-    const steps = this.activeTeachSteps();
-    const targetBotText = this.recorder.targetBotId ? ` for Bot ${this.recorder.targetBotId}` : '';
-    const status = this.recorder.recording ? `Recording ${this.recorder.steps.length} step${this.recorder.steps.length === 1 ? '' : 's'}${targetBotText}…` : this.recorder.status;
-    this.dom.teachStatus.textContent = status;
-    if (this.dom.teachPanel) this.dom.teachPanel.hidden = !this.teachPanelOpened;
-    if (this.dom.teachRecordBtn) this.dom.teachRecordBtn.textContent = this.recorder.recording ? 'Stop Recording' : 'Record Loop';
-    if (this.dom.teachBotId && this.recorder.targetBotId) this.dom.teachBotId.value = String(this.recorder.targetBotId);
-    this.syncTeachStepList(this.dom.teachSteps, steps);
-    this.dom.botMenu?.querySelectorAll('.menu-teach-steps').forEach(list => this.syncTeachStepList(list, steps));
-  }
-  startTeachRecording(botId = null) {
-    this.openTeachPanel(botId);
-    this.recorder.recording = true;
-    this.recorder.steps = [];
-    this.recordedLoop = [];
-    this.recorder.status = `Recording${this.recorder.targetBotId ? ` for Bot ${this.recorder.targetBotId}` : ''}: right-click items/resources/buildings or press E near things.`;
-    this.addFloat('Recording loop', this.player.x, this.player.y - 34, '#d3a95f');
-    this.syncTeachUi();
-    return this.getRecorderState();
-  }
-  stopTeachRecording() {
-    this.recorder.recording = false;
-    this.recordedLoop = clone(this.recorder.steps);
-    this.recorder.status = this.recordedLoop.length ? `Recorded ${this.recordedLoop.length} steps. Assign to a bot.` : 'Recording stopped with no steps.';
-    this.addFloat(this.recorder.status, this.player.x, this.player.y - 34, this.recordedLoop.length ? '#9abf8f' : '#c86b5f');
-    this.syncTeachUi();
-    return this.getRecorderState();
-  }
-  recordTeachStep(step) {
-    if (!this.recorder.recording) return;
-    const normalized = { ...step, text: this.stepText(step) };
-    const last = this.recorder.steps[this.recorder.steps.length - 1];
-    if (last && last.text === normalized.text) return;
-    this.recorder.steps.push(normalized);
-    this.recorder.status = normalized.text;
-    this.addFloat(`Recorded: ${normalized.text}`, this.player.x, this.player.y - 42, '#d3a95f');
-    this.syncTeachUi();
-  }
-  recordMoveToStructure(s) {
-    if (!s) return;
-    this.recordTeachStep({ op: 'move_to_structure', structureId: s.id, structureRef: s.ref, structureType: s.type, structureName: s.name, target: s.name });
-  }
-  setTeachSteps(steps) {
-    if (this.recorder.recording) this.recorder.steps = steps;
-    else this.recordedLoop = steps;
-    for (const step of steps) step.text = this.stepText(step);
-    this.syncTeachUi();
-  }
-  deleteTeachStep(index) { const steps = clone(this.activeTeachSteps()); if (index < 0 || index >= steps.length) return; steps.splice(index, 1); this.setTeachSteps(steps); }
-  moveTeachStep(index, delta) { const steps = clone(this.activeTeachSteps()); const to = index + delta; if (index < 0 || to < 0 || index >= steps.length || to >= steps.length) return; [steps[index], steps[to]] = [steps[to], steps[index]]; this.setTeachSteps(steps); }
-  beginTeachLocationEdit(index, mode = 'select_zone', source = 'teach') {
-    if (mode === 'nearest') return this.clearTeachStepLocation(index, source);
-    this.teachLocationEdit = { index, mode, source };
-    if (mode === 'draw_zone' || mode === 'draw_radius') {
-      this.cancelPlacement();
-      if (source !== 'bot-edit') this.hideMenus();
-      this.zoneDraft = { active: true, started: false, kind: mode === 'draw_radius' ? 'radius' : 'rect', x1: 0, y1: 0, x2: 0, y2: 0, radius: DEFAULT_RESOURCE_RADIUS };
-      this.addFloat(mode === 'draw_radius' ? 'Drag a radius for this step' : 'Drag a zone for this step', this.player.x, this.player.y - 44, '#d3a95f');
-      return true;
-    }
-    this.addFloat('Click an existing zone for this step', this.player.x, this.player.y - 44, '#d3a95f');
-    return true;
-  }
-  getLocationEditableSteps(source = this.teachLocationEdit?.source || 'teach') {
-    return source === 'bot-edit' ? clone(this.botMenuEdit?.program?.steps || []) : clone(this.activeTeachSteps());
-  }
-  setLocationEditableSteps(steps, source = this.teachLocationEdit?.source || 'teach', status = null) {
-    if (source === 'bot-edit') {
-      const ok = this.setBotMenuEditSteps(steps, status);
-      this.syncBotMenuEditSurface(this.botMenuEditRoot);
-      return ok;
-    }
-    this.setTeachSteps(steps);
-    return true;
-  }
-  clearTeachStepLocation(index, source = this.teachLocationEdit?.source || 'teach') {
-    const steps = this.getLocationEditableSteps(source);
-    const step = steps[index];
-    if (!step) return false;
-    this.clearTeachConcreteLocation(step); this.clearTeachZoneLocation(step); delete step.zone; delete step.area;
-    step.text = this.stepText(step);
-    this.teachLocationEdit = null;
-    this.setLocationEditableSteps(steps, source, source === 'bot-edit' ? `Step ${index + 1} location cleared to nearest.` : null);
-    this.addFloat(`Step ${index + 1}: nearest`, this.player.x, this.player.y - 36, '#9abf8f');
-    return true;
-  }
-  applyTeachZoneToStep(zone) {
-    const source = this.teachLocationEdit?.source || 'teach';
-    const steps = this.getLocationEditableSteps(source);
-    const index = this.teachLocationEdit?.index;
-    const step = steps[index];
-    if (!step || !zone) { this.teachLocationEdit = null; return false; }
-    this.clearTeachConcreteLocation(step);
-    this.clearTeachZoneLocation(step);
-    if (zone.id) Object.assign(step, { zoneId: zone.id, zoneSpec: null, zoneLabel: zone.name });
-    else Object.assign(step, { zoneSpec: zone, zoneLabel: this.zoneLabel(zone) });
-    step.text = this.stepText(step);
-    this.teachLocationEdit = null;
-    this.setLocationEditableSteps(steps, source, source === 'bot-edit' ? `Step ${index + 1} location set to ${zone.name || this.zoneLabel(zone)}.` : null);
-    this.addFloat(`Updated step ${index + 1} location`, zone.x || this.player.x, (zone.y || this.player.y) - 22, '#9abf8f');
-    return true;
-  }
-  applyTeachLocationSelection(x, y) {
-    const source = this.teachLocationEdit?.source || 'teach';
-    const steps = this.getLocationEditableSteps(source);
-    const index = this.teachLocationEdit?.index;
-    const step = steps[index];
-    if (!step) { this.teachLocationEdit = null; return false; }
-    const z = this.zoneAt(x, y);
-    if (!z) return false;
-    this.clearTeachConcreteLocation(step);
-    this.clearTeachZoneLocation(step);
-    Object.assign(step, { zoneId: z.id, zoneSpec: null, zoneLabel: z.name });
-    step.text = this.stepText(step);
-    this.teachLocationEdit = null;
-    this.setLocationEditableSteps(steps, source, source === 'bot-edit' ? `Step ${index + 1} location set to ${z.name}.` : null);
-    this.addFloat(`Updated step ${index + 1} location`, x, y - 22, '#9abf8f');
-    return true;
-  }
-  bindTeachStepControls(root) {
-    if (!root || root.dataset.boundTeachSteps === '1') return;
-    root.dataset.boundTeachSteps = '1';
-    root.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const n = Number(b.dataset.deleteStep ?? b.dataset.stepUp ?? b.dataset.stepDown ?? b.dataset.stepLocation); if (!Number.isFinite(n)) return; if ('deleteStep' in b.dataset) this.deleteTeachStep(n); else if ('stepUp' in b.dataset) this.moveTeachStep(n, -1); else if ('stepDown' in b.dataset) this.moveTeachStep(n, 1); else this.beginTeachLocationEdit(n, 'select_zone'); });
-    root.addEventListener('change', e => { const menu = e.target.closest('select[data-step-location-menu]'); if (!menu) return; const n = Number(menu.dataset.stepLocationMenu); const mode = menu.value; menu.value = ''; if (Number.isFinite(n) && mode) this.beginTeachLocationEdit(n, mode); });
-    root.addEventListener('dragstart', e => { const card = e.target.closest('[data-step-index]'); if (!card) return; this.draggedTeachStepIndex = Number(card.dataset.stepIndex); e.dataTransfer?.setData('text/plain', String(this.draggedTeachStepIndex)); });
-    root.addEventListener('dragover', e => { if (e.target.closest('[data-step-index]')) e.preventDefault(); });
-    root.addEventListener('drop', e => { const card = e.target.closest('[data-step-index]'); const from = Number(e.dataTransfer?.getData('text/plain') || this.draggedTeachStepIndex); const to = Number(card?.dataset.stepIndex); if (!Number.isFinite(from) || !Number.isFinite(to) || from === to) return; e.preventDefault(); const steps = clone(this.activeTeachSteps()); const [moved] = steps.splice(from, 1); steps.splice(to, 0, moved); this.setTeachSteps(steps); });
-  }
-  getRecorderState() { return { recording: this.recorder.recording, steps: clone(this.recorder.steps), recordedLoop: clone(this.recordedLoop), status: this.recorder.status, lastAssignedBotId: this.recorder.lastAssignedBotId, targetBotId: this.recorder.targetBotId }; }
-  resolveBotReference(value) {
-    if (value == null || value === '') return null;
-    const raw = String(value).trim();
-    const numeric = Number(raw.replace(/^bot[:#\s-]*/i, ''));
-    if (Number.isFinite(numeric) && numeric > 0) return this.findBot(numeric);
-    const lower = raw.toLowerCase();
-    return this.bots.find(bot => String(bot.ref || '').toLowerCase() === lower || this.botDisplayName(bot).toLowerCase() === lower || String(bot.name || '').toLowerCase() === lower) || null;
-  }
-  managerPackCatalogIds() {
-    return this.managerKnowledgePackCatalog ? Object.keys(this.managerKnowledgePackCatalog) : DEFAULT_MANAGER_KNOWLEDGE_PACKS;
-  }
-  normalizeManagerKnowledgePacks(value, fallback = DEFAULT_MANAGER_KNOWLEDGE_PACKS) {
-    const raw = Array.isArray(value) ? value : String(value || '').split(/[\s,;]+/);
-    const catalogIds = new Set(this.managerPackCatalogIds());
-    const ids = [...new Set(raw.map(id => String(id || '').trim()).filter(Boolean))]
-      .filter(id => /^[a-z0-9_:-]{2,64}$/i.test(id))
-      .filter(id => !catalogIds.size || catalogIds.has(id));
-    const fallbackIds = Array.isArray(fallback) ? fallback : DEFAULT_MANAGER_KNOWLEDGE_PACKS;
-    return ids.length ? ids : fallbackIds.filter(id => !catalogIds.size || catalogIds.has(id));
-  }
-  sanitizeManagerMessage(message) {
-    return String(message || '').replace(/[\x00-\x1F\x7F]/g, ' ').replace(/[<>`{}]/g, '').replace(/\s+/g, ' ').trim().slice(0, 500);
-  }
-  isManagerBot(bot) { return !!bot && bot.status === 'manager'; }
-  isDogBot(bot) { return !!bot && bot.kind === 'dog'; }
-  setManagerKnowledgePackCatalog(catalog = null) { this.managerKnowledgePackCatalog = catalog && typeof catalog === 'object' ? catalog : null; return this.managerPackCatalogIds(); }
-  setManagerKnowledgePacks(botRef, packs = DEFAULT_MANAGER_KNOWLEDGE_PACKS) {
-    const bot = botRef && typeof botRef === 'object' ? botRef : this.resolveBotReference(botRef);
-    if (!bot) return { ok: false, error: `Bot ${botRef} not found` };
-    if (!this.isManagerBot(bot)) return { ok: false, error: `${this.botDisplayName(bot)} is not a manager` };
-    bot.managerKnowledgePacks = this.normalizeManagerKnowledgePacks(packs, bot.managerKnowledgePacks?.length ? bot.managerKnowledgePacks : DEFAULT_MANAGER_KNOWLEDGE_PACKS);
-    bot.knowledgePacks = bot.managerKnowledgePacks;
-    this.syncBotDrawerUi?.(true);
-    return { ok: true, bot, knowledgePacks: bot.managerKnowledgePacks.slice() };
-  }
-  promoteBotToManager(botRef, knowledgePacks = DEFAULT_MANAGER_KNOWLEDGE_PACKS) {
-    const bot = botRef && typeof botRef === 'object' ? botRef : this.resolveBotReference(botRef);
-    if (!bot) return { ok: false, error: `Bot ${botRef} not found` };
-    bot.status = 'manager';
-    bot.managerKnowledgePacks = this.normalizeManagerKnowledgePacks(knowledgePacks, bot.managerKnowledgePacks?.length ? bot.managerKnowledgePacks : DEFAULT_MANAGER_KNOWLEDGE_PACKS);
-    bot.knowledgePacks = bot.managerKnowledgePacks;
-    bot.message = `Manager online with packs: ${bot.managerKnowledgePacks.join(', ') || 'none'}.`;
-    this.addFloat(`${this.botDisplayName(bot)} promoted to manager`, bot.x, bot.y - 34, '#9abf8f');
-    this.syncBotDrawerUi?.(true);
-    return { ok: true, bot, knowledgePacks: bot.managerKnowledgePacks.slice() };
-  }
   normalizeDogFetchMemory(memory = null) {
     const praiseCounts = Object.fromEntries(Object.entries(memory?.praiseCounts || memory?.praises || {})
       .map(([type, count]) => [this.normalizeItemType(type, null), Math.max(0, Math.floor(Number(count) || 0))])
@@ -1659,29 +641,6 @@ export class Game {
     const handled = this.managerMessageHandler?.({ manager, sender: senderBot, message: clean, entry, game: this });
     return { ok: true, manager, message: clean, handled, entry };
   }
-  localPlayerActor() { Object.assign(this.player, { ref: 'player:local', id: this.multiplayer?.playerId || 'p1' }); return this.player; }
-  resolveActorReference(value, actor = null) {
-    if (value == null || value === '') return null;
-    const raw = String(value).trim();
-    const lower = raw.toLowerCase();
-    if (['me', 'player', 'my character', 'spieler', 'mir', 'mich'].includes(lower)) return this.localPlayerActor();
-    if (['self', 'itself', 'this bot'].includes(lower)) return actor || null;
-    const byRef = this.findTargetByRef(raw);
-    if (byRef) return byRef;
-    const bot = this.resolveBotReference(raw);
-    if (bot) return bot;
-    const monsterNumber = raw.match(/^monster[:#\s-]*(\d+)$/i)?.[1];
-    if (monsterNumber) {
-      const monster = this.monsters.find(m => m.id === Number(monsterNumber) && (m.hp || 0) > 0);
-      if (monster) return monster;
-    }
-    const monster = this.monsters.find(m => (m.hp || 0) > 0 && (String(m.ref || '').toLowerCase() === lower || String(m.name || '').toLowerCase() === lower));
-    if (monster) return monster;
-    const remote = Object.values(this.multiplayer?.players || {}).find(p => p && (`player:${p.id}` === lower || String(p.name || '').toLowerCase() === lower));
-    if (remote) return { ...remote, ref: `player:${remote.id}`, radius: 15, hostile: this.multiplayer?.enabled && remote.id !== this.multiplayer.playerId };
-    return null;
-  }
-  actorLabel(actor) { return actor ? (actor === this.player || actor.ref === 'player:local' ? 'player' : actor.name || actor.ref || `Bot ${actor.id}`) : 'target'; }
   normalizeAttackType(value) {
     const raw = String(value || 'monster').toLowerCase().replace(/[\s-]+/g, '_').trim();
     const aliases = { enemy: 'monster', enemies: 'monster', hostile: 'monster', hostiles: 'monster', monsters: 'monster', night: 'night_monster', night_monsters: 'night_monster', passive_monsters: 'passive_monster', tower: 'structure', towers: 'structure', throne: 'structure' };
@@ -1756,28 +715,7 @@ export class Game {
     }
     list.innerHTML = this.customTemplates.map(template => this.renderTemplateCard(template)).join('');
   }
-  assignRecordedLoopToBot(botId) {
-    const bot = this.findBot(botId);
-    if (!bot) return { ok: false, error: `Bot ${botId} not found` };
-    if (this.recorder.recording) this.stopTeachRecording();
-    const source = this.recordedLoop.length ? this.recordedLoop : this.recorder.steps;
-    if (!source.length) return { ok: false, error: 'No recorded loop to assign' };
-    bot.paused = false; bot.program = 'taught_loop'; bot.state = 'taught_loop'; bot.message = 'Assigned recorded teach-by-doing loop.'; bot.customTemplateName = ''; bot.taughtLoop = clone(source); bot.taughtLoopRepeat = true; bot.runtime = { pc: 0, memory: {}, wait: 0 }; bot.target = null; bot.targetItemId = null; bot.targetItemPurpose = null; bot.targetHoleId = null; bot.timer = 0;
-    this.recorder.lastAssignedBotId = bot.id;
-    this.recorder.status = `Assigned recorded loop to Bot ${bot.id}.`;
-    this.addFloat(`Bot ${bot.id}: taught loop`, bot.x, bot.y - 22, '#d3a95f');
-    this.syncTeachUi();
-    return { ok: true, bot, steps: clone(bot.taughtLoop) };
-  }
-  resolveRecordedStructure(step, from) {
-    const byId = step.structureId ? this.structures.find(s => s.id === step.structureId && (!step.structureType || s.type === step.structureType)) : null;
-    if (byId) return byId;
-    const name = String(step.structureName || step.target || '').toLowerCase();
-    return this.structures.find(s => (!step.structureType || s.type === step.structureType) && s.name.toLowerCase() === name) || this.nearestStructure(step.structureType || 'sawbench', from.x, from.y);
-  }
 
-  findBot(id) { return this.bots.find(b => b.id === Number(String(id).replace(/^bot:/,''))); }
-  botAt(x, y) { return this.bots.find(b => distXY(x, y, b.x, b.y) <= b.r + 7) || null; }
   itemAt(x, y) { return nearest(this.items, x, y, i => distXY(x, y, i.x, i.y) <= 18) || null; }
   hempAt(x, y) { return nearest(this.hempPlants, x, y, h => !h.harvested && distXY(x, y, h.x, h.y) <= (h.radius || 14) + 8) || null; }
   structureAt(x, y) {
@@ -1791,18 +729,8 @@ export class Game {
   treeAt(x, y) { return nearest(this.trees, x, y, t => !t.stump && distXY(x, y, t.x, t.y) <= (t.radius || 18) + 6) || null; }
   rockAt(x, y) { return nearest(this.rocks, x, y, r => !r.depleted && distXY(x, y, r.x, r.y) <= (r.radius || 18) + 6) || null; }
   monsterAt(x, y) { return nearest(this.monsters, x, y, m => (m.hp || 0) > 0 && distXY(x, y, m.x, m.y) <= (m.radius || 18) + 8) || null; }
-  zoneAt(x, y) {
-    for (let i = this.zones.length - 1; i >= 0; i -= 1) {
-      const zone = this.zones[i];
-      if (!zone.hidden && this.pointInZone(x, y, zone)) return zone;
-    }
-    return null;
-  }
   nearestStructure(type, x, y, targetId = null) { return targetId ? this.structures.find(s => s.id === targetId && s.type === type) : nearest(this.structures, x, y, s => s.type === type); }
   countItems(type) { return this.items.filter(i => i.type === type).length; }
-  isStandardWorkerBot(bot) { return !!bot && bot.status !== 'manager'; }
-  isIdleStandardWorkerBot(bot) { return this.isStandardWorkerBot(bot) && bot.program === 'idle' && !bot.paused; }
-  findAnyEligibleWorkerBot() { return this.bots.find(bot => this.isIdleStandardWorkerBot(bot)) || null; }
 
   normalizeStructureId(value, type = null) {
     if (value == null || value === '') return null;
@@ -1856,19 +784,6 @@ export class Game {
   rectangleText(zone) { return `rect(x:${Math.round(zone.x)},y:${Math.round(zone.y)},w:${Math.round(zone.w)},h:${Math.round(zone.h)})`; }
   radiusText(zone) { return `radius(x:${Math.round(zone.x)},y:${Math.round(zone.y)},r:${Math.round(zone.radius || DEFAULT_RESOURCE_RADIUS)})`; }
   zoneText(zone) { return zone?.kind === 'nearby' ? `nearby ${Math.round(zone.radius || DEFAULT_NEARBY_RADIUS)}` : zone?.kind === 'radius' ? this.radiusText(zone) : this.rectangleText(zone); }
-  zoneBounds(zone) {
-    if (!zone) return { x: 0, y: 0, w: 0, h: 0 };
-    if (zone.kind === 'nearby') {
-      const r = clamp(Number(zone.radius || DEFAULT_NEARBY_RADIUS), 40, MAX_NEARBY_RADIUS);
-      const c = this.player || { x: r, y: r };
-      return { x: c.x - r, y: c.y - r, w: r * 2, h: r * 2 };
-    }
-    if (zone.kind === 'radius') {
-      const r = clamp(Number(zone.radius || DEFAULT_RESOURCE_RADIUS), 40, 420);
-      return { x: zone.x - r, y: zone.y - r, w: r * 2, h: r * 2 };
-    }
-    return { x: zone.x, y: zone.y, w: zone.w || 0, h: zone.h || 0 };
-  }
   zoneAnchorPoint(zone) {
     if (!zone) return { x: this.player.x, y: this.player.y };
     if (zone.kind === 'nearby') return { x: this.player.x, y: this.player.y - (zone.radius || DEFAULT_NEARBY_RADIUS) };
@@ -2024,23 +939,6 @@ export class Game {
   }
   getBotZone(bot) { return bot.zoneSpec || (bot.zoneId ? this.zones.find(z => z.id === bot.zoneId) : null); }
   zoneLabel(zone) { if (!zone) return 'anywhere'; if (zone.kind === 'nearby') return zone.name || `${zone.radius || DEFAULT_NEARBY_RADIUS}px nearby around bot`; if (zone.kind === 'radius') { const s = zone.centerStructureId ? this.structures.find(st => st.id === zone.centerStructureId) : null; return zone.name || `${zone.radius || DEFAULT_RESOURCE_RADIUS}px around ${s?.name || 'point'}`; } return zone.name || zone.id; }
-  pointInZone(x, y, zone, anchor = null) {
-    if (!zone) return true;
-    if (zone.kind === 'nearby') { const c = anchor || this.player; return !!c && distXY(x, y, c.x, c.y) <= (zone.radius || DEFAULT_NEARBY_RADIUS); }
-    if (zone.kind === 'radius') { const s = zone.centerStructureId ? this.structures.find(st => st.id === zone.centerStructureId) : null; const cx = s?.x ?? zone.x, cy = s?.y ?? zone.y; return Number.isFinite(cx) && Number.isFinite(cy) && distXY(x, y, cx, cy) <= (zone.radius || DEFAULT_RESOURCE_RADIUS); }
-    return x >= zone.x && x <= zone.x + zone.w && y >= zone.y && y <= zone.y + zone.h;
-  }
-  objectInZone(obj, zone, anchor = null) { return this.pointInZone(obj.x, obj.y, zone, anchor); }
-  zoneCenter(zone, fallback = null) {
-    if (!zone) return fallback;
-    if (zone.kind === 'nearby') return fallback;
-    if (zone.kind === 'radius') {
-      const s = zone.centerStructureId ? this.structures.find(st => st.id === zone.centerStructureId) : null;
-      const x = s?.x ?? zone.x, y = s?.y ?? zone.y;
-      return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : fallback;
-    }
-    return { x: zone.x + zone.w / 2, y: zone.y + zone.h / 2 };
-  }
 
   getBotProgram(bot) {
     const tpl = PROGRAM_TEMPLATES[bot.program] || PROGRAM_TEMPLATES.idle;
@@ -2415,7 +1313,6 @@ export class Game {
   }
 
   moveToward(entity, tx, ty, dt, speed = entity.speed || 100, close = 14) { const d = distXY(entity.x, entity.y, tx, ty); if (d <= close) return true; const dx = (tx - entity.x) / d, dy = (ty - entity.y) / d; entity.facingX = dx; entity.facingY = dy; entity.x += dx * speed * dt; entity.y += dy * speed * dt; return false; }
-  moveBotTo(bot, target, dt, close = 16) { if (!target) return false; return this.moveToward(bot, target.x, target.y, dt, bot.speed, close); }
   releaseReservation(bot) { for (const i of this.items) if (i.reservedBy === bot.id) i.reservedBy = null; for (const h of this.holes) if (h.reservedBy === bot.id) h.reservedBy = null; for (const t of this.trees) if (t.searchReservedBy === bot.id) t.searchReservedBy = null; bot.targetItemId = null; bot.targetItemPurpose = null; bot.targetHoleId = null; }
 
   treeSearchAvailable(tree, actorId) { return !!tree && !tree.stump && (!tree.searchReservedBy || tree.searchReservedBy === actorId); }
@@ -2768,12 +1665,6 @@ export class Game {
     return this.getMultiplayerSnapshot();
   }
   isEnemyThrone(s) { return !!(this.multiplayer?.enabled && s?.type === 'throne' && s.ownerId && s.ownerId !== this.multiplayer.playerId && (s.hp || 0) > 0); }
-  queuePlayerThroneAttack(s, { append = false } = {}) {
-    if (!this.isEnemyThrone(s)) return false;
-    const side = this.player.x < s.x ? -1 : 1;
-    this.setPlayerDestination(s.x + side * Math.max(42, s.w / 2), s.y, { action: 'attack_throne', structureId: s.id, floatText: `Attack ${s.name}` }, { append });
-    return true;
-  }
   damageThrone(s, damage = THRONE_ATTACK_DAMAGE) {
     if (!s || s.type !== 'throne' || (s.hp || 0) <= 0) return false;
     s.hp = Math.max(0, (s.hp || s.maxHp || THRONE_HP) - damage);
@@ -3243,251 +2134,6 @@ export class Game {
     return true;
   }
 
-  queuePlayerResourceAction(resource, op, { append = false } = {}) {
-    if (op === 'chop_tree' && this.player.inventory?.type !== 'crude_axe') return false;
-    if (op === 'mine_stone' && this.player.inventory?.type !== 'crude_pickaxe') return false;
-    const label = op === 'chop_tree' ? 'Chop tree' : 'Mine stone deposit';
-    this.setPlayerDestination(resource.x, resource.y, { action: op, resourceId: resource.id, floatText: label }, { append });
-    return true;
-  }
-  startPlayerResourceWork(target, resource, processLabel) {
-    this.player.target = { ...target, x: resource.x, y: resource.y, started: true, remaining: RESOURCE_HIT_SECONDS, total: RESOURCE_HIT_SECONDS, processLabel };
-    this.addFloat(`${processLabel[0].toUpperCase()}${processLabel.slice(1)}…`, resource.x, resource.y - 34, '#d3a95f');
-    return true;
-  }
-  startPlayerTimedAction(target, duration, processLabel) {
-    this.player.target = { ...target, started: true, remaining: duration, total: duration, processLabel };
-    this.addFloat(`${processLabel[0].toUpperCase()}${processLabel.slice(1)}…`, target.x, target.y - 34, '#d3a95f');
-    return true;
-  }
-  startPlayerBuildingKitAction(target) {
-    if (!target?.action) return false;
-    if (target.action === 'deploy_loose_building_kit') {
-      if (!this.canFinishPlayerDeployLooseKit(target)) return false;
-      return this.startPlayerTimedAction(target, BUILDING_KIT_DEPLOY_SECONDS, 'deploying building kit');
-    }
-    if (target.action === 'deploy_building_kit') {
-      if (!this.canFinishPlayerDeployHeldKit(target)) return false;
-      return this.startPlayerTimedAction(target, BUILDING_KIT_DEPLOY_SECONDS, 'deploying building kit');
-    }
-    if (target.action === 'disassemble_building_to_kit') {
-      if (!this.canFinishPlayerDisassembleStructure(target)) return false;
-      return this.startPlayerTimedAction(target, BUILDING_DISASSEMBLE_SECONDS, 'disassembling building');
-    }
-    return false;
-  }
-  canFinishPlayerChopTree(target) {
-    return !!this.trees.find(t => t.id === target.resourceId && this.isChoppableTree(t)) && this.player.inventory?.type === 'crude_axe';
-  }
-  canFinishPlayerMineStone(target) {
-    return !!this.rocks.find(r => r.id === target.resourceId && !r.depleted) && this.player.inventory?.type === 'crude_pickaxe';
-  }
-  finishPlayerChopTree(target) {
-    const tree = this.trees.find(t => t.id === target.resourceId && this.isChoppableTree(t));
-    if (!tree || this.player.inventory?.type !== 'crude_axe') return false;
-    tree.hp--;
-    this.spawnItem('log', tree.x, tree.y, 1);
-    this.addFloat('Chopped log', tree.x, tree.y - 34, '#d3a95f');
-    this.emitSound('chop', { cooldownKey: 'player:chop', minGapMs: 160 });
-    this.recordTeachStep(this.resourceRadiusStep('chop_tree', tree, this.treeDisplayName(tree)));
-    this.syncTeachUi();
-    if (tree.hp <= 0) { tree.stump = true; tree.regrow = 0; this.spawnItem('stick', tree.x, tree.y, 2); this.spawnItem('tree_seed', tree.x, tree.y, 1); }
-    return true;
-  }
-  finishPlayerMineStone(target) {
-    const rock = this.rocks.find(r => r.id === target.resourceId && !r.depleted);
-    if (!rock || this.player.inventory?.type !== 'crude_pickaxe') return false;
-    rock.hp--;
-    this.spawnItem('stone', rock.x, rock.y, 1);
-    this.addFloat('Mined stone', rock.x, rock.y - 24, '#d3a95f');
-    this.emitSound('mine', { cooldownKey: 'player:mine', minGapMs: 160 });
-    this.recordTeachStep(this.resourceRadiusStep('mine_stone', rock, 'stone deposit'));
-    this.syncTeachUi();
-    if (rock.hp <= 0) { rock.depleted = true; rock.respawn = 24; this.addFloat('Stone deposit depleted', rock.x, rock.y - 24, '#9aa09d'); }
-    return true;
-  }
-  queuePlayerTreeSearch(tree) {
-    if (!tree || tree.stump || this.player.inventory) return false;
-    if (!this.treeSearchAvailable(tree, 'player')) { this.addFloat('Tree already being searched', tree.x, tree.y - 34, '#c86b5f'); return true; }
-    this.setPlayerDestination(tree.x, tree.y, { action: 'search_tree', resourceId: tree.id, floatText: 'Search tree for sticks/seeds' });
-    return true;
-  }
-  queuePlayerHempAction(hemp, { append = false } = {}) {
-    if (!hemp || hemp.harvested) return false;
-    if (this.player.inventory?.type === 'crude_axe') {
-      this.setPlayerDestination(hemp.x, hemp.y, { action: 'chop_hemp', resourceId: hemp.id, floatText: 'Chop hemp' }, { append });
-      return true;
-    }
-    if (!this.player.inventory && !hemp.searched) {
-      this.setPlayerDestination(hemp.x, hemp.y, { action: 'search_hemp', resourceId: hemp.id, floatText: 'Search hemp for seed' }, { append });
-      return true;
-    }
-    this.addFloat(this.player.inventory ? `Need empty hands or crude axe (holding ${itemLabel(this.player.inventory.type)})` : 'Hemp already searched', hemp.x, hemp.y - 28, '#c86b5f');
-    return true;
-  }
-  treeDisplayName(tree) {
-    return tree?.stump ? 'tree stump' : tree?.growthStage === 'sapling' ? 'small sapling' : tree?.growthStage === 'small_tree' ? 'small tree' : 'grown tree';
-  }
-  dropTreeSearchFinds(tree) {
-    this.spawnItem('stick', tree.x, tree.y, 1);
-    this.spawnItem('tree_seed', tree.x, tree.y, 1);
-  }
-  finishHempSearch(hemp) {
-    if (!hemp || hemp.harvested || hemp.searched || this.player.inventory) return false;
-    hemp.searched = true;
-    hemp.searchReservedBy = null;
-    this.spawnItem('hemp_seed', hemp.x, hemp.y, 1);
-    this.addFloat('Found hemp seed', hemp.x, hemp.y - 28, '#d3a95f');
-    this.emitSound('search', { cooldownKey: 'player:search_hemp', minGapMs: 160 });
-    this.recordTeachStep(this.resourceRadiusStep('search_hemp', hemp, 'hemp plant'));
-    this.syncTeachUi();
-    return true;
-  }
-  finishHempChop(hemp) {
-    if (!hemp || hemp.harvested || this.player.inventory?.type !== 'crude_axe') return false;
-    hemp.harvested = true;
-    this.hempPlants = this.hempPlants.filter(h => h.id !== hemp.id);
-    this.spawnItem('hemp', hemp.x, hemp.y, 1);
-    this.spawnItem('hemp_seed', hemp.x, hemp.y, 1);
-    this.addFloat('Harvested hemp + seed', hemp.x, hemp.y - 28, '#9abf8f');
-    this.emitSound('harvest', { cooldownKey: 'player:harvest_hemp', minGapMs: 160 });
-    this.recordTeachStep(this.resourceRadiusStep('chop_hemp', hemp, 'hemp plant'));
-    this.syncTeachUi();
-    return true;
-  }
-  finishTreeSearch(tree) {
-    if (!tree || tree.stump || this.player.inventory) return false;
-    this.dropTreeSearchFinds(tree);
-    this.addFloat('Found stick + tree seed', tree.x, tree.y - 34, '#d3a95f');
-    this.emitSound('search', { cooldownKey: 'player:search_tree', minGapMs: 160 });
-    this.recordTeachStep(this.resourceRadiusStep('search_tree', tree, this.treeDisplayName(tree)));
-    this.syncTeachUi();
-    return true;
-  }
-  canDemolishStructure(s) { return !!s && s.placed === true && s.type !== 'throne'; }
-  queuePlayerDemolishStructure(s, { append = false } = {}) {
-    if (!this.canDemolishStructure(s) || this.player.inventory?.type !== 'crude_hammer') return false;
-    this.setPlayerDestination(s.x, s.y, { action: 'demolish_structure', structureId: s.id, floatText: `Demolish ${s.name}` }, { append });
-    return true;
-  }
-  finishPlayerDemolishStructure(target) {
-    const s = this.structures.find(st => st.id === target?.structureId);
-    if (!this.canDemolishStructure(s) || this.player.inventory?.type !== 'crude_hammer') return false;
-    this.demolishStructure(s);
-    return true;
-  }
-  demolishStructure(s) {
-    if (!this.canDemolishStructure(s)) return false;
-    this.structures = this.structures.filter(st => st.id !== s.id);
-    for (const bot of this.bots || []) {
-      for (const key of ['targetStructureId', 'sourceStructureId', 'sourcePaletteId', 'targetFactoryId', 'targetWorkbenchId']) if (bot[key] === s.id) bot[key] = null;
-      if (bot.target?.id === s.id || bot.target?.structureId === s.id) bot.target = null;
-      if (bot.productionJob?.structureId === s.id) bot.productionJob = null;
-    }
-    if (this.player.target?.structureId === s.id) this.player.target = null;
-    this.projectiles = (this.projectiles || []).filter(p => p.sourceStructureId !== s.id && p.targetRef !== s.ref);
-    this.addFloat(`Demolished ${s.name}`, s.x, s.y - 35, '#d3a95f');
-    this.emitSound('hit', { cooldownKey: `demolish:${s.id}`, minGapMs: 120 });
-    this.syncBuildUi();
-    return true;
-  }
-  manualDemolishStructure(s = null) {
-    if (this.player.inventory?.type !== 'crude_hammer') return false;
-    const target = s || this.structures.find(st => this.canDemolishStructure(st) && rectDistance(this.player.x, this.player.y, st) < 48);
-    if (!target) { this.addFloat('Hammer needs a placed building', this.player.x, this.player.y - 30, '#c86b5f'); return false; }
-    if (rectDistance(this.player.x, this.player.y, target) >= 48) return false;
-    return this.demolishStructure(target);
-  }
-  canFinishPlayerDisassembleStructure(target) {
-    const s = this.structures.find(st => st.id === target?.structureId);
-    return !this.player.inventory && this.canDisassembleStructure(s);
-  }
-  canDisassembleStructure(s) { return !!s && !!buildingKitItemTypeFor(s.type) && !this.isStructureProcessing(s); }
-  queuePlayerDisassembleStructure(s, { append = false } = {}) {
-    if (!this.canDisassembleStructure(s)) return false;
-    this.setPlayerDestination(s.x, s.y, { action: 'disassemble_building_to_kit', structureId: s.id, floatText: `Disassemble ${s.name} into kit` }, { append });
-    return true;
-  }
-  finishPlayerDisassembleStructure(target) {
-    const s = this.structures.find(st => st.id === target?.structureId);
-    if (!this.canDisassembleStructure(s)) return false;
-    const kitType = this.disassembleStructureToKit(s, this.player);
-    if (kitType) this.recordTeachStep({ op: 'disassemble_building_to_kit', structureId: target.structureId, structureRef: s.ref, structureType: s.type, structureName: s.name, target: s.name });
-    this.syncTeachUi();
-    return !!kitType;
-  }
-  disassembleStructureToKit(s, actor = null) {
-    if (!this.canDisassembleStructure(s)) return null;
-    const kitType = buildingKitItemTypeFor(s.type);
-    this.structures = this.structures.filter(st => st.id !== s.id);
-    for (const bot of this.bots || []) {
-      for (const key of ['targetStructureId', 'sourceStructureId', 'sourcePaletteId', 'targetFactoryId', 'targetWorkbenchId']) if (bot[key] === s.id) bot[key] = null;
-      if (bot.target?.id === s.id || bot.target?.structureId === s.id) bot.target = null;
-      if (bot.productionJob?.structureId === s.id) bot.productionJob = null;
-    }
-    if (this.player.target?.structureId === s.id) this.player.target = null;
-    this.projectiles = (this.projectiles || []).filter(p => p.sourceStructureId !== s.id && p.targetRef !== s.ref);
-    if (actor && !actor.inventory) actor.inventory = { type: kitType, count: 1 };
-    else this.spawnItem(kitType, s.x, s.y, 1);
-    this.addFloat(`Disassembled ${s.name} into ${itemLabel(kitType)}`, s.x, s.y - 35, '#d3a95f');
-    this.emitSound('hit', { cooldownKey: `disassemble:${s.id}`, minGapMs: 120 });
-    this.syncBuildUi();
-    return kitType;
-  }
-  deployBuildingKitAt(type, x, y, options = {}) {
-    const kitType = this.normalizeBuildingKitItemType(type);
-    const buildingType = buildingTypeFromKitItem(kitType);
-    if (!buildingType || !BUILDING_TYPES[buildingType]) return null;
-    const s = this.addStructure(buildingType, clamp(x, 70, this.map.width - 70), clamp(y, 80, this.map.height - 70), { placed: true, ...options });
-    this.addFloat(`Deployed ${itemLabel(kitType)}`, s.x, s.y - 52, '#9abf8f');
-    return s;
-  }
-  queuePlayerDeployHeldKit(x, y, { append = false } = {}) {
-    const kitType = this.normalizeBuildingKitItemType(this.player.inventory?.type);
-    if (!kitType) return false;
-    this.setPlayerDestination(x, y, { action: 'deploy_building_kit', itemType: kitType, x, y, floatText: `Deploy ${itemLabel(kitType)}` }, { append });
-    return true;
-  }
-  canFinishPlayerDeployHeldKit(target) {
-    const kitType = this.normalizeBuildingKitItemType(target?.itemType || this.player.inventory?.type);
-    return !!kitType && this.player.inventory?.type === kitType;
-  }
-  queuePlayerDeployLooseKit(item) {
-    const kitType = this.normalizeBuildingKitItemType(item?.type);
-    if (!item || !kitType) return false;
-    if (this.player.inventory) { this.addFloat(`Need empty hands to deploy ${itemLabel(kitType)} from ground`, this.player.x, this.player.y - 30, '#c86b5f'); return true; }
-    if (item.reservedBy && item.reservedBy !== 'player') { this.addFloat(`${itemLabel(kitType)} is reserved`, item.x, item.y - 28, '#c86b5f'); return true; }
-    item.reservedBy = 'player';
-    this.setPlayerDestination(item.x, item.y, { action: 'deploy_loose_building_kit', itemId: item.id, floatText: `Deploy ${itemLabel(kitType)}` });
-    return true;
-  }
-  canFinishPlayerDeployLooseKit(target) {
-    const item = this.items.find(i => i.id === target?.itemId);
-    const kitType = this.normalizeBuildingKitItemType(item?.type);
-    return !!item && !!kitType && !this.player.inventory;
-  }
-  finishPlayerDeployHeldKit(target) {
-    const kitType = this.normalizeBuildingKitItemType(target?.itemType || this.player.inventory?.type);
-    if (!kitType || this.player.inventory?.type !== kitType) return false;
-    const s = this.deployBuildingKitAt(kitType, target.x, target.y);
-    if (!s) return false;
-    this.player.inventory = null;
-    this.recordTeachStep(this.deployBuildingKitStep(kitType, s.x, s.y));
-    this.syncTeachUi();
-    return true;
-  }
-  finishPlayerDeployLooseKit(target) {
-    const item = this.items.find(i => i.id === target?.itemId);
-    const kitType = this.normalizeBuildingKitItemType(item?.type);
-    if (!item || !kitType) return false;
-    const s = this.deployBuildingKitAt(kitType, item.x, item.y);
-    if (!s) { if (item.reservedBy === 'player') item.reservedBy = null; return false; }
-    this.items = this.items.filter(i => i.id !== item.id);
-    this.recordTeachStep({ op: 'pick_up', type: kitType });
-    this.recordTeachStep(this.deployBuildingKitStep(kitType, s.x, s.y));
-    this.syncTeachUi();
-    return true;
-  }
   executeDeployBuildingKitStep(bot, step, dt) {
     const kitType = this.normalizeBuildingKitItemType(step.type);
     if (!kitType) { bot.message = 'deploy_building_kit needs a building kit type.'; return false; }
@@ -3593,96 +2239,16 @@ export class Game {
     if (s?.type==='factory' && (this.isStructureProcessing(s) || Object.entries(FACTORY_BOT_RECIPE).every(([type,cost]) => (s[`${type}s`] ?? s[type] ?? 0) >= cost))) { this.maybeStartStructureProcessing(s, { kind: 'player' }); this.addFloat(`${s.name} processing`, s.x, s.y-35, '#d3a95f'); }
   }
 
-  botDisplayName(bot) {
-    return String(bot?.name || `Bot ${bot?.id ?? ''}`).trim() || `Bot ${bot?.id ?? ''}`;
-  }
 
-  normalizeBotDisplayName(name, { fallback = '', minLength = 2, maxLength = 32 } = {}) {
-    const cleaned = String(name ?? '')
-      .replace(/[\x00-\x1F\x7F]/g, '')
-      .replace(/[<>`{}]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, maxLength)
-      .trim();
-    if (!cleaned || cleaned.length < minLength) return fallback;
-    return cleaned;
-  }
 
-  teamColor(color) {
-    return /^#[0-9a-f]{6}$/i.test(String(color || '')) ? String(color) : '#5d8063';
-  }
 
-  findBotTeam(teamId) {
-    return this.botTeams.find(team => team.id === teamId) || null;
-  }
 
-  botTeam(bot) {
-    return bot?.teamId ? this.findBotTeam(bot.teamId) : null;
-  }
 
-  setBotName(botOrId, name) {
-    const bot = typeof botOrId === 'object' ? botOrId : this.findBot(botOrId);
-    if (!bot) return { ok: false, error: 'Bot not found' };
-    const fallback = `Bot ${bot.id}`;
-    const next = this.normalizeBotDisplayName(name, { fallback, minLength: 1, maxLength: 32 });
-    bot.name = next;
-    this.addFloat(`Renamed ${fallback} to ${next}`, bot.x, bot.y - 30, '#d3a95f');
-    this.syncBotDrawerUi();
-    return { ok: true, bot };
-  }
 
-  beginBotMenuNameEdit(bot, x, y) {
-    const edit = this.ensureBotMenuEdit(bot);
-    edit.nameEditing = true;
-    edit.nameDraft = this.botDisplayName(bot);
-    edit.nameStatus = '';
-    this.showBotMenu(bot, x, y, { refreshEdit: true });
-    requestAnimationFrame(() => {
-      const input = this.dom.botMenu?.querySelector('[data-menu-bot-name]');
-      if (!input) return;
-      input.focus();
-      input.select();
-    });
-  }
 
-  saveBotMenuName(bot, x, y, name) {
-    const edit = this.ensureBotMenuEdit(bot);
-    const res = this.setBotName(bot, name);
-    edit.nameEditing = false;
-    edit.nameDraft = '';
-    edit.nameStatus = res.ok ? 'Name saved.' : `Name save failed: ${res.error}`;
-    this.showBotMenu(bot, x, y, { refreshEdit: true });
-    return res;
-  }
 
-  createBotTeam(name, color = '#5d8063') {
-    const numericId = this.nextBotTeamId++;
-    const team = { id: `team:${numericId}`, numericId, name: String(name || '').trim().replace(/\s+/g, ' ').slice(0, 28) || `Team ${numericId}`, color: this.teamColor(color) };
-    this.botTeams.push(team);
-    this.syncBotDrawerUi();
-    this.addFloat(`Created ${team.name}`, this.player.x, this.player.y - 36, team.color);
-    return team;
-  }
 
-  setBotTeamColor(teamId, color) {
-    const team = this.findBotTeam(teamId);
-    if (!team) return false;
-    team.color = this.teamColor(color);
-    this.syncBotDrawerUi(true);
-    return true;
-  }
 
-  assignBotToTeam(botId, teamId = null) {
-    const bot = this.findBot(botId);
-    if (!bot) return { ok: false, error: 'Bot not found' };
-    const team = teamId ? this.findBotTeam(teamId) : null;
-    if (teamId && !team) return { ok: false, error: 'Team not found' };
-    bot.teamId = team?.id || null;
-    this.addFloat(`${this.botDisplayName(bot)} → ${team?.name || 'No team'}`, bot.x, bot.y - 30, team?.color || '#c7b683');
-    this.syncBotDrawerUi();
-    return { ok: true, bot, team };
-  }
 
   renderBotDrawerCard(bot) {
     const team = this.botTeam(bot);
@@ -4195,7 +2761,6 @@ export class Game {
     el.querySelector('[data-rename-zone]').onclick=()=>{this.promptRenameZone(z); this.showZoneMenu(z, x, y);};
     el.querySelector('[data-hide-zone]').onclick=()=>{this.setZoneHidden(z, true); this.hideMenus();};
   }
-  placeMenu(el,x,y) { this.hideMenus(); el.style.left=`${Math.min(x, window.innerWidth-310)}px`; el.style.top=`${Math.min(y, window.innerHeight-260)}px`; el.hidden=false; }
   hideMenus(){ this.dom.botMenu.hidden=true; this.dom.structureMenu.hidden=true; this.closeDogPopup(); }
 
   syncBuildUi() { if (!this.dom.buildStatus) return; this.dom.buildStatus.textContent = this.placementType ? `Click map to place ${BUILDING_TYPES[this.placementType].label}.` : 'Choose a building, then click the map.'; for (const b of this.dom.buildPanel.querySelectorAll('[data-build]')) b.classList.toggle('is-active', b.dataset.build === this.placementType); }
@@ -4261,6 +2826,84 @@ installInventorySystem(Game, {
 });
 
 installCombatSystem(Game);
+
+installCameraSystem(Game, {
+  CAMERA_MAX_ZOOM,
+  CAMERA_MIN_ZOOM,
+  CAMERA_EDGE_VIEWPORT_PADDING_RATIO,
+  CAMERA_WHEEL_SENSITIVITY
+});
+
+installPlayerSystem(Game, {
+  itemLabel,
+  STORAGE_STRUCTURE_TYPES,
+  TREE_SEARCH_SECONDS,
+  HEMP_SEARCH_SECONDS,
+  HEMP_CHOP_SECONDS,
+  RESOURCE_HIT_SECONDS,
+  BUILDING_KIT_DEPLOY_SECONDS,
+  BUILDING_DISASSEMBLE_SECONDS,
+  isBuildingKitItemType,
+  buildingTypeFromKitItem
+});
+
+installMonsterSystem(Game, {
+  NIGHT_MONSTER_CONFIG,
+  MONSTER_AVOID_STRUCTURE_RADIUS,
+  MONSTER_ROAM_RADIUS
+});
+
+installStructureSystem(Game, {
+  BUILDING_TYPES,
+  DEFAULT_WORKBENCH_RECIPE,
+  DEFAULT_SMITHERY_RECIPE,
+  DEFAULT_ASSEMBLER_RECIPE,
+  THRONE_HP,
+  MIN_DRAWN_ZONE_SIZE,
+  DEFAULT_RESOURCE_RADIUS,
+  DEFAULT_NEARBY_RADIUS,
+  MAX_NEARBY_RADIUS,
+  DIG_ZONE_RADIUS,
+  buildingKitItemTypeFor,
+  buildingTypeFromKitItem,
+  createRangedAttackComponent,
+  clone,
+  itemLabel
+});
+
+installBotSystem(Game, {
+  DEFAULT_MANAGER_KNOWLEDGE_PACKS,
+  createEquipment,
+  clone,
+  itemLabel
+});
+
+installTeachSystem(Game, {
+  ALLOWED_OPS,
+  DEFAULT_RESOURCE_RADIUS,
+  DIG_ZONE_RADIUS,
+  clone,
+  itemLabel
+});
+
+installSpawnSystem(Game, {
+  HOLE_VISUAL_RADIUS,
+  HOLE_BLOCK_RADIUS,
+  TREE_GROWTH,
+  BUILDING_TYPES,
+  MONSTER_AVOID_STRUCTURE_RADIUS,
+  MONSTER_ROAM_RADIUS,
+  MONSTER_MELEE_ATTACK,
+  createAutoAttackComponent
+});
+
+installInteractionSystem(Game, {
+  CAMERA_WHEEL_SENSITIVITY,
+  STORAGE_STRUCTURE_TYPES,
+  isBuildingKitItemType,
+  itemLabel,
+  BUILDING_TYPES
+});
 
 
 

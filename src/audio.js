@@ -134,7 +134,23 @@ export function createAudioController() {
     arrow: ctx => { noise(ctx, { duration: 0.08, gain: 0.055, filter: 2100, type: 'highpass' }); tone(ctx, { freq: 980, endFreq: 500, duration: 0.08, type: 'sine', gain: 0.035 }); },
     hit: ctx => { noise(ctx, { duration: 0.09, gain: 0.09, filter: 420 }); tone(ctx, { freq: 120, duration: 0.07, type: 'triangle', gain: 0.05 }); },
     victory: ctx => { [392, 523, 659].forEach((freq, i) => tone(ctx, { at: i * 0.08, freq, duration: 0.14, type: 'triangle', gain: 0.06 })); },
-    switch: ctx => { tone(ctx, { freq: 300, endFreq: 680, duration: 0.1, type: 'triangle', gain: 0.055 }); }
+    switch: ctx => { tone(ctx, { freq: 300, endFreq: 680, duration: 0.1, type: 'triangle', gain: 0.055 }); },
+    demolish: ctx => { tone(ctx, { freq: 95, endFreq: 50, duration: 0.2, type: 'sine', gain: 0.1 }); noise(ctx, { duration: 0.22, gain: 0.12, filter: 380, type: 'lowpass' }); noise(ctx, { at: 0.06, duration: 0.16, gain: 0.06, filter: 1400 }); },
+    night_fall: ctx => { tone(ctx, { freq: 160, endFreq: 55, duration: 0.7, type: 'sine', gain: 0.06 }); tone(ctx, { at: 0.08, freq: 82, endFreq: 41, duration: 0.65, type: 'sine', gain: 0.045 }); noise(ctx, { at: 0.04, duration: 0.55, gain: 0.03, filter: 200, type: 'lowpass' }); },
+    dawn: ctx => { [392, 494, 587].forEach((freq, i) => tone(ctx, { at: i * 0.09, freq, duration: 0.28, type: 'triangle', gain: 0.05 })); tone(ctx, { at: 0.28, freq: 784, duration: 0.22, type: 'sine', gain: 0.035 }); },
+    monster_spawn: ctx => { tone(ctx, { freq: 130, endFreq: 70, duration: 0.28, type: 'sawtooth', gain: 0.08 }); noise(ctx, { duration: 0.22, gain: 0.07, filter: 340, type: 'lowpass' }); tone(ctx, { at: 0.12, freq: 85, endFreq: 55, duration: 0.16, type: 'sawtooth', gain: 0.045 }); },
+    player_hurt: ctx => { noise(ctx, { duration: 0.06, gain: 0.09, filter: 2600, type: 'highpass' }); tone(ctx, { at: 0.02, freq: 720, endFreq: 320, duration: 0.12, type: 'square', gain: 0.055 }); },
+    bot_defeat: ctx => { [520, 390, 280, 175].forEach((freq, i) => tone(ctx, { at: i * 0.07, freq, duration: 0.12, type: 'sine', gain: 0.05 })); noise(ctx, { at: 0.02, duration: 0.2, gain: 0.03, filter: 600, type: 'lowpass' }); },
+    teach_start: ctx => { tone(ctx, { freq: 660, duration: 0.07, type: 'sine', gain: 0.05 }); tone(ctx, { at: 0.07, freq: 990, duration: 0.09, type: 'sine', gain: 0.055 }); },
+    teach_stop: ctx => { [523, 659, 784].forEach((freq, i) => tone(ctx, { at: i * 0.06, freq, duration: 0.1, type: 'triangle', gain: 0.045 })); },
+    zone_create: ctx => { tone(ctx, { freq: 340, endFreq: 460, duration: 0.14, type: 'sine', gain: 0.05 }); noise(ctx, { at: 0.02, duration: 0.2, gain: 0.03, filter: 720 }); },
+    promote: ctx => { [392, 523, 659].forEach((freq, i) => tone(ctx, { at: i * 0.06, freq, duration: 0.16, type: 'sawtooth', gain: 0.04 })); tone(ctx, { at: 0.2, freq: 784, duration: 0.14, type: 'triangle', gain: 0.04 }); },
+    save: ctx => { tone(ctx, { freq: 880, duration: 0.04, type: 'square', gain: 0.04 }); tone(ctx, { at: 0.045, freq: 1320, duration: 0.05, type: 'square', gain: 0.035 }); },
+    dog_bark: ctx => { noise(ctx, { duration: 0.05, gain: 0.07, filter: 1100 }); tone(ctx, { freq: 380, endFreq: 520, duration: 0.05, type: 'triangle', gain: 0.045 }); noise(ctx, { at: 0.08, duration: 0.05, gain: 0.06, filter: 1100 }); tone(ctx, { at: 0.08, freq: 360, endFreq: 480, duration: 0.05, type: 'triangle', gain: 0.04 }); },
+    team_create: ctx => { [330, 392, 494].forEach(freq => tone(ctx, { freq, duration: 0.14, type: 'triangle', gain: 0.04 })); noise(ctx, { duration: 0.1, gain: 0.025, filter: 900 }); },
+    level_up: ctx => { [392, 494, 587, 784].forEach((freq, i) => tone(ctx, { at: i * 0.06, freq, duration: 0.16, type: 'triangle', gain: 0.05 })); tone(ctx, { at: 0.26, freq: 1046, duration: 0.18, type: 'sine', gain: 0.03 }); },
+    warn: ctx => { tone(ctx, { freq: 440, duration: 0.08, type: 'square', gain: 0.05 }); tone(ctx, { at: 0.1, freq: 440, duration: 0.08, type: 'square', gain: 0.05 }); },
+    disassemble: ctx => { [440, 350, 280, 200].forEach((freq, i) => tone(ctx, { at: i * 0.05, freq, duration: 0.08, type: 'triangle', gain: 0.035 })); noise(ctx, { duration: 0.22, gain: 0.04, filter: 500, type: 'lowpass' }); }
   };
 
   function play(name, detail = {}) {

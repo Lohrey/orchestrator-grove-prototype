@@ -230,6 +230,8 @@ export function installCombatSystem(Game) {
       target.hp = Math.max(0, (target.hp ?? target.maxHp ?? 1) - damage);
       this.addFloat(`${target.name || target.ref || 'target'} -${damage} HP`, target.x, target.y - 34, target.hp <= 0 ? '#c86b5f' : '#d3a95f');
       if (target.hp <= 0) this.addFloat(`${target.name || target.ref || 'target'} defeated`, target.x, target.y - 50, '#9abf8f');
+      if (target.ref?.startsWith('player:')) this.emitSound('player_hurt', { cooldownKey: 'player_hurt', minGapMs: 150 });
+      if (target.ref?.startsWith('bot:') && target.hp <= 0) this.emitSound('bot_defeat', { cooldownKey: `bot_defeat:${target.id}`, minGapMs: 200 });
       if (target.ref?.startsWith('player:') && typeof this.onMultiplayerState === 'function') this.onMultiplayerState(this.getLocalPlayerNetState());
       return true;
     },

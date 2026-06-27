@@ -148,12 +148,20 @@ assert.equal(rows.find(row => row.op === 'pick_up').dslSnippet, '{"op":"pick_up"
 assert.equal(rows.find(row => row.op === 'drop_item').dslSnippet, '{"op":"drop_item","zone":"$zone"}', 'drop_item DSL snippet must show the generic drop JSON');
 assert.equal(rows.find(row => row.op === 'loop').dslSnippet, '{"op":"loop"}', 'loop DSL snippet must show op-only JSON');
 
+// programTaughtLoop and programMakePlanks may live in world.js or be installed from system modules.
 const worldSource = read('src/world.js');
-const taughtLoopStart = worldSource.indexOf('programTaughtLoop');
-const taughtLoopEnd = worldSource.indexOf('programMakePlanks', taughtLoopStart);
+const taughtLoopSystemSource = fs.existsSync(path.join(ROOT, 'src/systems/dsl/taught-loop-system.js'))
+  ? read('src/systems/dsl/taught-loop-system.js')
+  : '';
+const productionSystemSource = fs.existsSync(path.join(ROOT, 'src/systems/production/production-system.js'))
+  ? read('src/systems/production/production-system.js')
+  : '';
+const combinedSource = [worldSource, taughtLoopSystemSource, productionSystemSource].join('\n');
+const taughtLoopStart = combinedSource.indexOf('programTaughtLoop');
+const taughtLoopEnd = combinedSource.indexOf('programMakePlanks', taughtLoopStart);
 assert.notEqual(taughtLoopStart, -1, 'programTaughtLoop source block must start');
 assert.notEqual(taughtLoopEnd, -1, 'programTaughtLoop source block must end before programMakePlanks');
-const taughtLoopSource = worldSource.slice(taughtLoopStart, taughtLoopEnd);
+const taughtLoopSource = combinedSource.slice(taughtLoopStart, taughtLoopEnd);
 
 const customHandlerOps = new Set();
 for (const match of taughtLoopSource.matchAll(/step\.op === '([^']+)'/g)) customHandlerOps.add(match[1]);
@@ -178,7 +186,7 @@ assert.match(assistantPromptSource, /ASSISTANT_PROTOCOL_KERNEL/, 'assistant prom
 assert.match(assistantPromptSource, /compactCapabilities/, 'assistant prompt module must own compact capability compilation');
 assert.match(assistantPackCatalogSource, /ASSISTANT_KNOWLEDGE_PACKS/, 'built-in assistant pack catalog must live outside data.js');
 
-const mainSource = read('src/main.js');
+const mainSource = read('src/main.js') + '\n' + read('src/ui/assistant-ui.js');
 assert.match(mainSource, /getActionStepChainRows/, 'main UI must render registry-backed step-chain rows');
 assert.match(mainSource, /DSL snippet/, 'settings step-chain table must label the DSL snippet column');
 assert.match(mainSource, /row\.dslSnippet/, 'settings step-chain table must render row.dslSnippet');
