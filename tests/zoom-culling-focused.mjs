@@ -90,7 +90,7 @@ function makeRenderState(zoom, { mapWidth = 1000, mapHeight = 800 } = {}) {
 }
 
 function makeRecordingContext() {
-  const calls = { fillText: [], strokeText: [], methods: Object.create(null) };
+  const calls = { fillText: [], strokeText: [], methods: Object.create(null), assignments: Object.create(null) };
   const gradient = { addColorStop() {} };
   const target = { calls };
   const recordMethod = prop => (...args) => {
@@ -114,6 +114,10 @@ function makeRecordingContext() {
     },
     set(obj, prop, value) {
       obj[prop] = value;
+      if (prop === 'globalAlpha') {
+        if (!calls.assignments.globalAlpha) calls.assignments.globalAlpha = [];
+        calls.assignments.globalAlpha.push(value);
+      }
       return true;
     }
   });
@@ -125,6 +129,25 @@ function makeRecordingContext() {
     }
   };
   return proxy;
+}
+
+function makeHoverHarness({ tree = null, item = null } = {}) {
+  const mouse = { x: 0, y: 0, screenX: 0, screenY: 0, clientX: 0, clientY: 0, hoverBot: null, hoverStructure: null, hoverMonster: null, hoverTree: null, hoverHole: null, hoverItem: null, hoverHemp: null, hoverZone: null };
+  return {
+    mouse,
+    zoneDraft: null,
+    placementType: null,
+    zoneResizeHandleAt: () => null,
+    canvas: { style: {} },
+    botAt: () => null,
+    structureAt: () => null,
+    monsterAt: () => null,
+    itemAt: () => item,
+    treeAt: () => tree,
+    holeAt: () => null,
+    hempAt: () => null,
+    zoneAt: () => null
+  };
 }
 
 function drawnTextsAtZoom(zoom) {
@@ -183,6 +206,26 @@ assert.equal(
 assert(
   (zoomedOutMethods.drawImage || 0) > 0,
   'zoom below 55% should still render the cached core map base'
+);
+
+const item = { id: 11, type: 'log', x: 180, y: 180, bob: 0 };
+const tree = { id: 21, type: 'tree', x: 180, y: 180, radius: 28, growthStage: 'grown_tree' };
+const hoverGame = makeHoverHarness({ tree, item });
+Game.prototype.updateHover.call(hoverGame);
+assert.equal(hoverGame.mouse.hoverItem, item, 'hover priority should prefer items over overlapping trees');
+assert.equal(hoverGame.mouse.hoverTree, null, 'tree hover should be suppressed when an item is on top of the hit zone');
+
+const overlapRender = makeRenderState(1);
+overlapRender.game.items = [item];
+overlapRender.game.trees = [tree];
+overlapRender.renderState.items = overlapRender.game.items;
+overlapRender.renderState.trees = overlapRender.game.trees;
+overlapRender.game.mouse = { hoverItem: item, hoverBot: null, hoverTree: tree, hoverStructure: null, hoverMonster: null, hoverHole: null, hoverHemp: null, hoverZone: null };
+const overlapCtx = makeRecordingContext();
+drawWorld(overlapRender.renderState, overlapCtx);
+assert(
+  (overlapCtx.calls.assignments.globalAlpha || []).includes(0.68),
+  'trees should render with higher transparency when they occlude loose items'
 );
 
 console.log('zoom culling focused tests passed');

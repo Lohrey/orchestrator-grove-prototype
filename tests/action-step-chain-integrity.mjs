@@ -145,6 +145,7 @@ for (const row of rows) {
   }
 }
 assert.equal(rows.find(row => row.op === 'pick_up').dslSnippet, '{"op":"pick_up","type":"$type","zone":"$zone"}', 'pick_up DSL snippet must show op/type/zone JSON');
+assert.equal(rows.find(row => row.op === 'drop_item').dslSnippet, '{"op":"drop_item","zone":"$zone"}', 'drop_item DSL snippet must show the generic drop JSON');
 assert.equal(rows.find(row => row.op === 'loop').dslSnippet, '{"op":"loop"}', 'loop DSL snippet must show op-only JSON');
 
 const worldSource = read('src/world.js');
@@ -167,8 +168,15 @@ for (const [op, step] of Object.entries(ACTION_STEPS)) {
 }
 
 const assistantSource = read('src/assistant.js');
-assert.match(assistantSource, /ASSISTANT_PROTOCOL_KERNEL/, 'assistant must define an always-present protocol kernel');
-assert.match(assistantSource, /compactCapabilities/, 'assistant prompt must compile deduplicated selected-pack capabilities');
+const assistantKnowledgeSource = read('src/assistant-knowledge.js');
+const assistantPromptSource = read('src/assistant-prompt.js');
+const assistantPackCatalogSource = read('src/assistant-pack-catalog.js');
+assert.match(assistantSource, /ASSISTANT_PROTOCOL_KERNEL/, 'assistant public API must expose the protocol kernel');
+assert.match(assistantSource, /compactCapabilities/, 'assistant public API must expose compact capability compilation');
+assert.match(assistantKnowledgeSource, /normalizeAssistantKnowledgePack/, 'knowledge-pack normalization must live in the assistant knowledge module');
+assert.match(assistantPromptSource, /ASSISTANT_PROTOCOL_KERNEL/, 'assistant prompt module must own the protocol kernel');
+assert.match(assistantPromptSource, /compactCapabilities/, 'assistant prompt module must own compact capability compilation');
+assert.match(assistantPackCatalogSource, /ASSISTANT_KNOWLEDGE_PACKS/, 'built-in assistant pack catalog must live outside data.js');
 
 const mainSource = read('src/main.js');
 assert.match(mainSource, /getActionStepChainRows/, 'main UI must render registry-backed step-chain rows');

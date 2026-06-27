@@ -1,5 +1,6 @@
 import { BUILDING_TYPES } from './data.js?v=t_building_kits_0618';
 import { clamp } from './utils.js?v=20260613-player-tools';
+import { getCampaignArrivalScene } from './campaign-scenes.js?v=t_campaign_scenes_0623';
 import { drawFogOfWarOverlay, fogRevealSources as buildFogRevealSources, isLightEmittingStructure, isPointCurrentlyVisible, isPointExplored as isFogPointExplored, structureLightRadius as getFogStructureLightRadius } from './fog-of-war.js?v=t_building_kits_0618';
 import { createDepthDrawable, sortDepthDrawables } from './depth-sort.js?v=t_da28d8dd';
 import {
@@ -44,6 +45,7 @@ export function drawWorld(renderState, ctx) {
   const view = getWorldViewBounds(game);
   const lighting = lightingEnabled(game);
   const revealSources = fogEnabled(game) || lighting ? fogRevealSources(game) : [];
+  const campaignArrivalActive = isCampaignArrivalActive(game);
   const renderLooseGroundItems = shouldRenderLooseGroundItems(game.camera?.zoom);
   const renderDecorativeDetails = shouldRenderDecorativeDetails(game.camera?.zoom);
   const renderBots = shouldRenderBots(game.camera?.zoom);
@@ -56,6 +58,7 @@ export function drawWorld(renderState, ctx) {
   c.translate(-game.camera.x, -game.camera.y);
   drawMapBase(game, c, view, { renderDecorativeDetails });
   drawMapFeatures(game, c, view);
+  if (campaignArrivalActive) drawCampaignArrival(game, c, view, now);
   drawGrid(game, c, view);
   drawZones(game, c, view);
   if (lighting) drawNightTint(game, c, view);
@@ -112,11 +115,13 @@ export function drawWorld(renderState, ctx) {
     }
   }
   if (game.player.target && (!view || circleInView(game.player.target.x, game.player.target.y, 64, view))) drawPlayerTarget(game, c);
-  if (!view || circleInView(game.player.x, game.player.y, (game.player.r || 13) + 42, view)) {
-    pushDepth('player', game.player, () => drawPlayerActor(game, c, now));
-  }
-  if (!view || circleInView(game.assistant.x, game.assistant.y, 42, view)) {
-    pushDepth('assistant', game.assistant, () => drawAssistant(c, game.assistant.x, game.assistant.y, now, game.assistant.facingX, game.assistant.facingY));
+  if (!campaignArrivalActive) {
+    if (!view || circleInView(game.player.x, game.player.y, (game.player.r || 13) + 42, view)) {
+      pushDepth('player', game.player, () => drawPlayerActor(game, c, now));
+    }
+    if (!view || circleInView(game.assistant.x, game.assistant.y, 42, view)) {
+      pushDepth('assistant', game.assistant, () => drawAssistant(c, game.assistant.x, game.assistant.y, now, game.assistant.facingX, game.assistant.facingY));
+    }
   }
   pushRemotePlayersToDepth(game, c, view, depthDrawables, now);
   const treeOccluders = { items: visibleItems, bots: visibleBots, monsters: visibleMonsters, structures: visibleStructures, projectiles: visibleProjectiles };
@@ -350,11 +355,81 @@ function drawMapFeatures(game, c, view) {
       if (circleInView(feature.x, feature.y, Math.max(rx, ry) + 32, view)) drawLakeFeature(c, feature);
     }
     if (feature.type === 'camper_van') {
+      if (isCampaignArrivalActive(game) && feature.id === getCampaignArrivalScene()?.parkedFeatureId) continue;
       const w = feature.w || 118;
       const h = feature.h || 58;
       if (rectInView(feature.x - w / 2 - 24, feature.y - h / 2 - 32, w + 48, h + 64, view)) drawCamperVanFeature(c, feature);
     }
   }
+}
+
+function isCampaignArrivalActive(game) {
+  return !!game.campaignArrival?.active && game.gameMode === 'campaign';
+}
+
+function drawCampaignArrival(game, c, view, now) {
+  const scene = getCampaignArrivalScene(game.campaignArrival?.sceneId);
+  if (!scene) return;
+  const parkedFeature = (game.mapFeatures || []).find(feature => feature.id === scene.parkedFeatureId) || null;
+  const points = scene.path || [];
+  if (points.length < 2) return;
+  const progress = clamp(Number(game.campaignArrival?.progress ?? computePolylineProgress(now, game.campaignArrival?.startedAt, scene.durationMs)), 0, 1);
+  const state = samplePolyline(points, progress);
+  const parkedRotation = Number.isFinite(parkedFeature?.rotation) ? parkedFeature.rotation : state.angle;
+  const rotation = state.angle + ((parkedRotation - state.angle) * Math.min(1, progress * 1.15));
+  const van = {
+    ...parkedFeature,
+    x: state.x,
+    y: state.y,
+    rotation,
+    hideLabel: true,
+    arrival: true,
+    driverVisible: true
+  };
+  drawCamperVanFeature(c, van);
+}
+
+function computePolylineProgress(now, startedAt, durationMs) {
+  if (!Number.isFinite(now) || !Number.isFinite(startedAt) || !Number.isFinite(durationMs) || durationMs <= 0) return 1;
+  return clamp((now - startedAt) / durationMs, 0, 1);
+}
+
+function samplePolyline(points, progress) {
+  const segments = [];
+  let total = 0;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const a = points[i];
+    const b = points[i + 1];
+    if (!a || !b) continue;
+    const dx = (b.x ?? b[0]) - (a.x ?? a[0]);
+    const dy = (b.y ?? b[1]) - (a.y ?? a[1]);
+    const length = Math.hypot(dx, dy);
+    if (length <= 0) continue;
+    segments.push({ a, b, length, angle: Math.atan2(dy, dx) });
+    total += length;
+  }
+  if (!segments.length || total <= 0) {
+    const first = points[0];
+    return { x: first.x ?? first[0] ?? 0, y: first.y ?? first[1] ?? 0, angle: 0 };
+  }
+  const target = total * clamp(progress, 0, 1);
+  let traveled = 0;
+  for (const segment of segments) {
+    const next = traveled + segment.length;
+    if (target <= next) {
+      const local = segment.length ? (target - traveled) / segment.length : 0;
+      const ax = segment.a.x ?? segment.a[0] ?? 0;
+      const ay = segment.a.y ?? segment.a[1] ?? 0;
+      const bx = segment.b.x ?? segment.b[0] ?? 0;
+      const by = segment.b.y ?? segment.b[1] ?? 0;
+      return { x: ax + ((bx - ax) * local), y: ay + ((by - ay) * local), angle: segment.angle };
+    }
+    traveled = next;
+  }
+  const last = segments[segments.length - 1];
+  const bx = last.b.x ?? last.b[0] ?? 0;
+  const by = last.b.y ?? last.b[1] ?? 0;
+  return { x: bx, y: by, angle: last.angle };
 }
 
 function polylineFeatureInView(feature, view, padding = 140) {
@@ -542,8 +617,17 @@ function drawCamperVanFeature(c, feature) {
   c.beginPath(); c.arc(-w * .28, h * .42, 10, 0, Math.PI * 2); c.arc(w * .32, h * .42, 10, 0, Math.PI * 2); c.fill();
   c.strokeStyle = '#f0e7c6'; c.lineWidth = 2;
   c.beginPath(); c.moveTo(-w * .45, -h * .36); c.lineTo(w * .42, -h * .36); c.stroke();
+  if (feature.arrival) {
+    c.fillStyle = 'rgba(21, 24, 24, .66)';
+    c.beginPath();
+    c.arc(w * .06, -h * .02, 6, 0, Math.PI * 2);
+    c.fill();
+    c.fillRect(w * .03, h * .03, 14, 9);
+    c.fillStyle = 'rgba(244, 235, 202, .12)';
+    c.fillRect(-w * .24, -h * .12, w * .18, h * .16);
+  }
   c.restore();
-  drawNameTag(c, feature.label || 'camper van', feature.x, feature.y - (feature.h || 58) - 18);
+  if (!feature.hideLabel) drawNameTag(c, feature.label || 'camper van', feature.x, feature.y - (feature.h || 58) - 18);
 }
 
 function drawPainterlyGroundPatches(c, width, height) {
@@ -816,20 +900,31 @@ function drawTree(game, c, t, now, opacity = 1) {
 }
 
 function getTreeOpacity(game, tree, now, occluders = null) {
-  return treeWouldOccludeDrawnObject(game, tree, now, occluders) ? .82 : 1;
+  return treeWouldOccludeItems(game, tree, now, occluders) ? .68 : (treeWouldOccludeDrawnObject(game, tree, now, occluders) ? .82 : 1);
 }
 
-function treeWouldOccludeDrawnObject(game, tree, now, occluders = null) {
+function treeOcclusionChecks(tree) {
   const treeRadius = getTreeDrawRadius(tree);
   const treeHeightFactor = tree.stump ? .58 : (tree.growthStage === 'sapling' ? .8 : .95);
   const treeCenterY = tree.y - treeRadius * .12;
-  const checkCircle = (x, y, radius) => circlesOverlap(tree.x, treeCenterY, treeRadius, x, y, radius);
-  const checkRect = (x, y, w, h) => circleIntersectsRect(tree.x, treeCenterY, treeRadius, x - w / 2, y - h / 2, w, h);
+  return {
+    checkCircle: (x, y, radius) => circlesOverlap(tree.x, treeCenterY, treeRadius, x, y, radius),
+    checkRect: (x, y, w, h) => circleIntersectsRect(tree.x, treeCenterY, treeRadius, x - w / 2, y - h / 2, w, h),
+    treeHeightFactor
+  };
+}
 
+function treeWouldOccludeItems(game, tree, now, occluders = null) {
+  const { checkCircle } = treeOcclusionChecks(tree);
   for (const item of occluders?.items || game.items || []) {
     const bob = item._bob ?? Math.sin(now / 400 + item.bob) * 2;
     if (checkCircle(item.x, item.y + bob, 11)) return true;
   }
+  return false;
+}
+
+function treeWouldOccludeDrawnObject(game, tree, now, occluders = null) {
+  const { checkCircle, checkRect, treeHeightFactor } = treeOcclusionChecks(tree);
   for (const bot of occluders?.bots || game.bots || []) {
     if (checkCircle(bot.x, bot.y, (bot.r || 13) + 6)) return true;
   }
@@ -1078,7 +1173,7 @@ function drawBot(game, c, b, now) {
   const hover = game.mouse.hoverBot === b;
   const inventoryIsHandTool = isBotHandTool(b.inventory?.type);
   const facingRight = (b.facingX ?? 1) >= 0;
-  const handToolTypes = [b.tool?.type, inventoryIsHandTool ? b.inventory.type : null].filter(Boolean);
+  const handToolTypes = inventoryIsHandTool ? [b.inventory.type] : [];
   c.save();
   drawShadow(c, b.x, b.y + b.r + 5, b.r + 8, 5, .26);
   const pulse = hover ? Math.sin(now / 160) * 1.5 : 0;

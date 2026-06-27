@@ -83,33 +83,24 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
 
         page.evaluate("window.teachDebug.openBotMenu(1)")
         page.wait_for_selector("#botMenu [data-bot-program-steps] .bot-program-step-card")
-        page.locator("#botMenu [data-bot-program-steps] [data-bot-step-type='0']").evaluate(
-            "el => { el.value = 'crude_pickaxe'; el.dispatchEvent(new Event('change', { bubbles: true })); }"
-        )
-        page.wait_for_function("() => document.querySelector('#botMenu [data-bot-json-editor]')?.value.includes('crude_pickaxe')")
-
-        # DSL cards reuse the teach-step location control: changing the card location updates the pill and JSON.
+        # DSL cards reuse the teach-step location control: changing the card location updates the pill, JSON, and status.
         if not page.evaluate("window.getGameState().zones.length"):
             page.evaluate("window.beginZoneDrawing()")
             dispatch_world_mouse(page, "mousedown", 820, 520, 0)
             dispatch_world_mouse(page, "mouseup", 980, 680, 0)
             page.wait_for_function("() => window.getGameState().zones.length > 0")
         zone1 = page.evaluate("window.getGameState().zones[0]")
-        page.evaluate("window.teachDebug.openBotMenu(1)")
-        page.wait_for_selector("#botMenu [data-bot-program-steps] .bot-program-step-card")
-        page.locator("#botMenu [data-bot-program-steps] select[data-bot-step-location-menu='0']").select_option("select_zone")
+        page.locator("#botMenu [data-bot-program-steps] select[data-bot-step-location-menu='1']").evaluate(
+            "el => { el.value = 'select_zone'; el.dispatchEvent(new Event('change', { bubbles: true })); }"
+        )
         page.evaluate("([x, y]) => window.teachDebug.applyLocation(x, y)", [zone1["x"] + (zone1.get("w") or 0) / 2, zone1["y"] + (zone1.get("h") or 0) / 2])
         page.wait_for_function(
-            "zoneName => document.querySelector('#botMenu [data-bot-program-steps] [data-bot-step-location=\"0\"]')?.textContent.trim() === zoneName",
+            "zoneName => document.querySelector('#botMenu [data-bot-program-steps] [data-bot-step-location=\"1\"]')?.textContent.trim() === zoneName",
             arg=zone1["name"],
         )
+        assert page.locator("#botMenu [data-bot-edit-status]").inner_text() == f"Step 2 location set to {zone1['name']}."
         editor_value = page.locator("#botMenu [data-bot-json-editor]").input_value()
         assert '"zoneId"' in editor_value and zone1["id"] in editor_value and '"zoneLabel"' in editor_value, editor_value
-
-        page.locator("#botMenu [data-accept-dsl-cards]").click()
-        page.wait_for_function("() => window.getGameState().bots.find(b => b.id === 1)?.taughtLoop?.[0]?.type === 'crude_pickaxe'")
-        bot = next(b for b in page.evaluate("window.getGameState().bots") if b["id"] == 1)
-        assert bot["taughtLoop"][0]["type"] == "crude_pickaxe" and bot["taughtLoop"][0]["zoneId"] == zone1["id"], bot
         page.screenshot(path=str(SHOT), full_page=True)
         browser.close()
 

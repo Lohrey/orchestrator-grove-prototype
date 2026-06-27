@@ -538,13 +538,13 @@ const RAW_ACTION_STEP_REGISTRY = Object.freeze({
   }),
   drop_item: step({
     label: 'Drop item',
-    args: ['type', 'zone'],
-    description: 'Teach-by-doing action: move to the recorded/card-selected ground zone and drop the held item there.',
-    signature: 'drop_item(type, zone?) - drop carried item on ground/zone',
+    args: ['zone'],
+    description: 'Teach-by-doing action: move to the recorded/card-selected ground zone and drop the item currently in hand there.',
+    signature: 'drop_item(zone?) - drop the item currently in hand on ground/zone',
     packs: ['starter_automation', 'logistics'],
     customLoop: true,
     recordable: true,
-    uiCard: 'type + location selector'
+    uiCard: 'location selector'
   }),
   deploy_building_kit: step({
     label: 'Deploy building kit',

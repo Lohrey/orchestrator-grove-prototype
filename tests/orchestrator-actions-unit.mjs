@@ -293,4 +293,13 @@ assert.ok(arrowmaker.arrow_packs > 0 || arrowPack || bot5.ammunition > 0, { item
 if (arrowPack) assert.equal(game.pickItem(bot5, arrowPack), true, bot5);
 assert.equal(bot5.ammunition, 10, bot5);
 
+const idleCombatBot = game.createBot(3000, 2000, 'idle');
+game.equipActor(idleCombatBot, 'wooden_sword');
+const idleCombatStart = { x: idleCombatBot.x, y: idleCombatBot.y };
+const idleCombatMonster = game.spawnMonster(idleCombatBot.x + 420, idleCombatBot.y, { name: 'idle combat hostile', type: 'night_monster', kind: 'night_monster', hostile: true, passive: false, speed: 0, roamRadius: 0, avoidRadius: 0, hp: 2, maxHp: 2, ownerId: 'wild' });
+tick(game, 7, 0.2);
+assert.equal(idleCombatBot.program, 'idle', idleCombatBot);
+assert.ok(Math.hypot(idleCombatBot.x - idleCombatStart.x, idleCombatBot.y - idleCombatStart.y) > 24, idleCombatBot);
+assert.equal(idleCombatMonster.hp, 0, idleCombatMonster);
+
 console.log('orchestrator executable action steps passed');

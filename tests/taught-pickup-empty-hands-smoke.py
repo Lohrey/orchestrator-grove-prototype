@@ -47,7 +47,7 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
         page.evaluate("([type, x, y]) => window.teachDebug.spawnItem(type, x + 6, y + 4, 1)", ["crude_axe", bot["x"], bot["y"]])
         assigned_chop = page.evaluate("() => window.assignBotProgram({ botId: 1, program: 'chop_wood' })")
         assert assigned_chop["ok"] is True, assigned_chop
-        page.wait_for_function("() => window.getGameState().bots.find(b => b.id === 1)?.tool?.type === 'crude_axe'", timeout=8000)
+        page.wait_for_function("() => window.getGameState().bots.find(b => b.id === 1)?.inventory?.type === 'crude_axe'", timeout=8000)
 
         bot = page.evaluate("() => window.getGameState().bots.find(b => b.id === 1)")
         page.evaluate("([type, x, y]) => window.teachDebug.spawnItem(type, x + 6, y + 4, 1)", ["crude_axe", bot["x"], bot["y"]])
@@ -68,8 +68,8 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
 
         page.wait_for_timeout(2500)
         state = page.evaluate("() => window.getGameState().bots.find(b => b.id === 1)")
-        assert state["tool"]["type"] == "crude_axe", state
-        assert state["inventory"] is None, state
+        assert state["inventory"]["type"] == "crude_axe", state
+        assert "durability" in state["inventory"], state
         assert loose_count(page, "crude_axe") == loose_axes_before, state
         assert "already has crude axe" in state["message"].lower(), state
 

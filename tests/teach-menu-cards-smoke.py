@@ -123,9 +123,9 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
         page.evaluate("window.teachDebug.setInventory('log')")
         assert page.evaluate("window.teachDebug.dropHeld()") is True
         drop_step = page.evaluate("window.getGameState().recorder.steps[0]")
-        assert drop_step["op"] == "drop_item" and drop_step["type"] == "log", drop_step
+        assert drop_step["op"] == "drop_item" and "type" not in drop_step, drop_step
         assert drop_step["zoneSpec"]["kind"] == "radius" and "drop zone" in drop_step["zoneLabel"], drop_step
-        assert "drop log on ground in drop zone" in drop_step["text"], drop_step
+        assert drop_step["text"] == "drop item in hand on ground in drop zone", drop_step
         page.evaluate("window.teachDebug.editStepLocation(0, 'draw_zone')")
         dispatch_world_mouse(page, "mousedown", 900, 620, 0)
         dispatch_world_mouse(page, "mouseup", 1020, 740, 0)

@@ -1,6 +1,12 @@
 import { BUILDING_TYPES, PROGRAMS, PROGRAM_TEMPLATES, ALLOWED_OPS, DEFAULT_WORLD_ZONES } from './data.js?v=t_building_kits_0618';
+import { CAMPAIGN_MAP_FEATURES, CAMPAIGN_MAP_SIZE, CAMPAIGN_START, getCampaignArrivalScene } from './campaign-scenes.js?v=t_campaign_scenes_0623';
 import { createCanvas2dRenderer } from './renderers/canvas2d-renderer.js?v=t_building_kits_0618';
 import { createRenderState } from './render-state.js?v=t_building_kits_0618';
+import { installCombatSystem, IDLE_BOT_AUTO_ATTACK_RANGE } from './systems/combat/combat-system.js?v=t_combat_system_0627';
+import { BOW_ATTACK, DEFENSE_TOWER_ATTACK, MELEE_AUTO_ATTACK, MONSTER_MELEE_ATTACK } from './systems/combat/combat-config.js?v=t_combat_system_0627';
+import { installTaughtLoopSystem } from './systems/dsl/taught-loop-system.js?v=t_taught_loop_system_0627';
+import { installInventorySystem } from './systems/inventory/inventory-system.js?v=t_inventory_system_0627';
+import { assemblerRecipe as getAssemblerRecipe, DEFAULT_SMITHERY_RECIPE, DEFAULT_WORKBENCH_RECIPE, installProductionSystem, productionInputCount, productionInputNeeds as getProductionInputNeeds, SMITHERY_RECIPES, smitheryInputFor, smitheryRecipe, WORKBENCH_TOOL_RECIPES, workbenchRecipe } from './systems/production/production-system.js?v=t_production_system_0627';
 import { FOG_CELL_SIZE, createFogOfWar, fogRevealSources as createFogRevealSources, getFogStats, isLightEmittingStructure as isFogLightEmittingStructure, normalizeFogOfWar, revealFogCircle, serializeFogOfWar, structureLightRadius as fogStructureLightRadius, updateFogOfWarState } from './fog-of-war.js?v=t_building_kits_0618';
 import { clamp, rand, distXY, nearest, pointInRect, rectDistance, canvasPoint, escapeHtml } from './utils.js?v=20260613-player-tools';
 
@@ -13,6 +19,8 @@ const BUILDING_KIT_BUILDING_TYPES = Object.freeze(Object.keys(BUILDING_TYPES).fi
 const BUILDING_KIT_ITEM_TYPES = Object.freeze(BUILDING_KIT_BUILDING_TYPES.map(type => `${type}_kit`));
 const ASSEMBLER_KIT_RECIPE = Object.freeze({ plank: 2, pole: 1 });
 const DEFAULT_ASSEMBLER_RECIPE = 'sawbench_kit';
+const assemblerRecipe = s => getAssemblerRecipe(s, BUILDING_KIT_ITEM_TYPES, DEFAULT_ASSEMBLER_RECIPE);
+const productionInputNeeds = s => getProductionInputNeeds(s, { ASSEMBLER_KIT_RECIPE, BOW_RECIPE, BUILDING_KIT_ITEM_TYPES, DEFAULT_ASSEMBLER_RECIPE, FACTORY_BOT_RECIPE });
 function buildingTypeFromKitItem(type) {
   const text = String(type || '').trim();
   const match = text.match(/^(.+)_kit$/);
@@ -28,19 +36,17 @@ function buildingKitLabel(type) {
 const AXE_DURABILITY = 100;
 const PICKAXE_DURABILITY = 80;
 const SHOVEL_DURABILITY = 80;
+const TOOL_DURABILITY = {
+  crude_axe: AXE_DURABILITY,
+  crude_pickaxe: PICKAXE_DURABILITY,
+  crude_shovel: SHOVEL_DURABILITY,
+  crude_hammer: AXE_DURABILITY
+};
 const PRODUCTION_SOURCE_RADIUS = 150;
 const STARTING_AXE_COUNT = 10;
 const STARTING_PICKAXE_COUNT = 5;
 const STARTING_SHOVEL_COUNT = 5;
 const WORLD_MAP_SIZE = { width: 3600, height: 2400 };
-const CAMPAIGN_MAP_SIZE = { width: 5600, height: 3800 };
-const CAMPAIGN_START = { x: 1080, y: CAMPAIGN_MAP_SIZE.height - 860 };
-const CAMPAIGN_MAP_FEATURES = [
-  { id: 'campaign_lake_road', type: 'road', label: 'border road', points: [[-120, CAMPAIGN_MAP_SIZE.height - 910], [780, CAMPAIGN_MAP_SIZE.height - 910], [1180, CAMPAIGN_MAP_SIZE.height - 820], [CAMPAIGN_MAP_SIZE.width + 120, CAMPAIGN_MAP_SIZE.height - 820]], width: 96 },
-  { id: 'campaign_lake_parking', type: 'parking_lot', label: 'lake parking lot', x: 1170, y: CAMPAIGN_MAP_SIZE.height - 650, w: 440, h: 250, rotation: -0.06 },
-  { id: 'campaign_glow_lake', type: 'lake', label: 'glowing lake', x: 650, y: CAMPAIGN_MAP_SIZE.height - 530, rx: 560, ry: 360, rotation: -0.14, glow: 'green', glowRadius: 460, glowAlpha: 0.76 },
-  { id: 'campaign_camper', type: 'camper_van', label: 'trusty camper van', x: 1160, y: CAMPAIGN_MAP_SIZE.height - 646, w: 126, h: 62, rotation: -0.06 }
-];
 export const CAMERA_MIN_ZOOM = 0.05;
 const CAMERA_MAX_ZOOM = 2.35;
 const CAMERA_WHEEL_SENSITIVITY = 0.00135;
@@ -73,12 +79,6 @@ const ONLINE_MULTIPLAYER_FEATURES = [
 ];
 const THRONE_HP = 120;
 const THRONE_ATTACK_DAMAGE = 10;
-const DEFENSE_TOWER_ATTACK = { range: 260, damage: 1, cooldown: 1, projectileSpeed: 520 };
-const BOW_ATTACK = { range: 320, damage: 1, cooldown: 0.55, projectileSpeed: 520 };
-const MELEE_ATTACK_RANGE = 34;
-const PLAYER_ATTACK_COOLDOWN = 0.35;
-const MELEE_AUTO_ATTACK = { range: MELEE_ATTACK_RANGE + 18, damage: 1, cooldown: 0.8 };
-const MONSTER_MELEE_ATTACK = { range: 36, damage: 1, cooldown: 1.1 };
 const MONSTER_WAVE_CONFIG = { spawnEverySeconds: 15, extraMonsterEverySeconds: 180, maxWaveSize: 8 };
 const DAY_NIGHT_CYCLE_SECONDS = 96;
 const NIGHT_PHASE_START = 0.58;
@@ -149,19 +149,6 @@ const ITEM_TYPES = ['log', 'plank', 'pole', 'stick', 'stone', 'tree_seed', 'crud
 const ITEM_LABELS = { log: 'log', plank: 'plank', pole: 'pole', stick: 'stick', stone: 'stone', tree_seed: 'tree seed', crude_axe: 'crude axe', crude_pickaxe: 'crude pickaxe', crude_shovel: 'crude shovel', crude_hammer: 'crude hammer', wooden_sword: 'wooden sword', wooden_shield: 'wooden shield', hemp: 'hemp', hemp_seed: 'hemp seed', bow: 'bow', arrow_pack: 'arrow pack', camper_van: 'white camper van', hammock: 'hammock', ultrabook: 'ultrabook laptop', solar_panel: 'solar panel', power_station: 'power station', portable_3d_printer: 'portable 3d printer', assembler: 'portable assembler', robotics_parts: 'DIY robotics parts' };
 const itemLabel = type => isBuildingKitItemType(type) ? buildingKitLabel(type) : (ITEM_LABELS[type] || type);
 const STORAGE_STRUCTURE_TYPES = ['item_palette', 'power_station', 'robotics_parts_bin'];
-const WORKBENCH_TOOL_RECIPES = ['crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer'];
-const DEFAULT_WORKBENCH_RECIPE = 'crude_axe';
-const SMITHERY_RECIPES = ['wooden_sword', 'wooden_shield'];
-const DEFAULT_SMITHERY_RECIPE = 'wooden_sword';
-const PRODUCTION_DEFAULTS = {
-  sawbench: { log: 1.2, plank: 1.0 },
-  workbench: { crude_axe: 1.1, crude_pickaxe: 1.1, crude_shovel: 1.1, crude_hammer: 1.1 },
-  smithery: { wooden_sword: 1.0, wooden_shield: 1.0 },
-  bowmaker: { bow: 5.5 },
-  arrowmaker: { arrow_pack: 3.0 },
-  factory: { basic_bot: 1.5 },
-  assembler: Object.fromEntries(BUILDING_KIT_ITEM_TYPES.map(type => [type, 1.4]))
-};
 const STRUCTURE_INFO = {
   sawbench: 'Processes wood into construction parts.',
   workbench: 'Crafts crude tools from basic materials.',
@@ -196,39 +183,8 @@ function structureRecipeText(s) {
   if (['camper_van', 'hammock_camp', 'ultrabook_desk', 'solar_array', 'portable_3d_printer', 'assembler'].includes(s.type)) return STRUCTURE_INFO[s.type] || 'Story camp object.';
   return 'No recipe defined.';
 }
-function workbenchRecipe(s) {
-  return WORKBENCH_TOOL_RECIPES.includes(s?.workbenchRecipe) ? s.workbenchRecipe : DEFAULT_WORKBENCH_RECIPE;
-}
-function smitheryRecipe(s) {
-  return SMITHERY_RECIPES.includes(s?.smitheryRecipe) ? s.smitheryRecipe : DEFAULT_SMITHERY_RECIPE;
-}
-function assemblerRecipe(s) {
-  return BUILDING_KIT_ITEM_TYPES.includes(s?.assemblerRecipe) ? s.assemblerRecipe : DEFAULT_ASSEMBLER_RECIPE;
-}
-function smitheryInputFor(recipe) {
-  return recipe === 'wooden_shield' ? 'plank' : 'stick';
-}
-function productionInputNeeds(s) {
-  if (!s) return null;
-  if (s.type === 'sawbench') return { log: 1, plank: 1 };
-  if (s.type === 'workbench') return { stick: 1, stone: 1 };
-  if (s.type === 'smithery') return { [smitheryInputFor(smitheryRecipe(s))]: 1 };
-  if (s.type === 'bowmaker') return { ...BOW_RECIPE };
-  if (s.type === 'arrowmaker') return { stick: 1, stone: 1 };
-  if (s.type === 'factory') return { ...FACTORY_BOT_RECIPE };
-  if (s.type === 'assembler') return { ...ASSEMBLER_KIT_RECIPE };
-  return null;
-}
-function productionInputCount(s, type) {
-  if (!s || !type) return 0;
-  if (s.type === 'sawbench') return type === 'log' ? (s.logs || 0) : type === 'plank' ? (s.planks || 0) : 0;
-  if (s.type === 'workbench') return type === 'stick' ? (s.sticks || 0) : type === 'stone' ? (s.stones || 0) : 0;
-  if (s.type === 'smithery') return type === smitheryInputFor(smitheryRecipe(s)) ? ((s[`${type}s`] ?? s[type] ?? 0)) : 0;
-  if (s.type === 'bowmaker') return (s[`${type}s`] ?? s[type] ?? 0);
-  if (s.type === 'arrowmaker') return type === 'stick' ? (s.sticks || 0) : type === 'stone' ? (s.stones || 0) : 0;
-  if (s.type === 'factory') return (s[`${type}s`] ?? s[type] ?? 0);
-  if (s.type === 'assembler') return (s[`${type}s`] ?? s[type] ?? 0);
-  return 0;
+function createCarriedTool(type) {
+  return { type, count: 1, durability: TOOL_DURABILITY[type] || 1 };
 }
 
 export class Game {
@@ -496,7 +452,7 @@ export class Game {
   }
   queuePlayerStructureDeposit(s, { append = false } = {}) {
     const held = this.player.inventory?.type;
-    if (!s || !held || !this.canStructureAcceptItem(s, held)) return false;
+    if (!s || !held || !this.canStructureAcceptItemWhenIdle(s, held)) return false;
     this.setPlayerDestination(s.x, s.y, { action: 'deposit_to_structure', structureId: s.id, itemType: held, floatText: `Deposit ${itemLabel(held)} into ${s.name}` }, { append });
     return true;
   }
@@ -639,12 +595,12 @@ export class Game {
 
   handleCanvasTap(p, { allowMoveOnEmpty = false } = {}) {
     Object.assign(this.mouse, p);
-    this.hideMenus();
     if (this.justDraggedZone) { this.justDraggedZone = false; return true; }
     if (this.justDrewZone) { this.justDrewZone = false; return true; }
     if (this.zoneDraft?.active) return true;
     if (this.placementType) { this.placeStructure(this.placementType, p.x, p.y); return true; }
     if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return true; }
+    this.hideMenus();
     const bot = this.botAt(p.x, p.y);
     if (bot) {
       if (this.isDogBot(bot)) { this.showDogPopup(bot, bot.inventory ? 'reward' : 'progress'); return true; }
@@ -664,6 +620,7 @@ export class Game {
     if (this.zoneDraft?.active) return true;
     if (this.placementType) { this.cancelPlacement(); return true; }
     if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return true; }
+    this.hideMenus();
     const append = this.keys.has('shift');
     const friendlyBot = this.botAt(p.x, p.y);
     if (friendlyBot && !this.isHostileTarget(friendlyBot)) {
@@ -734,7 +691,7 @@ export class Game {
       if (e.button !== 0) return;
       const chatRectMode = !this.zoneDraft?.active && !this.placementType && this.isChatActive?.();
       const p = this.canvasToWorld(e); Object.assign(this.mouse, p);
-      if (!this.zoneDraft?.active && !this.placementType) {
+      if (!this.zoneDraft?.active && !this.placementType && !this.teachLocationEdit) {
         const resizeHit = this.zoneResizeHandleAt(p.x, p.y);
         if (resizeHit) {
           this.zoneResize = { active: true, zone: resizeHit.zone, handle: resizeHit.handle, startMouseX: p.x, startMouseY: p.y, startBounds: this.zoneBounds(resizeHit.zone), moved: false };
@@ -945,10 +902,10 @@ export class Game {
     this.mouse.hoverBot = this.botAt(this.mouse.x, this.mouse.y);
     this.mouse.hoverStructure = !this.mouse.hoverBot ? this.structureAt(this.mouse.x, this.mouse.y) : null;
     this.mouse.hoverMonster = !this.mouse.hoverBot && !this.mouse.hoverStructure ? this.monsterAt(this.mouse.x, this.mouse.y) : null;
-    this.mouse.hoverTree = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster ? this.treeAt(this.mouse.x, this.mouse.y) : null;
-    this.mouse.hoverHole = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverTree ? this.holeAt(this.mouse.x, this.mouse.y) : null;
-    this.mouse.hoverHemp = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverHole ? this.hempAt(this.mouse.x, this.mouse.y) : null;
-    this.mouse.hoverItem = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverHole && !this.mouse.hoverHemp ? this.itemAt(this.mouse.x, this.mouse.y) : null;
+    this.mouse.hoverItem = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster ? this.itemAt(this.mouse.x, this.mouse.y) : null;
+    this.mouse.hoverTree = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverItem ? this.treeAt(this.mouse.x, this.mouse.y) : null;
+    this.mouse.hoverHole = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverItem ? this.holeAt(this.mouse.x, this.mouse.y) : null;
+    this.mouse.hoverHemp = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverHole && !this.mouse.hoverItem ? this.hempAt(this.mouse.x, this.mouse.y) : null;
     this.mouse.hoverZone = !this.mouse.hoverStructure && !this.mouse.hoverBot && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverHole && !this.mouse.hoverItem && !this.mouse.hoverHemp ? this.zoneAt(this.mouse.x, this.mouse.y) : null;
     const resizeHit = !this.zoneDraft?.active && !this.placementType ? this.zoneResizeHandleAt(this.mouse.x, this.mouse.y) : null;
     this.canvas.style.cursor = this.zoneDraft?.active || this.placementType ? 'crosshair' : (this.zoneResize?.active ? 'nwse-resize' : (this.zoneDrag?.active ? 'grabbing' : (resizeHit ? (resizeHit.handle === 'e' ? 'ew-resize' : 'nwse-resize') : (this.mouse.hoverBot || this.mouse.hoverStructure || this.mouse.hoverMonster || this.mouse.hoverTree || this.mouse.hoverHole || this.mouse.hoverItem || this.mouse.hoverHemp || this.mouse.hoverZone ? 'pointer' : 'default'))));
@@ -997,7 +954,7 @@ export class Game {
   createBot(x, y, program = 'idle', force = false) {
     if (!force && this.bots.length >= this.maxBots) { this.addFloat(`Max bots ${this.maxBots}`, x, y - 18, '#c86b5f'); return null; }
     const id = this.nextBotId++;
-    const bot = { id, ref: `bot:${id}`, name: `Bot ${id}`, kind: 'bot', status: 'worker', managerKnowledgePacks: [], knowledgePacks: [], teamId: null, x, y, r: 11, speed: 118, program, state: program, message: 'Waiting for assistant.', inventory: null, equipment: createEquipment(), ammunition: 0, tool: null, hp: 10, maxHp: 10, hostile: false, target: null, targetItemId: null, targetItemPurpose: null, targetHoleId: null, targetStructureId: null, sourceStructureId: null, sourcePaletteId: null, targetFactoryId: null, targetWorkbenchId: null, zoneId: null, zoneSpec: null, pickupItemType: 'log', taughtLoopRepeat: true, timer: 0, runtime: { pc: 0, memory: {}, wait: 0 }, dogFetchMemory: { praiseCounts: {}, preferredType: null, lastTargetType: null }, dogFetchState: null, color: ['#80a9c9','#9abf8f','#d3a95f','#c7b683','#8fb9b5'][id % 5] };
+    const bot = { id, ref: `bot:${id}`, name: `Bot ${id}`, kind: 'bot', status: 'worker', managerKnowledgePacks: [], knowledgePacks: [], teamId: null, x, y, r: 11, speed: 118, program, state: program, message: 'Waiting for assistant.', inventory: null, equipment: createEquipment(), ammunition: 0, hp: 10, maxHp: 10, hostile: false, target: null, targetItemId: null, targetItemPurpose: null, targetHoleId: null, targetStructureId: null, sourceStructureId: null, sourcePaletteId: null, targetFactoryId: null, targetWorkbenchId: null, zoneId: null, zoneSpec: null, pickupItemType: 'log', taughtLoopRepeat: true, timer: 0, runtime: { pc: 0, memory: {}, wait: 0 }, dogFetchMemory: { praiseCounts: {}, preferredType: null, lastTargetType: null }, dogFetchState: null, color: ['#80a9c9','#9abf8f','#d3a95f','#c7b683','#8fb9b5'][id % 5] };
     this.bots.push(bot); this.addFloat(`Bot ${id} online`, x, y - 18, '#80a9c9'); this.emitSound('bot_online', { cooldownKey: 'bot_online', minGapMs: 120 }); return bot;
   }
   spawnTree(x, y, options = {}) {
@@ -1033,11 +990,6 @@ export class Game {
     this.monsters.push(monster);
     return monster;
   }
-  createArrowProjectile(source, target) {
-    const attack = source?.rangedAttack || source?.equipment?.rangedAttack || DEFENSE_TOWER_ATTACK;
-    const id = this.nextProjectileId++;
-    return { id, ref: `projectile:${id}`, type: 'arrow', x: source.x, y: source.y, vx: 1, vy: 0, sourceStructureId: source.id, sourceRef: source.ref || source.ownerRef || 'player', targetRef: target.ref, targetKind: target.kind || target.type || 'monster', targetId: target.id, speed: attack.projectileSpeed || DEFENSE_TOWER_ATTACK.projectileSpeed, damage: attack.damage || 1, ttl: 2.4 };
-  }
   findTargetByRef(ref) {
     if (!ref) return null;
     if (ref === 'player:local') { Object.assign(this.player, { ref: 'player:local', id: this.multiplayer?.playerId || 'p1' }); return (this.player.hp ?? 1) > 0 ? this.player : null; }
@@ -1047,254 +999,6 @@ export class Game {
     if (ref.startsWith('structure:')) return this.structures.find(st => st.ref === ref && (st.hp ?? 1) > 0) || null;
     return null;
   }
-  findProjectileTarget(projectile) {
-    if (!projectile) return null;
-    return this.findTargetByRef(projectile.targetRef);
-  }
-  hostileTargetsForStructure(structure) {
-    const attack = structure?.rangedAttack;
-    if (!attack) return [];
-    const owner = structure.ownerId || null;
-    if (!owner) return this.monsters.filter(m => (m.hp || 0) > 0 && m.ownerId && m.ownerId !== 'neutral' && rectDistance(m.x, m.y, structure) <= (attack.range || DEFENSE_TOWER_ATTACK.range));
-    return this.monsters.filter(m => (m.hp || 0) > 0 && (!m.ownerId || m.ownerId !== owner) && rectDistance(m.x, m.y, structure) <= (attack.range || DEFENSE_TOWER_ATTACK.range));
-  }
-  nearestRangedTarget(structure) { return nearest(this.hostileTargetsForStructure(structure), structure.x, structure.y); }
-  actorOwnerId(actor) {
-    if (!actor) return null;
-    if (actor === this.player || actor.ref === 'player:local') return this.multiplayer?.playerId || 'p1';
-    if (actor.ref?.startsWith('bot:')) return actor.ownerId || this.multiplayer?.playerId || 'p1';
-    return actor.ownerId || null;
-  }
-  targetDistance(actor, target) { return target?.ref?.startsWith('structure:') ? rectDistance(actor.x, actor.y, target) : distXY(actor.x, actor.y, target.x, target.y); }
-  hostileTargetsForActor(actor, range = Infinity) {
-    const owner = this.actorOwnerId(actor);
-    const targets = [];
-    if (actor?.ref?.startsWith('monster:')) {
-      if (this.multiplayer?.enabled && (!owner || owner !== this.multiplayer.playerId)) { Object.assign(this.player, { ref: 'player:local', id: this.multiplayer.playerId || 'p1' }); targets.push(this.player); }
-      targets.push(...this.bots.filter(b => (b.hp ?? 1) > 0 && (!owner || this.actorOwnerId(b) !== owner)));
-      targets.push(...this.structures.filter(s => (s.hp ?? 1) > 0 && s.ownerId && (!owner || s.ownerId !== owner) && ['throne', 'defensetower'].includes(s.type)));
-    } else {
-      targets.push(...this.monsters.filter(m => (m.hp || 0) > 0 && m.hostile !== false && (!owner || !m.ownerId || m.ownerId !== owner)));
-      if (this.multiplayer?.enabled) targets.push(...this.structures.filter(s => (s.hp ?? 1) > 0 && s.ownerId && (!owner || s.ownerId !== owner) && ['throne', 'defensetower'].includes(s.type)));
-    }
-    return targets.filter(t => this.targetDistance(actor, t) <= range);
-  }
-  nearestAutoAttackTarget(actor, range) { return nearest(this.hostileTargetsForActor(actor, range), actor.x, actor.y); }
-  actorMeleeDamage(actor) { return ensureEquipment(actor).weapon === 'wooden_sword' ? 2 : 1; }
-  fireActorBow(actor, target, attack) {
-    if (!actor || !target || !attack) return false;
-    if ((actor.ammunition || 0) <= 0) {
-      actor.message = 'Out of arrows.';
-      if (actor.x != null && actor.y != null) this.addFloat('Out of arrows', actor.x, actor.y - 34, '#c86b5f');
-      return false;
-    }
-    this.projectiles.push(this.createArrowProjectile({ ...actor, ref: actor.ref || 'player:local', ownerRef: actor.ref || 'player:local', rangedAttack: attack }, target));
-    actor.ammunition = Math.max(0, (actor.ammunition || 0) - 1);
-    attack.cooldownRemaining = attack.cooldown || BOW_ATTACK.cooldown;
-    attack.targetRef = target.ref;
-    this.addFloat('Auto shot!', actor.x, actor.y - 34, '#d3a95f');
-    return true;
-  }
-  updateActorAutoAttack(actor, dt) {
-    if (!actor || (actor.hp ?? 1) <= 0) return false;
-    const isMonster = actor.ref?.startsWith('monster:');
-    const eq = isMonster ? null : ensureEquipment(actor);
-    const weapon = isMonster ? 'melee' : eq.weapon;
-    if (!isMonster && !weapon) return false;
-    const ranged = weapon === 'bow';
-    if (!isMonster && actor.manualAttackLock > 0) { actor.manualAttackLock = Math.max(0, actor.manualAttackLock - dt); return false; }
-    const attack = isMonster ? (actor.autoAttack ||= createAutoAttackComponent(MONSTER_MELEE_ATTACK)) : (ranged ? eq.rangedAttack : (eq.autoAttack ||= createAutoAttackComponent()));
-    if (!ranged) {
-      const stats = isMonster ? MONSTER_MELEE_ATTACK : { ...MELEE_AUTO_ATTACK, damage: this.actorMeleeDamage(actor) };
-      attack.range = stats.range; attack.damage = stats.damage; attack.cooldown = stats.cooldown;
-    }
-    attack.cooldownRemaining = Math.max(0, (attack.cooldownRemaining || 0) - dt);
-    let target = this.findTargetByRef(attack.targetRef);
-    if (!target || !this.hostileTargetsForActor(actor, attack.range || MELEE_AUTO_ATTACK.range).includes(target)) target = this.nearestAutoAttackTarget(actor, attack.range || MELEE_AUTO_ATTACK.range);
-    if (!target) { attack.targetRef = null; return false; }
-    attack.targetRef = target.ref;
-    if (attack.cooldownRemaining > 0) return true;
-    if (ranged) return this.fireActorBow(actor, target, attack);
-    this.damageAttackTarget(target, attack.damage || 1);
-    attack.cooldownRemaining = attack.cooldown || MELEE_AUTO_ATTACK.cooldown;
-    this.emitSound('hit', { cooldownKey: `auto:${actor.ref || actor.id}`, minGapMs: 160 });
-    return true;
-  }
-  isEquipmentItem(type) { return EQUIPMENT_WEAPONS.includes(type) || EQUIPMENT_SHIELDS.includes(type) || type === 'arrow_pack'; }
-  isToolItem(type) { return ['crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer'].includes(type); }
-  actorAlreadyHasPickupType(actor, type) {
-    const eq = ensureEquipment(actor || {});
-    if (type === 'arrow_pack') return (actor?.ammunition || 0) >= 10;
-    return actor?.inventory?.type === type || actor?.tool?.type === type || eq.weaponSets.some(set => set.weapon === type || set.shield === type);
-  }
-  pickupBlockedByHeldTool(actor, type) {
-    if (!actor) return null;
-    if (actor.inventory) return actor.inventory.type;
-    if (this.isToolItem(type) && actor.tool) return actor.tool.type;
-    return null;
-  }
-  equipmentSummary(actor = this.player) { const eq = ensureEquipment(actor); return { weapon: eq.weapon, shield: eq.shield, activeWeaponSetId: eq.activeWeaponSetId, weaponSets: clone(eq.weaponSets), ammunition: Number(actor?.ammunition || 0) }; }
-  dropEquipmentItem(actor, type, dx = 0, dy = 18) { if (!actor || !type) return; this.spawnItem(type, actor.x + dx, actor.y + dy, 1); }
-  activeWeaponSet(actor) { return syncActiveEquipmentSet(ensureEquipment(actor)); }
-  createWeaponSet(eq, kind) {
-    const id = `${kind}_${eq.nextWeaponSetId++}`;
-    const set = { id, weapon: kind === 'bow' ? 'bow' : null, shield: null };
-    eq.weaponSets.push(set);
-    return set;
-  }
-  findMeleeWeaponSet(eq) { return eq.weaponSets.find(set => set.weapon !== 'bow') || null; }
-  canEquipActor(actor, type) {
-    if (!actor || !this.isEquipmentItem(type)) return false;
-    const eq = ensureEquipment(actor);
-    if (type === 'arrow_pack') return (actor.ammunition || 0) < 10;
-    if (type === 'bow') return !eq.weaponSets.find(set => set.weapon === 'bow') && eq.weaponSets.length < MAX_WEAPON_SETS;
-    const melee = this.findMeleeWeaponSet(eq);
-    if (!melee) return eq.weaponSets.length < MAX_WEAPON_SETS;
-    if (type === 'wooden_sword') return !melee.weapon;
-    if (type === 'wooden_shield') return !melee.shield;
-    return false;
-  }
-  equipActor(actor, type) {
-    if (!actor || !this.isEquipmentItem(type)) return false;
-    if (type === 'arrow_pack') {
-      const currentAmmo = Number(actor.ammunition || 0);
-      if (currentAmmo >= 10) return false;
-      actor.ammunition = Math.min(10, currentAmmo + 10);
-      return true;
-    }
-    const eq = ensureEquipment(actor);
-    let set = null;
-    if (type === 'bow') {
-      if (eq.weaponSets.find(s => s.weapon === 'bow')) return false;
-      if (eq.weaponSets.length >= MAX_WEAPON_SETS) return false;
-      set = this.createWeaponSet(eq, 'bow');
-    } else if (type === 'wooden_sword') {
-      set = this.findMeleeWeaponSet(eq);
-      if (!set) {
-        if (eq.weaponSets.length >= MAX_WEAPON_SETS) return false;
-        set = this.createWeaponSet(eq, 'melee');
-      }
-      if (set.weapon) return false;
-      set.weapon = type;
-    } else if (type === 'wooden_shield') {
-      set = this.findMeleeWeaponSet(eq);
-      if (!set) {
-        if (eq.weaponSets.length >= MAX_WEAPON_SETS) return false;
-        set = this.createWeaponSet(eq, 'melee');
-      }
-      if (set.shield) return false;
-      set.shield = type;
-    }
-    eq.activeWeaponSetId = set?.id || eq.activeWeaponSetId;
-    syncActiveEquipmentSet(eq);
-    return true;
-  }
-  carryEquipmentItem(actor, type) {
-    if (!actor || !this.isEquipmentItem(type) || actor.inventory) return false;
-    actor.inventory = { type, count: 1 };
-    return true;
-  }
-  dropActiveEquipmentItem(actor) {
-    const eq = ensureEquipment(actor);
-    const set = syncActiveEquipmentSet(eq);
-    if (!set) return null;
-    const dropType = set.shield || set.weapon;
-    if (!dropType) return null;
-    this.dropEquipmentItem(actor, dropType, dropType === 'wooden_shield' ? -10 : 10, 18);
-    if (set.shield) set.shield = null;
-    else set.weapon = null;
-    syncActiveEquipmentSet(eq);
-    return dropType;
-  }
-  switchWeaponSet(actor = this.player) {
-    const eq = ensureEquipment(actor);
-    syncActiveEquipmentSet(eq);
-    if (eq.weaponSets.length < 2) { this.addFloat('No secondary weapon', actor.x, actor.y - 34, '#c7b683'); return false; }
-    const index = Math.max(0, eq.weaponSets.findIndex(set => set.id === eq.activeWeaponSetId));
-    const next = eq.weaponSets[(index + 1) % eq.weaponSets.length];
-    eq.activeWeaponSetId = next.id;
-    syncActiveEquipmentSet(eq);
-    this.addFloat(`Switched to ${next.weapon === 'bow' ? 'bow' : [next.weapon, next.shield].filter(Boolean).map(itemLabel).join(' + ')}`, actor.x, actor.y - 34, '#d3a95f');
-    this.emitSound('switch', { cooldownKey: 'weapon:switch', minGapMs: 120 });
-    return true;
-  }
-  equipActorFromGround(actor, item, reservedBy = null) {
-    if (!actor || !item || !this.isEquipmentItem(item.type)) return false;
-    if (reservedBy && item.reservedBy && item.reservedBy !== reservedBy) { this.addFloat(`${itemLabel(item.type)} is reserved`, actor.x, actor.y - 30, '#c86b5f'); return false; }
-    if (distXY(item.x, item.y, actor.x, actor.y) >= 44) return false;
-    if (!this.equipActor(actor, item.type)) return false;
-    this.items = this.items.filter(i => i.id !== item.id);
-    this.addFloat(`Equipped ${itemLabel(item.type)}`, actor.x, actor.y - 30, '#d3a95f');
-    return true;
-  }
-  playerMeleeDamage() { return ensureEquipment(this.player).weapon === 'wooden_sword' ? 2 : 1; }
-  isHostileTarget(target) {
-    if (!target || (target.hp ?? 1) <= 0) return false;
-    if (target.ref?.startsWith('monster:')) return target.hostile !== false;
-    if (target.ref?.startsWith('bot:')) return !!target.hostile;
-    if (target.ref?.startsWith('player:')) return this.multiplayer?.enabled && target.id !== this.multiplayer.playerId;
-    if (target.ref?.startsWith('structure:')) return !!target.hostile || this.isEnemyThrone(target);
-    return !!target.hostile;
-  }
-  remotePlayerAt(x, y) {
-    return nearest(Object.values(this.multiplayer?.players || {}), x, y, p => p && p.id !== this.multiplayer?.playerId && !p.disconnected && distXY(x, y, p.x, p.y) <= 24) || null;
-  }
-  attackTargetAt(x, y) {
-    const monster = this.monsterAt(x, y); if (monster && this.isHostileTarget(monster)) return monster;
-    const bot = this.botAt(x, y); if (bot && this.isHostileTarget(bot)) return bot;
-    const remote = this.remotePlayerAt(x, y); if (remote) return { ...remote, ref: `player:${remote.id}`, radius: 15, hostile: true };
-    const structure = this.structureAt(x, y); if (structure && this.isHostileTarget(structure)) return structure;
-    return null;
-  }
-  queuePlayerAttackTarget(target, { append = false } = {}) {
-    if (!this.isHostileTarget(target)) return false;
-    const eq = ensureEquipment(this.player);
-    if (eq.weapon === 'bow') return this.firePlayerBow(target);
-    const dx = this.player.x - target.x, dy = this.player.y - target.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const reach = (target.radius || target.r || 16) + MELEE_ATTACK_RANGE;
-    this.setPlayerDestination(target.x + dx / len * reach, target.y + dy / len * reach, { action: 'attack_target', targetRef: target.ref, floatText: `Attack ${target.name || target.ref || 'target'}` }, { append });
-    return true;
-  }
-  firePlayerBow(target) {
-    if (!this.isHostileTarget(target)) return false;
-    const eq = ensureEquipment(this.player);
-    const attack = eq.rangedAttack;
-    if ((this.player.ammunition || 0) <= 0) { this.addFloat('Out of arrows', this.player.x, this.player.y - 34, '#c86b5f'); return false; }
-    if (attack.cooldownRemaining > 0) { this.addFloat('Bow reloading', this.player.x, this.player.y - 34, '#c7b683'); return true; }
-    if (distXY(this.player.x, this.player.y, target.x, target.y) > (attack.range || BOW_ATTACK.range)) { this.addFloat('Target out of bow range', target.x, target.y - 34, '#c86b5f'); return true; }
-    this.projectiles.push(this.createArrowProjectile({ ...this.player, ref: 'player:local', ownerRef: 'player:local', rangedAttack: attack }, target));
-    this.player.ammunition = Math.max(0, (this.player.ammunition || 0) - 1);
-    attack.cooldownRemaining = attack.cooldown || BOW_ATTACK.cooldown;
-    this.player.manualAttackLock = Math.max(this.player.manualAttackLock || 0, attack.cooldownRemaining);
-    attack.targetRef = target.ref;
-    this.addFloat('Bow shot!', this.player.x, this.player.y - 36, '#d3a95f');
-    return true;
-  }
-  playerAttackTargetByRef(ref) {
-    const target = this.findTargetByRef(ref);
-    if (!this.isHostileTarget(target)) return false;
-    if (distXY(this.player.x, this.player.y, target.x, target.y) > (target.radius || target.r || 16) + MELEE_ATTACK_RANGE + 8) return false;
-    return this.damageAttackTarget(target, this.playerMeleeDamage());
-  }
-  damageAttackTarget(target, damage = 1) {
-    if (!target || (target.hp ?? 1) <= 0) return false;
-    if (target.type === 'throne') return this.damageThrone(target, damage);
-    target.hp = Math.max(0, (target.hp ?? target.maxHp ?? 1) - damage);
-    this.addFloat(`${target.name || target.ref || 'target'} -${damage} HP`, target.x, target.y - 34, target.hp <= 0 ? '#c86b5f' : '#d3a95f');
-    if (target.hp <= 0) this.addFloat(`${target.name || target.ref || 'target'} defeated`, target.x, target.y - 50, '#9abf8f');
-    if (target.ref?.startsWith('player:') && typeof this.onMultiplayerState === 'function') this.onMultiplayerState(this.getLocalPlayerNetState());
-    return true;
-  }
-  fireRangedAttack(structure, target) {
-    if (!structure?.rangedAttack || !target) return false;
-    this.projectiles.push(this.createArrowProjectile(structure, target));
-    structure.rangedAttack.cooldownRemaining = structure.rangedAttack.cooldown || DEFENSE_TOWER_ATTACK.cooldown;
-    structure.rangedAttack.targetRef = target.ref;
-    this.addFloat('Arrow!', structure.x, structure.y - 56, '#d3a95f');
-    this.emitSound('arrow', { cooldownKey: `arrow:${structure.id}`, minGapMs: 180 });
-    return true;
-  }
   damageMonster(monster, damage = 1) {
     if (!monster || (monster.hp || 0) <= 0) return false;
     monster.hp = Math.max(0, (monster.hp || monster.maxHp || 1) - damage);
@@ -1302,34 +1006,6 @@ export class Game {
     if (monster.hp <= 0) this.addFloat(`${monster.name || 'enemy'} defeated`, monster.x, monster.y - 50, '#9abf8f');
     this.emitSound(monster.hp <= 0 ? 'victory' : 'hit', { cooldownKey: `hit:${monster.ref || monster.id}`, minGapMs: 130 });
     return true;
-  }
-  updateRangedAttackStructures(dt) {
-    for (const s of this.structures) {
-      const attack = s.rangedAttack;
-      if (!attack) continue;
-      attack.cooldownRemaining = Math.max(0, (attack.cooldownRemaining || 0) - dt);
-      if (attack.cooldownRemaining > 0) continue;
-      const target = this.nearestRangedTarget(s);
-      if (target) this.fireRangedAttack(s, target);
-      else attack.targetRef = null;
-    }
-  }
-  updateProjectiles(dt) {
-    const active = [];
-    for (const p of this.projectiles) {
-      p.ttl = (p.ttl ?? 2.4) - dt;
-      const target = this.findProjectileTarget(p);
-      if (!target || p.ttl <= 0) continue;
-      const dx = target.x - p.x, dy = target.y - p.y;
-      const d = Math.hypot(dx, dy) || 0.001;
-      p.vx = dx / d; p.vy = dy / d;
-      const step = (p.speed || DEFENSE_TOWER_ATTACK.projectileSpeed) * dt;
-      if (d <= step + (target.radius || target.r || 16)) { this.damageAttackTarget(target, p.damage || 1); continue; }
-      p.x = clamp(p.x + p.vx * step, 0, this.map.width);
-      p.y = clamp(p.y + p.vy * step, 0, this.map.height);
-      active.push(p);
-    }
-    this.projectiles = active;
   }
   monsterStructureDistance(monster, structure) { return structure ? Math.max(0, rectDistance(monster.x, monster.y, structure) - (monster.radius || 18)) : Infinity; }
   nearestStructureToMonster(monster) { return nearest(this.structures, monster.x, monster.y, () => true); }
@@ -1398,10 +1074,12 @@ export class Game {
     const zoneSpec = { kind: 'radius', x: Math.round(x), y: Math.round(y), radius, name: `${radius}px dig radius` };
     return { op: 'dig_hole', zoneSpec, zoneLabel: zoneSpec.name };
   }
-  dropItemStep(type, x = this.player.x, y = this.player.y) {
-    const label = itemLabel(type);
-    const zoneSpec = { kind: 'radius', x: Math.round(x), y: Math.round(y), radius: 64, name: `drop zone for ${label}` };
-    return { op: 'drop_item', type, zoneSpec, zoneLabel: zoneSpec.name };
+  dropItemStep(typeOrX = this.player.x, xOrY = this.player.y, yMaybe = null) {
+    const hasExplicitType = typeof typeOrX === 'string' && typeof xOrY === 'number';
+    const x = hasExplicitType ? xOrY : typeOrX;
+    const y = hasExplicitType ? (typeof yMaybe === 'number' ? yMaybe : this.player.y) : xOrY;
+    const zoneSpec = { kind: 'radius', x: Math.round(x), y: Math.round(y), radius: 64, name: 'drop zone' };
+    return { op: 'drop_item', zoneSpec, zoneLabel: zoneSpec.name };
   }
   deployBuildingKitStep(type, x = this.player.x, y = this.player.y) {
     const kitType = this.normalizeBuildingKitItemType(type);
@@ -1417,7 +1095,7 @@ export class Game {
     if (step.op === 'deposit_to_structure') return `move to ${step.structureName || step.target || 'structure'} and deposit ${itemLabel(step.type)}`;
     if (step.op === 'deposit_to_player') return `bring ${itemLabel(step.type)} to player`;
     if (step.op === 'take_from_player') return `take ${itemLabel(step.type)} from player`;
-    if (step.op === 'drop_item') return `drop ${itemLabel(step.type)} on ground${where}`;
+    if (step.op === 'drop_item') return `drop item in hand on ground${where}`;
     if (step.op === 'deploy_building_kit') return `deploy ${itemLabel(step.type)}${where}`;
     if (step.op === 'disassemble_building_to_kit') return `disassemble ${step.structureName || step.target || 'building'} into kit`;
     if (step.op === 'plant_seed') return step.holeName ? `plant tree seed in ${step.holeName}` : `plant tree seed in dug hole${where}`;
@@ -1469,16 +1147,16 @@ export class Game {
     const prefix = botEdit ? 'bot-step' : 'step';
     const locationControls = this.renderStepLocationControls(index, prefix, step);
     const opOptions = botEdit ? ALLOWED_OPS.map(op => `<option value="${escapeHtml(op)}"${op === step.op ? ' selected' : ''}>${escapeHtml(op)}</option>`).join('') : '';
-    const type = botEdit ? (step.type || step.itemType || step.item || step.resource || '') : '';
+    const type = botEdit && step.op !== 'drop_item' ? (step.type || step.itemType || step.item || step.resource || '') : '';
     const renameFields = botEdit && step.op === 'rename_bot'
       ? `<label>name <input data-bot-step-name="${index}" value="${escapeHtml(step.name || '')}" placeholder="2-32 chars"></label><label>target <input data-bot-step-target="${index}" value="${escapeHtml(step.target || step.botId || '')}" placeholder="optional bot"></label>`
       : '';
     const managerFields = botEdit && step.op === 'promote_to_manager'
-      ? `<label>packs <input data-bot-step-packs="${index}" value="${escapeHtml((step.knowledgePacks || []).join(', '))}" placeholder="starter_automation"></label><label>target <input data-bot-step-target="${index}" value="${escapeHtml(step.target || step.botId || '')}" placeholder="optional bot"></label>`
+      ? `<label>packs <input data-bot-step-packs="${index}" value="${escapeHtml((step.knowledgePacks || []).join(', '))}" placeholder="woodworking, combat"></label><label>target <input data-bot-step-target="${index}" value="${escapeHtml(step.target || step.botId || '')}" placeholder="optional bot"></label>`
       : botEdit && step.op === 'delegate_to_manager'
         ? `<label>recipient <input data-bot-step-recipient="${index}" value="${escapeHtml(step.recipient || step.recipientBotId || '')}" placeholder="manager bot"></label><label>message <input data-bot-step-message="${index}" value="${escapeHtml(step.message || '')}" placeholder="instruction"></label>`
         : '';
-    const editFields = botEdit ? `<label>op <select data-bot-step-op="${index}">${opOptions}</select></label><label>type <input data-bot-step-type="${index}" value="${escapeHtml(type)}" placeholder="optional"></label>${renameFields}${managerFields}` : '';
+    const editFields = botEdit ? `<label>op <select data-bot-step-op="${index}">${opOptions}</select></label>${step.op !== 'drop_item' ? `<label>type <input data-bot-step-type="${index}" value="${escapeHtml(type)}" placeholder="optional"></label>` : ''}${renameFields}${managerFields}` : '';
     const up = botEdit ? `data-bot-step-up="${index}" aria-label="Move DSL step up"` : `data-step-up="${index}" aria-label="Move step up"`;
     const down = botEdit ? `data-bot-step-down="${index}" aria-label="Move DSL step down"` : `data-step-down="${index}" aria-label="Move step down"`;
     const del = botEdit ? `data-bot-step-delete="${index}" aria-label="Delete DSL step"` : `data-delete-step="${index}" aria-label="Delete step"`;
@@ -1561,9 +1239,9 @@ export class Game {
   getLocationEditableSteps(source = this.teachLocationEdit?.source || 'teach') {
     return source === 'bot-edit' ? clone(this.botMenuEdit?.program?.steps || []) : clone(this.activeTeachSteps());
   }
-  setLocationEditableSteps(steps, source = this.teachLocationEdit?.source || 'teach') {
+  setLocationEditableSteps(steps, source = this.teachLocationEdit?.source || 'teach', status = null) {
     if (source === 'bot-edit') {
-      const ok = this.setBotMenuEditSteps(steps);
+      const ok = this.setBotMenuEditSteps(steps, status);
       this.syncBotMenuEditSurface(this.botMenuEditRoot);
       return ok;
     }
@@ -1577,7 +1255,7 @@ export class Game {
     this.clearTeachConcreteLocation(step); this.clearTeachZoneLocation(step); delete step.zone; delete step.area;
     step.text = this.stepText(step);
     this.teachLocationEdit = null;
-    this.setLocationEditableSteps(steps, source);
+    this.setLocationEditableSteps(steps, source, source === 'bot-edit' ? `Step ${index + 1} location cleared to nearest.` : null);
     this.addFloat(`Step ${index + 1}: nearest`, this.player.x, this.player.y - 36, '#9abf8f');
     return true;
   }
@@ -1593,7 +1271,7 @@ export class Game {
     else Object.assign(step, { zoneSpec: zone, zoneLabel: this.zoneLabel(zone) });
     step.text = this.stepText(step);
     this.teachLocationEdit = null;
-    this.setLocationEditableSteps(steps, source);
+    this.setLocationEditableSteps(steps, source, source === 'bot-edit' ? `Step ${index + 1} location set to ${zone.name || this.zoneLabel(zone)}.` : null);
     this.addFloat(`Updated step ${index + 1} location`, zone.x || this.player.x, (zone.y || this.player.y) - 22, '#9abf8f');
     return true;
   }
@@ -1610,7 +1288,7 @@ export class Game {
     Object.assign(step, { zoneId: z.id, zoneSpec: null, zoneLabel: z.name });
     step.text = this.stepText(step);
     this.teachLocationEdit = null;
-    this.setLocationEditableSteps(steps, source);
+    this.setLocationEditableSteps(steps, source, source === 'bot-edit' ? `Step ${index + 1} location set to ${z.name}.` : null);
     this.addFloat(`Updated step ${index + 1} location`, x, y - 22, '#9abf8f');
     return true;
   }
@@ -2009,27 +1687,6 @@ export class Game {
     const aliases = { enemy: 'monster', enemies: 'monster', hostile: 'monster', hostiles: 'monster', monsters: 'monster', night: 'night_monster', night_monsters: 'night_monster', passive_monsters: 'passive_monster', tower: 'structure', towers: 'structure', throne: 'structure' };
     return aliases[raw] || raw || 'monster';
   }
-  attackTargetMatchesType(target, type = 'monster') {
-    const t = this.normalizeAttackType(type);
-    if (!target) return false;
-    if (t === 'monster') return target.ref?.startsWith('monster:');
-    if (t === 'structure') return target.ref?.startsWith('structure:');
-    if (t === 'bot') return target.ref?.startsWith('bot:');
-    const values = [target.type, target.kind, target.name, target.ref].map(v => String(v || '').toLowerCase().replace(/[\s-]+/g, '_'));
-    return values.some(v => v === t || v.includes(t));
-  }
-  attackZoneForStep(step) { return step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null); }
-  attackTargetsForStep(bot, step) {
-    const zone = this.attackZoneForStep(step);
-    const type = this.normalizeAttackType(step.type || step.monsterType || 'monster');
-    const targetRaw = step.targetRef || step.target || step.targetName || null;
-    if (targetRaw) {
-      const explicit = this.resolveActorReference(targetRaw, bot) || this.findTargetByRef(targetRaw);
-      if (explicit && this.isHostileTarget(explicit) && this.objectInZone(explicit, zone, bot) && this.attackTargetMatchesType(explicit, type)) return [explicit];
-    }
-    return this.hostileTargetsForActor(bot, Infinity).filter(target => this.objectInZone(target, zone, bot) && this.attackTargetMatchesType(target, type));
-  }
-  nearestAttackTargetForStep(bot, step) { return nearest(this.attackTargetsForStep(bot, step), bot.x, bot.y); }
   normalizeTemplateName(name) { return String(name || '').trim().replace(/\s+/g, ' '); }
   findCustomTemplate(nameOrId) {
     const raw = this.normalizeTemplateName(nameOrId).toLowerCase();
@@ -2444,7 +2101,7 @@ export class Game {
     const op = aliases[kind];
     if (!op) return { error: 'use_held_item requires targetKind tree/hemp/stone_deposit/dig_spot/dug_hole/structure/ground' };
     const step = { ...raw, op };
-    if ((op === 'deposit_to_structure' || op === 'drop_item') && !step.type && !step.itemType && !step.item && !step.resource) {
+    if (op === 'deposit_to_structure' && !step.type && !step.itemType && !step.item && !step.resource) {
       const previousPickup = [...priorSteps].reverse().find(prev => ['pick_up', 'pick_up_from_storage', 'pick_up_specific'].includes(prev.op) && prev.type);
       if (previousPickup?.type) step.type = previousPickup.type;
     }
@@ -2478,7 +2135,7 @@ export class Game {
       recordError('program.repeat false conflicts with a final loop step', { code: 'repeat_conflict', field: 'program.repeat', stepIndex: 0, value: false });
     }
     const normalizedSteps = [];
-    const requireItemType = new Set(['pick_up', 'pick_up_from_storage', 'pick_up_specific', 'deposit_to_structure', 'deposit_to_player', 'take_from_player', 'drop_item', 'deploy_building_kit', 'find_item', 'deliver_to_sawbench', 'deliver_to_workbench', 'deliver_to_factory', 'if_inventory']);
+    const requireItemType = new Set(['pick_up', 'pick_up_from_storage', 'pick_up_specific', 'deposit_to_structure', 'deposit_to_player', 'take_from_player', 'deploy_building_kit', 'find_item', 'deliver_to_sawbench', 'deliver_to_workbench', 'deliver_to_factory', 'if_inventory']);
     const zoneOps = new Set(['pick_up', 'drop_item', 'deploy_building_kit', 'find_item', 'find_nearest_tree', 'find_stone_deposit', 'find_hemp', 'find_dig_spot', 'find_dug_hole', 'chop_tree', 'search_tree', 'chop_hemp', 'search_hemp', 'mine_stone', 'dig_hole', 'plant_seed', 'guard_area']);
     for (let index = 0; index < steps.length; index++) {
       let raw = steps[index] || {};
@@ -2674,9 +2331,13 @@ export class Game {
         if (held && held !== step.type) errors.push(`Step ${index + 1}: cannot pick up ${itemLabel(step.type)} while already holding ${itemLabel(held)}`);
         held = step.type;
       }
-      if (step.op === 'deposit_to_structure' || step.op === 'deposit_to_player' || step.op === 'drop_item' || step.op === 'deploy_building_kit') {
+      if (step.op === 'deposit_to_structure' || step.op === 'deposit_to_player' || step.op === 'deploy_building_kit') {
         if (!held) errors.push(`Step ${index + 1}: ${step.op} requires a prior pick_up step for ${itemLabel(step.type)}`);
         else if (held !== step.type) errors.push(`Step ${index + 1}: holds ${itemLabel(held)} but ${step.op} needs ${itemLabel(step.type)}`);
+        held = null;
+      }
+      if (step.op === 'drop_item') {
+        if (!held) errors.push(`Step ${index + 1}: drop_item requires a prior pick_up step for something to drop`);
         held = null;
       }
       if (step.op === 'disassemble_building_to_kit') {
@@ -2781,6 +2442,7 @@ export class Game {
     this.nextItemId = 1; this.nextRockId = 1; this.nextHoleId = 1; this.nextTreeId = 1; this.nextHempId = 1; this.nextMonsterId = 1; this.nextProjectileId = 1; this.nextBotId = 1; this.nextStructureId = 1;
     this.zones = []; this.nextZoneId = 1;
     this.mapFeatures = [];
+    this.campaignArrival = null;
     this.worldTime = 0;
     this.fogOfWar = createFogOfWar();
     this.nightSpawns = { active: false, timer: 1.5, spawnedThisNight: 0 };
@@ -2790,6 +2452,100 @@ export class Game {
     this.paused = !!paused;
     if (this.paused) this.keys.clear();
     return this.paused;
+  }
+
+  beginCampaignArrival() {
+    const scene = getCampaignArrivalScene();
+    if (!scene) return null;
+    const points = scene.path || [];
+    if (points.length >= 2) {
+      const start = this.sampleCampaignArrivalPath(points, 0);
+      const zoom = this.camera.zoom || 1;
+      const viewW = this.W / zoom;
+      const viewH = this.H / zoom;
+      this.camera.x = clamp(start.x - viewW / 2, -Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2), Math.max(0, this.map.width - viewW) + Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2));
+      this.camera.y = clamp(start.y - viewH / 2, -Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2), Math.max(0, this.map.height - viewH) + Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2));
+    }
+    this.campaignArrival = {
+      active: true,
+      sceneId: scene.id,
+      startedAt: performance.now(),
+      durationMs: scene.durationMs || 4600
+    };
+    this.setPaused(true);
+    return this.campaignArrival;
+  }
+
+  updateCampaignArrivalState(now = performance.now()) {
+    if (!this.campaignArrival?.active) return null;
+    const scene = getCampaignArrivalScene(this.campaignArrival.sceneId);
+    const durationMs = Math.max(1, Number(this.campaignArrival.durationMs || scene?.durationMs || 4600));
+    const startedAt = Number(this.campaignArrival.startedAt || now);
+    const progress = clamp((now - startedAt) / durationMs, 0, 1);
+    this.campaignArrival.progress = progress;
+    const points = scene?.path || [];
+    if (points.length >= 2) {
+      const state = this.sampleCampaignArrivalPath(points, progress);
+      const zoom = this.camera.zoom || 1;
+      const viewW = this.W / zoom;
+      const viewH = this.H / zoom;
+      const leadX = Number(scene?.cameraFollow?.offsetX || 0);
+      const leadY = Number(scene?.cameraFollow?.offsetY || 0);
+      const targetX = clamp(state.x - (viewW / 2) + leadX, -Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2), Math.max(0, this.map.width - viewW) + Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2));
+      const targetY = clamp(state.y - (viewH / 2) + leadY, -Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2), Math.max(0, this.map.height - viewH) + Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2));
+      const smoothing = clamp(Number(scene?.cameraFollow?.smoothing ?? 0.14), 0.01, 1);
+      this.camera.x += (targetX - this.camera.x) * smoothing;
+      this.camera.y += (targetY - this.camera.y) * smoothing;
+    }
+    if (progress >= 1) {
+      this.campaignArrival.active = false;
+      this.campaignArrival.completedAt = now;
+      const zoom = this.camera.zoom || 1;
+      const viewW = this.W / zoom;
+      const viewH = this.H / zoom;
+      this.camera.x = clamp(CAMPAIGN_START.x - viewW / 2, -Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2), Math.max(0, this.map.width - viewW) + Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2));
+      this.camera.y = clamp(CAMPAIGN_START.y - viewH / 2, -Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2), Math.max(0, this.map.height - viewH) + Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2));
+      this.setPaused(false);
+    }
+    return this.campaignArrival;
+  }
+
+  sampleCampaignArrivalPath(points, progress) {
+    const segments = [];
+    let total = 0;
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const a = points[i];
+      const b = points[i + 1];
+      if (!a || !b) continue;
+      const ax = a.x ?? a[0] ?? 0;
+      const ay = a.y ?? a[1] ?? 0;
+      const bx = b.x ?? b[0] ?? 0;
+      const by = b.y ?? b[1] ?? 0;
+      const length = Math.hypot(bx - ax, by - ay);
+      if (length <= 0) continue;
+      segments.push({ ax, ay, bx, by, length, angle: Math.atan2(by - ay, bx - ax) });
+      total += length;
+    }
+    if (!segments.length || total <= 0) {
+      const first = points[0] || {};
+      return { x: first.x ?? first[0] ?? 0, y: first.y ?? first[1] ?? 0, angle: 0 };
+    }
+    const target = total * clamp(progress, 0, 1);
+    let traveled = 0;
+    for (const segment of segments) {
+      const next = traveled + segment.length;
+      if (target <= next) {
+        const local = segment.length ? (target - traveled) / segment.length : 0;
+        return {
+          x: segment.ax + ((segment.bx - segment.ax) * local),
+          y: segment.ay + ((segment.by - segment.ay) * local),
+          angle: segment.angle
+        };
+      }
+      traveled = next;
+    }
+    const last = segments[segments.length - 1];
+    return { x: last.bx, y: last.by, angle: last.angle };
   }
 
   resetSoloWorld() {
@@ -3096,39 +2852,8 @@ export class Game {
   }
   exportMultiplayerSave() { return { schema: 'orchestrator-grove-multiplayer-session-v1', exportedAt: new Date().toISOString(), session: this.getMultiplayerSnapshot(), state: this.getState() }; }
 
-  updateLaneMonster(monster, dt) {
-    const attack = monster.autoAttack || createAutoAttackComponent(MONSTER_MELEE_ATTACK);
-    const engaged = this.updateActorAutoAttack(monster, dt);
-    const current = this.findTargetByRef(attack.targetRef);
-    if (engaged && current && this.targetDistance(monster, current) <= (attack.range || MONSTER_MELEE_ATTACK.range) + 2) return;
-    const chase = this.nearestAutoAttackTarget(monster, monster.aggroRange || 140) || this.findTargetByRef(monster.laneTargetRef);
-    if (!chase) return;
-    this.moveToward(monster, chase.x, chase.y, dt, monster.speed || 50, (chase.radius || chase.r || 18) + (attack.range || MONSTER_MELEE_ATTACK.range) - 8);
-  }
-  updateMonster(monster, dt) {
-    if (!monster || (monster.hp || 0) <= 0) return;
-    if (monster.laneTargetRef) return this.updateLaneMonster(monster, dt);
-    const nearestStructure = this.nearestStructureToMonster(monster);
-    const structureDistance = this.monsterStructureDistance(monster, nearestStructure);
-    if (nearestStructure && structureDistance < monster.avoidRadius) {
-      monster.wanderTarget = this.monsterTargetAwayFromStructure(monster, nearestStructure);
-    } else if (!monster.wanderTarget || distXY(monster.x, monster.y, monster.wanderTarget.x, monster.wanderTarget.y) < 10) {
-      monster.wanderTarget = this.pickMonsterWanderTarget(monster);
-    } else if (distXY(monster.x, monster.y, monster.homeX, monster.homeY) > monster.roamRadius * 1.35) {
-      monster.wanderTarget = { x: monster.homeX, y: monster.homeY };
-    }
-    const target = monster.wanderTarget;
-    if (!target) return;
-    const dx = target.x - monster.x, dy = target.y - monster.y;
-    const len = Math.hypot(dx, dy);
-    if (len < 0.001) return;
-    const step = Math.min(len, monster.speed * dt);
-    monster.x = clamp(monster.x + dx / len * step, 30, this.map.width - 30);
-    monster.y = clamp(monster.y + dy / len * step, 30, this.map.height - 30);
-  }
-
   update(dt) {
-    if (this.paused) { this.updateFogOfWar(); this.updateUI(dt); return; }
+    if (this.paused) { this.updateCampaignArrivalState(); this.updateFogOfWar(); this.updateUI(dt); return; }
     this.worldTime = (this.worldTime || 0) + dt;
     this.updateFogOfWar();
     this.updatePlayer(dt); this.updateProductionStructures(dt); this.updateRangedAttackStructures(dt); this.updateProjectiles(dt); this.updateAssistant(dt); for (const bot of this.bots) this.updateBot(bot, dt);
@@ -3244,7 +2969,11 @@ export class Game {
   updateBot(bot, dt) {
     if (bot.paused) { bot.state = 'paused'; bot.message = `Paused ${bot.program} workflow.`; return; }
     if (this.updateBotProductionBusy(bot)) return;
-    this.updateActorAutoAttack(bot, dt);
+    if (bot.program === 'idle') {
+      if (this.updateActorAutoAttack(bot, dt, { searchRange: IDLE_BOT_AUTO_ATTACK_RANGE })) return;
+    } else {
+      this.updateActorAutoAttack(bot, dt);
+    }
     bot.state = bot.program;
     if (bot.program === 'chop_wood') return this.programChopWood(bot, dt);
     if (bot.program === 'mine_stone') return this.programMineStone(bot, dt);
@@ -3276,10 +3005,11 @@ export class Game {
     }
     if (bot.inventory) {
       const reached = this.moveBotTo(bot, this.player, dt, 38);
+      const wasAwaitingReward = !!request.awaitingReward;
       request.awaitingReward = reached || request.awaitingReward;
       bot.message = reached ? `Returning ${itemLabel(bot.inventory.type)} for praise.` : `Following player with ${itemLabel(bot.inventory.type)}.`;
       bot.target = null;
-      if (reached) this.syncDogPopupUi?.(true);
+      if (reached && !wasAwaitingReward) this.syncDogPopupUi?.(true);
       return;
     }
     let targetItem = request.targetItemId ? this.items.find(item => item.id === request.targetItemId && (!item.reservedBy || item.reservedBy === bot.id) && item.type === request.targetType && distXY(bot.x, bot.y, item.x, item.y) <= DOG_FETCH_SEARCH_RADIUS) : null;
@@ -3328,18 +3058,20 @@ export class Game {
     let tree = this.isChoppableTree(bot.target) && this.objectInZone(bot.target, zone, bot) ? bot.target : null;
     if (!tree) { tree = nearest(this.trees, bot.x, bot.y, t => this.isChoppableTree(t) && this.objectInZone(t, zone, bot)); bot.target = tree; }
     if (!tree) return bot.message=`No living trees in ${this.zoneLabel(zone)}.`;
-    if (!this.moveBotTo(bot, tree, dt, tree.radius + 14)) return bot.message=`Walking to tree in ${this.zoneLabel(zone)} with ${itemLabel(bot.tool.type)}.`;
-    bot.timer += dt; bot.message = `Chopping with ${itemLabel(bot.tool.type)} (${Math.min(RESOURCE_HIT_SECONDS, Math.ceil(bot.timer))}/${RESOURCE_HIT_SECONDS}).`;
+    const toolType = bot.inventory?.type;
+    if (!this.moveBotTo(bot, tree, dt, tree.radius + 14)) return bot.message=`Walking to tree in ${this.zoneLabel(zone)} with ${itemLabel(toolType)}.`;
+    bot.timer += dt; bot.message = `Chopping with ${itemLabel(toolType)} (${Math.min(RESOURCE_HIT_SECONDS, Math.ceil(bot.timer))}/${RESOURCE_HIT_SECONDS}).`;
     if (bot.timer >= RESOURCE_HIT_SECONDS) {
-      bot.timer=0; tree.hp--; bot.tool.durability--; this.spawnItem('log', tree.x, tree.y, 1);
+      bot.timer=0; tree.hp--; bot.inventory.durability--; this.spawnItem('log', tree.x, tree.y, 1);
       this.emitSound('chop', { cooldownKey: `bot:chop:${bot.id}`, minGapMs: 220 });
-      if (bot.tool.durability <= 0) { this.addFloat(`${itemLabel(bot.tool.type)} broke`, bot.x, bot.y - 24, '#c86b5f'); bot.tool = null; }
+      if (bot.inventory.durability <= 0) { this.addFloat(`${itemLabel(toolType)} broke`, bot.x, bot.y - 24, '#c86b5f'); bot.inventory = null; }
       if (tree.hp <= 0) { tree.stump = true; tree.regrow = 0; bot.target = null; this.spawnItem('stick', tree.x, tree.y, 2); this.spawnItem('tree_seed', tree.x, tree.y, 1); }
     }
   }
   ensureChopTool(bot, dt) {
-    if (bot.tool?.type === 'crude_axe') return true;
-    if (bot.tool && bot.tool.type !== 'crude_axe') { bot.message = `Holding ${itemLabel(bot.tool.type)}; needs crude axe to chop.`; return false; }
+    const held = this.carriedTool(bot);
+    if (held?.type === 'crude_axe') return true;
+    if (bot.inventory) { bot.message = `Holding ${itemLabel(bot.inventory.type)}; needs crude axe to chop.`; return false; }
     let item = bot.targetItemPurpose === 'tool' && bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && i.type === 'crude_axe') : null;
     if (!item) {
       item = nearest(this.items, bot.x, bot.y, i => i.type === 'crude_axe' && (!i.reservedBy || i.reservedBy === bot.id));
@@ -3347,15 +3079,16 @@ export class Game {
     }
     if (!item) { bot.message = `Needs crude axe lying on the map to chop.`; return false; }
     if (!this.moveBotTo(bot, item, dt, 12)) { bot.message = `Fetching ${itemLabel(item.type)} for chopping.`; return false; }
-    bot.tool = { type: item.type, durability: AXE_DURABILITY };
+    if (!this.carryToolItem(bot, item.type)) { bot.message = `Holding ${itemLabel(bot.inventory?.type || 'item')}; needs crude axe to chop.`; return false; }
     this.items = this.items.filter(i => i.id !== item.id);
     bot.targetItemId = null; bot.targetItemPurpose = null;
-    bot.message = `Equipped ${itemLabel(bot.tool.type)}.`;
+    bot.message = `Holding ${itemLabel(bot.inventory.type)}.`;
     return true;
   }
   ensureMineTool(bot, dt) {
-    if (bot.tool?.type === 'crude_pickaxe') return true;
-    if (bot.tool && bot.tool.type !== 'crude_pickaxe') { bot.message = `Holding ${itemLabel(bot.tool.type)}; needs crude pickaxe to mine stone.`; return false; }
+    const held = this.carriedTool(bot);
+    if (held?.type === 'crude_pickaxe') return true;
+    if (bot.inventory) { bot.message = `Holding ${itemLabel(bot.inventory.type)}; needs crude pickaxe to mine stone.`; return false; }
     let item = bot.targetItemPurpose === 'tool' && bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && i.type === 'crude_pickaxe') : null;
     if (!item) {
       item = nearest(this.items, bot.x, bot.y, i => i.type === 'crude_pickaxe' && (!i.reservedBy || i.reservedBy === bot.id));
@@ -3363,10 +3096,10 @@ export class Game {
     }
     if (!item) { bot.message = 'Needs crude pickaxe lying on the map to mine stone.'; return false; }
     if (!this.moveBotTo(bot, item, dt, 12)) { bot.message = `Fetching ${itemLabel(item.type)} for mining.`; return false; }
-    bot.tool = { type: item.type, durability: PICKAXE_DURABILITY };
+    if (!this.carryToolItem(bot, item.type)) { bot.message = `Holding ${itemLabel(bot.inventory?.type || 'item')}; needs crude pickaxe to mine stone.`; return false; }
     this.items = this.items.filter(i => i.id !== item.id);
     bot.targetItemId = null; bot.targetItemPurpose = null;
-    bot.message = `Equipped ${itemLabel(bot.tool.type)}.`;
+    bot.message = `Holding ${itemLabel(bot.inventory.type)}.`;
     return true;
   }
   programMineStone(bot, dt) {
@@ -3375,18 +3108,20 @@ export class Game {
     let rock = bot.target?.type === 'stone_deposit' && !bot.target.depleted && this.objectInZone(bot.target, zone, bot) ? bot.target : null;
     if (!rock) { rock = nearest(this.rocks, bot.x, bot.y, r => !r.depleted && this.objectInZone(r, zone, bot)); bot.target = rock; }
     if (!rock) return bot.message = `No stone deposits in ${this.zoneLabel(zone)}.`;
-    if (!this.moveBotTo(bot, rock, dt, rock.radius + 14)) return bot.message = `Walking to stone deposit in ${this.zoneLabel(zone)} with ${itemLabel(bot.tool.type)}.`;
-    bot.timer += dt; bot.message = `Mining stone with ${itemLabel(bot.tool.type)} (${Math.min(RESOURCE_HIT_SECONDS, Math.ceil(bot.timer))}/${RESOURCE_HIT_SECONDS}).`;
+    const toolType = bot.inventory?.type;
+    if (!this.moveBotTo(bot, rock, dt, rock.radius + 14)) return bot.message = `Walking to stone deposit in ${this.zoneLabel(zone)} with ${itemLabel(toolType)}.`;
+    bot.timer += dt; bot.message = `Mining stone with ${itemLabel(toolType)} (${Math.min(RESOURCE_HIT_SECONDS, Math.ceil(bot.timer))}/${RESOURCE_HIT_SECONDS}).`;
     if (bot.timer >= RESOURCE_HIT_SECONDS) {
-      bot.timer = 0; rock.hp--; bot.tool.durability--; this.spawnItem('stone', rock.x, rock.y, 1);
+      bot.timer = 0; rock.hp--; bot.inventory.durability--; this.spawnItem('stone', rock.x, rock.y, 1);
       this.emitSound('mine', { cooldownKey: `bot:mine:${bot.id}`, minGapMs: 220 });
-      if (bot.tool.durability <= 0) { this.addFloat(`${itemLabel(bot.tool.type)} broke`, bot.x, bot.y - 24, '#c86b5f'); bot.tool = null; }
+      if (bot.inventory.durability <= 0) { this.addFloat(`${itemLabel(toolType)} broke`, bot.x, bot.y - 24, '#c86b5f'); bot.inventory = null; }
       if (rock.hp <= 0) { rock.depleted = true; rock.respawn = 24; bot.target = null; this.addFloat('Stone deposit depleted', rock.x, rock.y - 24, '#9aa09d'); }
     }
   }
   ensureDigTool(bot, dt) {
-    if (bot.tool?.type === 'crude_shovel') return true;
-    if (bot.tool && bot.tool.type !== 'crude_shovel') { bot.message = `Holding ${itemLabel(bot.tool.type)}; needs crude shovel to dig.`; return false; }
+    const held = this.carriedTool(bot);
+    if (held?.type === 'crude_shovel') return true;
+    if (bot.inventory) { bot.message = `Holding ${itemLabel(bot.inventory.type)}; needs crude shovel to dig.`; return false; }
     let item = bot.targetItemPurpose === 'tool' && bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && i.type === 'crude_shovel') : null;
     if (!item) {
       item = nearest(this.items, bot.x, bot.y, i => i.type === 'crude_shovel' && (!i.reservedBy || i.reservedBy === bot.id));
@@ -3394,10 +3129,10 @@ export class Game {
     }
     if (!item) { bot.message = 'Needs crude shovel lying on the map to dig.'; return false; }
     if (!this.moveBotTo(bot, item, dt, 12)) { bot.message = `Fetching ${itemLabel(item.type)} for digging.`; return false; }
-    bot.tool = { type: item.type, durability: SHOVEL_DURABILITY };
+    if (!this.carryToolItem(bot, item.type)) { bot.message = `Holding ${itemLabel(bot.inventory?.type || 'item')}; needs crude shovel to dig.`; return false; }
     this.items = this.items.filter(i => i.id !== item.id);
     bot.targetItemId = null; bot.targetItemPurpose = null;
-    bot.message = `Equipped ${itemLabel(bot.tool.type)}.`;
+    bot.message = `Holding ${itemLabel(bot.inventory.type)}.`;
     return true;
   }
   digBoundsForZone(zone, from) {
@@ -3436,12 +3171,13 @@ export class Game {
     let spot = bot.target?.kind === 'dig_spot' && this.pointInZone(bot.target.x, bot.target.y, zone, bot) && this.isDiggable(bot.target.x, bot.target.y) ? bot.target : null;
     if (!spot) { spot = this.findDigSpot(bot); bot.target = spot; bot.timer = 0; }
     if (!spot) return bot.message = `No open dirt to dig in ${this.zoneLabel(zone)}.`;
-    if (!this.moveBotTo(bot, spot, dt, 12)) return bot.message = `Walking to dig spot in ${this.zoneLabel(zone)} with ${itemLabel(bot.tool.type)}.`;
-    bot.timer += dt; bot.message = `Digging hole with ${itemLabel(bot.tool.type)} (${Math.ceil(bot.timer*2)}/2).`;
+    const toolType = bot.inventory?.type;
+    if (!this.moveBotTo(bot, spot, dt, 12)) return bot.message = `Walking to dig spot in ${this.zoneLabel(zone)} with ${itemLabel(toolType)}.`;
+    bot.timer += dt; bot.message = `Digging hole with ${itemLabel(toolType)} (${Math.ceil(bot.timer*2)}/2).`;
     if (bot.timer >= 1) {
-      bot.timer = 0; bot.tool.durability--; this.spawnHole(spot.x, spot.y); this.addFloat('Dug hole', spot.x, spot.y - 16, '#6b4a28'); bot.target = null;
+      bot.timer = 0; bot.inventory.durability--; this.spawnHole(spot.x, spot.y); this.addFloat('Dug hole', spot.x, spot.y - 16, '#6b4a28'); bot.target = null;
       this.emitSound('dig', { cooldownKey: `bot:dig:${bot.id}`, minGapMs: 220 });
-      if (bot.tool.durability <= 0) { this.addFloat(`${itemLabel(bot.tool.type)} broke`, bot.x, bot.y - 24, '#c86b5f'); bot.tool = null; }
+      if (bot.inventory.durability <= 0) { this.addFloat(`${itemLabel(toolType)} broke`, bot.x, bot.y - 24, '#c86b5f'); bot.inventory = null; }
     }
   }
   programPickupItem(bot, dt) {
@@ -3468,79 +3204,6 @@ export class Game {
     bot.target = null;
     bot.message = `Planted tree seed in ${this.zoneLabel(zone)}.`;
   }
-  takeFromPalette(bot, type, dt, sourceId = null) {
-    const palette = sourceId ? this.structures.find(s => STORAGE_STRUCTURE_TYPES.includes(s.type) && (s.id === sourceId || s.ref === sourceId || s.name === sourceId)) : nearest(this.structures, bot.x, bot.y, s => STORAGE_STRUCTURE_TYPES.includes(s.type) && s.storageType === type && s.stored > 0);
-    if (!palette) { bot.message = `No storage with ${itemLabel(type)}.`; return false; }
-    if (palette.storageType !== type || palette.stored <= 0) { bot.message = `${palette.name} has no ${itemLabel(type)}.`; return false; }
-    if (!this.moveBotTo(bot, palette, dt, 34)) { bot.message = `Picking up ${itemLabel(type)} from ${palette.name}.`; return false; }
-    palette.stored--; if (palette.stored <= 0) { palette.stored = 0; palette.storageType = null; }
-    bot.inventory = { type, count: 1 }; bot.message = `Picked up ${itemLabel(type)} from ${palette.name}.`; return true;
-  }
-  findItemFor(bot, type) {
-    const zone = this.getBotZone(bot);
-    return nearest(this.items, bot.x, bot.y, i => i.type === type && (!i.reservedBy || i.reservedBy === bot.id) && this.objectInZone(i, zone, bot));
-  }
-  findItemNearStructureFor(bot, type, structure, radius = PRODUCTION_SOURCE_RADIUS) {
-    const zone = this.getBotZone(bot);
-    return nearest(this.items, bot.x, bot.y, i => i.type === type && (!i.reservedBy || i.reservedBy === bot.id) && rectDistance(i.x, i.y, structure) <= radius && this.objectInZone(i, zone, bot));
-  }
-  pickItem(bot, item) {
-    if (!bot || !item) return false;
-    if (this.isEquipmentItem(item.type)) {
-      if (this.equipActor(bot, item.type)) bot.message = item.type === 'arrow_pack' ? `Loaded ${itemLabel(item.type)}.` : `Equipped ${itemLabel(item.type)}.`;
-      else if (item.type === 'arrow_pack') { bot.message = 'Ammo already full.'; return false; }
-      else if (this.carryEquipmentItem(bot, item.type)) bot.message = `Carrying ${itemLabel(item.type)}.`;
-      else { bot.message = `Cannot pick up ${itemLabel(item.type)} while carrying ${itemLabel(bot.inventory?.type || 'item')}.`; return false; }
-      this.emitSound('equip', { cooldownKey: `bot:equip:${bot.id}`, minGapMs: 120 });
-    } else {
-      if (bot.inventory) { bot.message = `Already carrying ${itemLabel(bot.inventory.type)}.`; return false; }
-      bot.inventory = { type: item.type, count: 1 };
-      this.emitSound('pickup', { cooldownKey: `bot:pickup:${bot.id}`, minGapMs: 120 });
-    }
-    this.items = this.items.filter(i => i.id !== item.id);
-    bot.targetItemId = null; bot.targetItemPurpose = null; bot.target = null;
-    return true;
-  }
-  productionDuration(s, recipe) { return BUILDING_TYPES[s.type]?.processingDurations?.[recipe] ?? PRODUCTION_DEFAULTS[s.type]?.[recipe] ?? 1; }
-  isStructureProcessing(s) { return !!s?.processing && s.processing.remaining > 0; }
-  setWorkbenchRecipe(s, recipe) {
-    if (!s || s.type !== 'workbench' || !WORKBENCH_TOOL_RECIPES.includes(recipe)) return false;
-    if (this.isStructureProcessing(s)) { this.addFloat(`${s.name} is processing; output stays ${itemLabel(workbenchRecipe(s))}`, s.x, s.y - 35, '#c7b683'); return false; }
-    s.workbenchRecipe = recipe;
-    this.addFloat(`${s.name}: produce ${itemLabel(recipe)}`, s.x, s.y - 35, '#d3a95f');
-    this.emitSound('switch', { cooldownKey: `recipe:${s.id}`, minGapMs: 100 });
-    return true;
-  }
-  setSmitheryRecipe(s, recipe) {
-    if (!s || s.type !== 'smithery' || !SMITHERY_RECIPES.includes(recipe)) return false;
-    if (this.isStructureProcessing(s)) { this.addFloat(`${s.name} is processing; output stays ${itemLabel(smitheryRecipe(s))}`, s.x, s.y - 35, '#c7b683'); return false; }
-    s.smitheryRecipe = recipe;
-    this.addFloat(`${s.name}: produce ${itemLabel(recipe)}`, s.x, s.y - 35, '#d3a95f');
-    this.emitSound('switch', { cooldownKey: `recipe:${s.id}`, minGapMs: 100 });
-    return true;
-  }
-  setAssemblerRecipe(s, recipe) {
-    const kitType = this.normalizeBuildingKitItemType(recipe);
-    if (!s || s.type !== 'assembler' || !kitType) return false;
-    if (this.isStructureProcessing(s)) { this.addFloat(`${s.name} is processing; output stays ${itemLabel(assemblerRecipe(s))}`, s.x, s.y - 35, '#c7b683'); return false; }
-    s.assemblerRecipe = kitType;
-    this.addFloat(`${s.name}: assemble ${itemLabel(kitType)}`, s.x, s.y - 35, '#d3a95f');
-    this.emitSound('switch', { cooldownKey: `recipe:${s.id}`, minGapMs: 100 });
-    return true;
-  }
-  switchSmitheryRecipe(s) {
-    const next = smitheryRecipe(s) === 'wooden_sword' ? 'wooden_shield' : 'wooden_sword';
-    return this.setSmitheryRecipe(s, next);
-  }
-    canStructureAcceptItem(s, type) {
-      if (!s || !type || this.isStructureProcessing(s)) return false;
-      if (s.type === 'player_storage') return this.canPlayerAcceptItem(type);
-      if (STORAGE_STRUCTURE_TYPES.includes(s.type)) return (s.stored || 0) < (s.capacity || 0) && (!s.storageType || s.storageType === type);
-      const needs = productionInputNeeds(s);
-      if (!needs || !Object.prototype.hasOwnProperty.call(needs, type)) return false;
-      return productionInputCount(s, type) < needs[type];
-      return false;
-    }
   botStorageRetryReady(bot, key, label, x = bot?.x || this.player.x, y = bot?.y || this.player.y) {
     if (!bot) return true;
     if (!bot.runtime) bot.runtime = { pc: 0, memory: {}, wait: 0 };
@@ -3555,22 +3218,6 @@ export class Game {
     return true;
   }
   workerBot(worker) { return worker?.bot || (worker?.id ? worker : null); }
-  canPlayerAcceptItem(type) { return !!type && !this.player.inventory; }
-  depositBotItemToPlayer(bot, type) {
-    if (!bot?.inventory || bot.inventory.type !== type) return false;
-    if (!this.canPlayerAcceptItem(type)) {
-      if (this.botStorageRetryReady(bot, `player-deposit:${type}`, `Player storage is full for ${itemLabel(type)}.`, this.player.x, this.player.y)) {
-        this.addFloat('Player storage full', this.player.x, this.player.y - 35, '#c86b5f');
-        this.emitSound('ui_error', { cooldownKey: `bot:player-full:${bot.id}`, minGapMs: BOT_STORAGE_RETRY_SECONDS * 1000 });
-      }
-      return false;
-    }
-    this.player.inventory = { type, count: bot.inventory.count || 1 };
-    bot.inventory = null;
-    this.addFloat(`Player received ${itemLabel(type)}`, this.player.x, this.player.y - 35, '#d3a95f');
-    this.emitSound('deposit', { cooldownKey: `bot:player-deposit:${bot.id}`, minGapMs: 120 });
-    return true;
-  }
   takePlayerItemForBot(bot, type) {
     if (!bot || bot.inventory) return false;
     if (this.player.inventory?.type !== type) { bot.message = `Player has no ${itemLabel(type)} to take.`; return false; }
@@ -3580,679 +3227,6 @@ export class Game {
     this.emitSound('storage', { cooldownKey: `bot:player-take:${bot.id}`, minGapMs: 120 });
     return true;
   }
-    depositHeldItemToStructure(s, type, { worker = null } = {}) {
-      if (!s || !type) return false;
-      if (s.type === 'player_storage') return this.depositBotItemToPlayer(this.workerBot(worker), type);
-      if (this.isStructureProcessing(s)) return false;
-      if (!this.canStructureAcceptItem(s, type)) { const bot = this.workerBot(worker); if (bot && !this.botStorageRetryReady(bot, `deposit:${s.id}:${type}`, `${s.name} cannot take ${itemLabel(type)}.`, s.x, s.y)) return false; this.addFloat(`${s.name} cannot take ${itemLabel(type)}`, s.x, s.y - 35, '#c86b5f'); this.emitSound('ui_error', { cooldownKey: bot ? `deposit-error:${bot.id}:${s.id}:${type}` : 'deposit-error', minGapMs: bot ? BOT_STORAGE_RETRY_SECONDS * 1000 : 120 }); return false; }
-      this.emitSound(STORAGE_STRUCTURE_TYPES.includes(s.type) ? 'storage' : 'deposit', { cooldownKey: `deposit:${s.id}`, minGapMs: 100 });
-    if (STORAGE_STRUCTURE_TYPES.includes(s.type)) {
-      if (!s.storageType) s.storageType = type;
-      s.stored = (s.stored || 0) + 1;
-      this.addFloat(`${s.name}: ${s.stored}/${s.capacity} ${itemLabel(type)}`, s.x, s.y - 35, '#d3a95f');
-      return true;
-    }
-      if (s.type === 'sawbench') {
-        if (type === 'log') s.logs++;
-        if (type === 'plank') s.planks++;
-        this.addFloat(`+ ${itemLabel(type)}`, s.x, s.y - 35, '#d3a95f');
-        this.maybeStartStructureProcessing(s, worker);
-        return true;
-      }
-      if (s.type === 'workbench') {
-        if (type === 'stick') s.sticks++;
-        if (type === 'stone') s.stones++;
-        this.addFloat(`${s.name}: ${s.sticks} sticks, ${s.stones} stones`, s.x, s.y - 35, '#d3a95f');
-        this.maybeStartStructureProcessing(s, worker);
-        return true;
-      }
-      if (s.type === 'smithery') {
-        if (type === 'stick') s.sticks++;
-        if (type === 'plank') s.planks++;
-        this.addFloat(`+ ${itemLabel(type)}`, s.x, s.y - 35, '#d3a95f');
-        this.maybeStartStructureProcessing(s, worker);
-        return true;
-      }
-      if (s.type === 'arrowmaker') {
-        if (type === 'stick') s.sticks++;
-        if (type === 'stone') s.stones++;
-        this.addFloat(`${s.name}: ${s.sticks} sticks, ${s.stones} stones`, s.x, s.y - 35, '#d3a95f');
-        this.maybeStartStructureProcessing(s, worker);
-        return true;
-      }
-      if (s.type === 'bowmaker') {
-        const key = `${type}s` in s ? `${type}s` : type;
-        s[key]++;
-        this.addFloat(`${s.name}: ${s.sticks || 0}/2 sticks, ${s.hemps || 0}/3 hemp`, s.x, s.y - 35, '#d3a95f');
-        this.maybeStartStructureProcessing(s, worker);
-        return true;
-      }
-      if (s.type === 'factory') {
-        const key = `${type}s` in s ? `${type}s` : type;
-        s[key]++;
-        this.addFloat(`+ ${itemLabel(type)}`, s.x, s.y - 35, '#d3a95f');
-        this.maybeStartStructureProcessing(s, worker);
-        return true;
-      }
-      if (s.type === 'assembler') {
-        const key = `${type}s` in s ? `${type}s` : type;
-        s[key]++;
-        this.addFloat(`${s.name}: ${s.planks || 0}/2 planks, ${s.poles || 0}/1 pole`, s.x, s.y - 35, '#d3a95f');
-        this.maybeStartStructureProcessing(s, worker);
-        return true;
-      }
-    return false;
-  }
-  depositToSawbench(s, type, options = {}) { return this.depositHeldItemToStructure(s, type, options); }
-  structureReadyJob(s) {
-    if (!s || this.isStructureProcessing(s)) return null;
-    if (s.type === 'sawbench') {
-      if (s.logs > 0) return { recipe: 'log', label: 'sawing log' };
-      if (s.planks > 0) return { recipe: 'plank', label: 'shaping pole' };
-    }
-    if (s.type === 'workbench' && s.sticks >= 1 && s.stones >= 1) { const recipe = workbenchRecipe(s); return { recipe, label: `crafting ${itemLabel(recipe)}` }; }
-    if (s.type === 'smithery') {
-      const recipe = smitheryRecipe(s), input = smitheryInputFor(recipe), key = input === 'stick' ? 'sticks' : 'planks';
-      if ((s[key] || 0) > 0) return { recipe, label: `crafting ${itemLabel(recipe)}` };
-    }
-    if (s.type === 'arrowmaker' && s.sticks >= 1 && s.stones >= 1) return { recipe: 'arrow_pack', label: 'fletching arrow pack' };
-    if (s.type === 'bowmaker' && Object.entries(BOW_RECIPE).every(([type, cost]) => (s[`${type}s`] ?? s[type] ?? 0) >= cost)) return { recipe: 'bow', label: 'binding bow' };
-    if (s.type === 'factory' && Object.entries(FACTORY_BOT_RECIPE).every(([type, cost]) => (s[`${type}s`] ?? s[type] ?? 0) >= cost)) return { recipe: 'basic_bot', label: 'assembling bot' };
-    if (s.type === 'assembler' && Object.entries(ASSEMBLER_KIT_RECIPE).every(([type, cost]) => (s[`${type}s`] ?? s[type] ?? 0) >= cost)) { const recipe = assemblerRecipe(s); return { recipe, label: `assembling ${itemLabel(recipe)}` }; }
-    return null;
-  }
-  consumeStructureInputs(s, recipe) {
-    if (s.type === 'sawbench' && recipe === 'log') { s.logs--; return true; }
-    if (s.type === 'sawbench' && recipe === 'plank') { s.planks--; return true; }
-    if (s.type === 'workbench' && WORKBENCH_TOOL_RECIPES.includes(recipe)) { s.sticks--; s.stones--; return true; }
-    if (s.type === 'smithery' && SMITHERY_RECIPES.includes(recipe)) { const input = smitheryInputFor(recipe), key = input === 'stick' ? 'sticks' : 'planks'; s[key]--; return true; }
-    if (s.type === 'arrowmaker' && recipe === 'arrow_pack') { s.sticks--; s.stones--; return true; }
-    if (s.type === 'bowmaker' && recipe === 'bow') { for (const [type, cost] of Object.entries(BOW_RECIPE)) { const key = `${type}s` in s ? `${type}s` : type; s[key] -= cost; } return true; }
-    if (s.type === 'factory' && recipe === 'basic_bot') { for (const [type, cost] of Object.entries(FACTORY_BOT_RECIPE)) { const key = `${type}s` in s ? `${type}s` : type; s[key] -= cost; } return true; }
-    if (s.type === 'assembler' && BUILDING_KIT_ITEM_TYPES.includes(recipe)) { for (const [type, cost] of Object.entries(ASSEMBLER_KIT_RECIPE)) { const key = `${type}s` in s ? `${type}s` : type; s[key] -= cost; } return true; }
-    return false;
-  }
-  occupyProductionWorker(worker, s) {
-    if (!worker || !s?.processing) return;
-    if (worker.kind === 'player') {
-      this.player.target = { action: 'structure_processing', structureId: s.id, x: s.x, y: s.y, started: true, remaining: s.processing.remaining, total: s.processing.total, processLabel: s.processing.label };
-      return;
-    }
-    const bot = worker.bot || worker;
-    if (bot) { bot.productionJob = { structureId: s.id }; bot.target = s; bot.timer = 0; bot.message = `Working at ${s.name}: ${s.processing.label}.`; }
-  }
-  updateBotProductionBusy(bot) {
-    if (!bot.productionJob) return false;
-    const s = this.structures.find(st => st.id === bot.productionJob.structureId);
-    if (this.isStructureProcessing(s)) { bot.state = 'producing'; bot.message = `Busy at ${s.name}: ${s.processing.label} (${Math.max(0, s.processing.remaining).toFixed(1)}s left).`; return true; }
-    bot.productionJob = null;
-    return false;
-  }
-  startStructureProcessing(s, recipe, label, worker = null) {
-    s.processing = { recipe, label, remaining: this.productionDuration(s, recipe), total: this.productionDuration(s, recipe) };
-    this.addFloat(`${s.name}: ${label}`, s.x, s.y - 35, '#c7b683');
-    this.emitSound('craft_start', { cooldownKey: `craft:${s.id}`, minGapMs: 220 });
-    this.occupyProductionWorker(worker, s);
-  }
-  maybeStartStructureProcessing(s, worker = null) {
-    const job = this.structureReadyJob(s);
-    if (!job) return false;
-    this.consumeStructureInputs(s, job.recipe);
-    this.startStructureProcessing(s, job.recipe, job.label, worker);
-    return true;
-  }
-  finishStructureProcessing(s, job) {
-    this.emitSound('craft_done', { cooldownKey: `craft-done:${s.id}`, minGapMs: 180 });
-    if (s.type === 'sawbench' && job.recipe === 'log') { this.dropProducedItem(s, 'plank', 2); this.addFloat('+2 planks dropped', s.x, s.y - 35, '#d3a95f'); return; }
-    if (s.type === 'sawbench' && job.recipe === 'plank') { this.dropProducedItem(s, 'pole', 2); this.addFloat('+2 wood poles dropped', s.x, s.y - 35, '#c7b683'); return; }
-    if (s.type === 'workbench' && WORKBENCH_TOOL_RECIPES.includes(job.recipe)) {
-      const key = job.recipe === 'crude_pickaxe' ? 'pickaxes' : job.recipe === 'crude_shovel' ? 'shovels' : job.recipe === 'crude_hammer' ? 'hammers' : 'axes';
-      s[key]++;
-      this.dropProducedItem(s, job.recipe, 1);
-      this.addFloat(`+ ${itemLabel(job.recipe)} dropped`, s.x, s.y - 35, '#d3a95f');
-      return;
-    }
-    if (s.type === 'smithery' && SMITHERY_RECIPES.includes(job.recipe)) {
-      const key = job.recipe === 'wooden_shield' ? 'shields' : 'swords';
-      s[key]++;
-      this.dropProducedItem(s, job.recipe, 1);
-      this.addFloat(`+ ${itemLabel(job.recipe)} dropped`, s.x, s.y - 35, '#d3a95f');
-      return;
-    }
-    if (s.type === 'arrowmaker' && job.recipe === 'arrow_pack') { s.arrow_packs++; this.dropProducedItem(s, 'arrow_pack', 1); this.addFloat('+ arrow pack dropped', s.x, s.y - 35, '#d3a95f'); return; }
-    if (s.type === 'bowmaker' && job.recipe === 'bow') { s.bows++; this.dropProducedItem(s, 'bow', 1); this.addFloat('+ bow dropped', s.x, s.y - 35, '#d3a95f'); return; }
-    if (s.type === 'factory' && job.recipe === 'basic_bot') { const nb = this.createBot(s.x + rand(-30, 30), s.y + 72, 'idle'); if (nb) this.addChat?.('assistant', `Factory created Basic Bot ${nb.id}.`); return; }
-    if (s.type === 'assembler' && BUILDING_KIT_ITEM_TYPES.includes(job.recipe)) { this.dropProducedItem(s, job.recipe, 1); this.addFloat(`+ ${itemLabel(job.recipe)} dropped`, s.x, s.y - 35, '#d3a95f'); return; }
-  }
-    updateProductionStructures(dt) {
-      for (const s of this.structures) {
-        if (!['sawbench', 'workbench', 'factory', 'smithery', 'bowmaker', 'arrowmaker', 'assembler'].includes(s.type)) continue;
-        if (this.isStructureProcessing(s)) {
-          s.processing.remaining -= dt;
-          if (s.processing.remaining <= 0) { const job = s.processing; s.processing = null; this.finishStructureProcessing(s, job); }
-        } else {
-          this.maybeStartStructureProcessing(s);
-        }
-      }
-    }
-  programHaulLogs(bot, dt) {
-    const zone = this.getBotZone(bot);
-    if (bot.inventory?.type === 'log') { const s = this.nearestStructure('sawbench', bot.x, bot.y, bot.targetStructureId); if (!s) return bot.message='No sawbench.'; if (!this.moveBotTo(bot, s, dt, 32)) return bot.message=`Delivering log to ${s.name}.`; this.depositToSawbench(s, 'log', { worker: { bot } }); bot.inventory=null; bot.message=this.isStructureProcessing(s) ? `Delivered log and started ${s.processing.label} at ${s.name}.` : `Delivered log to ${s.name}.`; return; }
-    let item = bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && this.objectInZone(i, zone, bot)) : null;
-    if (!item) { item = this.findItemFor(bot,'log'); if (item) { item.reservedBy=bot.id; bot.targetItemId=item.id; } }
-    if (!item) return bot.message=`Waiting for loose logs in ${this.zoneLabel(zone)}.`;
-    if (!this.moveBotTo(bot,item,dt,12)) return bot.message=`Picking up log in ${this.zoneLabel(zone)}.`;
-    this.pickItem(bot,item);
-  }
-  executeFollowStep(bot, step, dt) {
-    const target = this.resolveActorReference(step.targetRef || step.target || 'me', bot);
-    if (!target || target === bot || (target.hp ?? 1) <= 0) { bot.message = `Follow target ${step.targetName || step.target || 'target'} unavailable.`; return false; }
-    const spacing = clamp(Number(step.distance || DEFAULT_FOLLOW_DISTANCE), 18, 220);
-    const reached = this.moveToward(bot, target.x, target.y, dt, bot.speed, spacing);
-    bot.message = reached ? `Following ${this.actorLabel(target)}.` : `Moving to follow ${this.actorLabel(target)}.`;
-    return reached;
-  }
-  executeAttackTarget(bot, target, dt, label = 'area') {
-    if (!bot || !this.isHostileTarget(target)) return false;
-    const eq = ensureEquipment(bot);
-    const weapon = eq.weapon;
-    const ranged = weapon === 'bow';
-    const attack = ranged ? eq.rangedAttack : (eq.autoAttack ||= createAutoAttackComponent());
-    if (!ranged) {
-      attack.range = MELEE_ATTACK_RANGE + (target.radius || target.r || 16);
-      attack.damage = this.actorMeleeDamage(bot);
-      attack.cooldown = MELEE_AUTO_ATTACK.cooldown;
-    }
-    attack.cooldownRemaining = Math.max(0, (attack.cooldownRemaining || 0) - dt);
-    const range = ranged ? (attack.range || BOW_ATTACK.range) : (attack.range || MELEE_AUTO_ATTACK.range);
-    if (this.targetDistance(bot, target) > range) {
-      this.moveToward(bot, target.x, target.y, dt, bot.speed, Math.max(18, range * 0.8));
-      bot.message = `Closing to attack ${target.name || target.ref || 'target'} in ${label}.`;
-      return false;
-    }
-    attack.targetRef = target.ref;
-    if (attack.cooldownRemaining > 0) { bot.message = `Attacking ${target.name || target.ref || 'target'}…`; return true; }
-    if (ranged) this.fireActorBow(bot, target, attack);
-    else {
-      this.damageAttackTarget(target, attack.damage || 1);
-      attack.cooldownRemaining = attack.cooldown || MELEE_AUTO_ATTACK.cooldown;
-      this.emitSound('hit', { cooldownKey: `bot:attack:${bot.id}`, minGapMs: 160 });
-    }
-    bot.message = `Attacked ${target.name || target.ref || 'target'}.`;
-    return (target.hp ?? 1) <= 0;
-  }
-  executeAttackStep(bot, step, dt) {
-    const zone = this.attackZoneForStep(step);
-    let target = this.nearestAttackTargetForStep(bot, step);
-    if (!target) {
-      const patrol = this.zoneCenter(zone, bot);
-      if (zone && patrol && distXY(bot.x, bot.y, patrol.x, patrol.y) > 24 && zone.kind !== 'nearby') {
-        this.moveToward(bot, patrol.x, patrol.y, dt, bot.speed, 20);
-        bot.message = `Moving to attack zone ${this.zoneLabel(zone)}.`;
-        return false;
-      }
-      bot.message = `No ${step.type || 'hostile target'} in ${this.zoneLabel(zone)}.`;
-      return false;
-    }
-    return this.executeAttackTarget(bot, target, dt, this.zoneLabel(zone));
-  }
-  guardCenterForStep(bot, step) {
-    if (!bot.runtime) bot.runtime = { pc: 0, memory: {}, wait: 0 };
-    if (!bot.runtime.memory) bot.runtime.memory = {};
-    const zone = this.attackZoneForStep(step);
-    const zoneCenter = zone && zone.kind !== 'nearby' ? this.zoneCenter(zone, bot) : null;
-    if (zoneCenter) return zoneCenter;
-    const key = `guard:${step.zoneLabel || step.radius || 'current'}`;
-    if (!bot.runtime.memory[key]) bot.runtime.memory[key] = { x: bot.x, y: bot.y };
-    return bot.runtime.memory[key];
-  }
-  guardZoneForStep(bot, step) {
-    const zone = this.attackZoneForStep(step);
-    const radius = clamp(Number(step.radius || zone?.radius || DEFAULT_NEARBY_RADIUS), 40, MAX_NEARBY_RADIUS);
-    if (zone && zone.kind !== 'nearby') return zone;
-    const center = this.guardCenterForStep(bot, step);
-    return { kind: 'radius', x: center.x, y: center.y, radius, name: step.zoneLabel || `${Math.round(radius)}px guard area` };
-  }
-  nearestGuardTargetForStep(bot, step) {
-    const zone = this.guardZoneForStep(bot, step);
-    const type = this.normalizeAttackType(step.type || 'monster');
-    return nearest(this.hostileTargetsForActor(bot, Infinity), bot.x, bot.y, target => this.objectInZone(target, zone, null) && this.attackTargetMatchesType(target, type));
-  }
-  executeGuardAreaStep(bot, step, dt) {
-    const zone = this.guardZoneForStep(bot, step);
-    const target = this.nearestGuardTargetForStep(bot, step);
-    if (target) return this.executeAttackTarget(bot, target, dt, this.zoneLabel(zone));
-    const center = this.guardCenterForStep(bot, step);
-    if (center && distXY(bot.x, bot.y, center.x, center.y) > 22) {
-      this.moveToward(bot, center.x, center.y, dt, bot.speed, 14);
-      bot.message = `Returning to guard center in ${this.zoneLabel(zone)}.`;
-      return false;
-    }
-    bot.message = `Guarding ${this.zoneLabel(zone)}.`;
-    return false;
-  }
-  executePatrolRouteStep(bot, step, dt) {
-    if (!bot.runtime) bot.runtime = { pc: 0, memory: {}, wait: 0 };
-    if (!bot.runtime.memory) bot.runtime.memory = {};
-    const points = Array.isArray(step.points) ? step.points : [];
-    if (points.length < 2) { bot.message = 'Patrol route needs at least two points.'; return false; }
-    const radius = clamp(Number(step.radius || DEFAULT_NEARBY_RADIUS), 40, MAX_NEARBY_RADIUS);
-    const currentIndex = clamp(Number(bot.runtime.memory.patrolIndex || 0), 0, points.length - 1);
-    const checkpoint = points[currentIndex] || points[0];
-    const target = nearest(this.hostileTargetsForActor(bot, Infinity), bot.x, bot.y, t => this.attackTargetMatchesType(t, step.type || 'monster') && (distXY(bot.x, bot.y, t.x, t.y) <= radius || distXY(checkpoint.x, checkpoint.y, t.x, t.y) <= radius));
-    if (target) return this.executeAttackTarget(bot, target, dt, `patrol radius ${Math.round(radius)}`);
-    if (this.moveToward(bot, checkpoint.x, checkpoint.y, dt, bot.speed, 18)) {
-      bot.runtime.memory.patrolIndex = (currentIndex + 1) % points.length;
-      bot.message = `Reached ${checkpoint.name || `checkpoint ${currentIndex + 1}`}; patrolling.`;
-    } else {
-      bot.message = `Patrolling to ${checkpoint.name || `checkpoint ${currentIndex + 1}`}.`;
-    }
-    return false;
-  }
-  executeEquipItemStep(bot, step, dt) {
-    const type = this.normalizeWeaponItemType(step.type);
-    if (!type) { bot.message = 'equip_item supports only sword, shield, or bow.'; return false; }
-    if (this.actorAlreadyHasPickupType(bot, type)) { bot.message = `Already has ${itemLabel(type)} equipped.`; return true; }
-    let item = bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && i.type === type) : null;
-    if (!item) {
-      item = nearest(this.items, bot.x, bot.y, i => i.type === type && (!i.reservedBy || i.reservedBy === bot.id));
-      if (item) { item.reservedBy = bot.id; bot.targetItemId = item.id; bot.targetItemPurpose = 'equip_item'; }
-    }
-    if (!item) { bot.message = `Waiting for loose ${itemLabel(type)} to equip.`; return false; }
-    if (!this.moveBotTo(bot, item, dt, 12)) { bot.message = `Moving to equip ${itemLabel(type)}.`; return false; }
-    const beforeInventory = bot.inventory?.type || null;
-    if (!this.pickItem(bot, item)) return false;
-    bot.message = beforeInventory ? `Carrying ${itemLabel(type)} as extra weaponry.` : `Equipped ${itemLabel(type)}.`;
-    return true;
-  }
-  executeCraftSmitheryStep(bot, step, dt) {
-    const recipe = this.normalizeSmitheryRecipe(step.recipe);
-    const s = this.nearestStructure('smithery', bot.x, bot.y, step.structureId);
-    return this.executeCraftAtProduction(bot, step, dt, s, recipe, 'smithery');
-  }
-  executeCraftBowmakerStep(bot, step, dt) {
-    const recipe = this.normalizeBowmakerRecipe(step.recipe);
-    const s = this.nearestStructure('bowmaker', bot.x, bot.y, step.structureId);
-    return this.executeCraftAtProduction(bot, step, dt, s, recipe, 'bowmaker');
-  }
-  executeCraftArrowmakerStep(bot, step, dt) {
-    const recipe = this.normalizeArrowmakerRecipe(step.recipe);
-    const s = this.nearestStructure('arrowmaker', bot.x, bot.y, step.structureId);
-    return this.executeCraftAtProduction(bot, step, dt, s, recipe, 'arrowmaker');
-  }
-  executeCraftAtProduction(bot, step, dt, s, recipe, structureType) {
-    if (!s || !recipe) { bot.message = `No ${structureType} recipe target available.`; return false; }
-    if (s.type === 'smithery' && smitheryRecipe(s) !== recipe && !this.setSmitheryRecipe(s, recipe)) { bot.message = `${s.name} is busy with ${itemLabel(smitheryRecipe(s))}.`; return false; }
-    const ready = this.structureReadyJob(s)?.recipe === recipe || this.isStructureProcessing(s);
-    if (ready) {
-      if (!this.moveBotTo(bot, s, dt, 34)) { bot.message = `Going to craft ${itemLabel(recipe)} at ${s.name}.`; return false; }
-      this.maybeStartStructureProcessing(s, { bot });
-      bot.message = this.isStructureProcessing(s) ? `${s.name} is ${s.processing.label}.` : `${s.name} completed ${itemLabel(recipe)}.`;
-      return true;
-    }
-    const needs = productionInputNeeds(s) || {};
-    if (bot.inventory) {
-      if (!needs[bot.inventory.type]) { bot.message = `Holding ${itemLabel(bot.inventory.type)}; ${s.name} needs ${Object.keys(needs).map(itemLabel).join(' + ')}.`; return false; }
-      if (!this.moveBotTo(bot, s, dt, 34)) { bot.message = `Supplying ${itemLabel(bot.inventory.type)} to ${s.name}.`; return false; }
-      if (!this.depositHeldItemToStructure(s, bot.inventory.type, { worker: { bot } })) { bot.message = this.isStructureProcessing(s) ? `${s.name} is processing; waiting.` : `${s.name} cannot take ${itemLabel(bot.inventory.type)}.`; return false; }
-      bot.inventory = null;
-      bot.message = this.isStructureProcessing(s) ? `Delivered material and started ${s.processing.label}.` : `Delivered material to ${s.name}.`;
-      return this.isStructureProcessing(s);
-    }
-    const missing = Object.entries(needs).find(([type, cost]) => productionInputCount(s, type) < cost)?.[0];
-    if (!missing) { bot.message = `${s.name} is ready for ${itemLabel(recipe)}.`; return false; }
-    return this.takeLooseItem(bot, missing, dt);
-  }
-  completeTaughtProgram(bot, message = 'Completed DSL program.') {
-    this.releaseReservation(bot);
-    bot.program = 'idle';
-    bot.state = 'idle';
-    bot.message = message;
-    bot.runtime = { pc: 0, memory: {}, wait: 0 };
-    bot.target = null;
-    bot.targetItemId = null;
-    bot.targetItemPurpose = null;
-    bot.targetHoleId = null;
-    bot.timer = 0;
-    this.addFloat(`Bot ${bot.id}: DSL done`, bot.x, bot.y - 22, '#9abf8f');
-    return true;
-  }
-  programTaughtLoop(bot, dt) {
-    const steps = bot.taughtLoop || [];
-    if (!steps.length) { bot.message = 'No taught loop assigned.'; return; }
-    if (bot.runtime.pc >= steps.length) {
-      if (bot.taughtLoopRepeat === false) {
-        this.completeTaughtProgram(bot);
-        return;
-      }
-      bot.runtime.pc = 0;
-    }
-    const step = steps[bot.runtime.pc] || steps[0];
-    const advance = () => {
-      this.releaseReservation(bot);
-      bot.runtime.pc += 1;
-      if (bot.runtime.pc >= steps.length) {
-        if (bot.taughtLoopRepeat === false) {
-          this.completeTaughtProgram(bot);
-          return false;
-        }
-        bot.runtime.pc = 0;
-      }
-      bot.target = null;
-      bot.targetItemId = null;
-      bot.targetItemPurpose = null;
-      bot.targetHoleId = null;
-      bot.timer = 0;
-      bot.runtime.wait = 0;
-      return true;
-    };
-    if (step.op === 'wait') {
-      const duration = clamp(Number(step.seconds ?? 1), 0.1, 30);
-      if (!(bot.runtime.wait > 0)) bot.runtime.wait = duration;
-      bot.runtime.wait = Math.max(0, bot.runtime.wait - dt);
-      bot.message = `Taught loop: waiting ${bot.runtime.wait > 0 ? bot.runtime.wait.toFixed(1) : '0.0'}/${duration.toFixed(1)}s.`;
-      if (bot.runtime.wait <= 0) advance();
-      return;
-    }
-    if (step.op === 'assign_template') {
-      const res = this.assignTemplateToBot(step.botId, step.templateName, { actorBot: bot, reason: `Assigned by ${this.botDisplayName?.(bot) || `Bot ${bot.id}`}` });
-      bot.message = res.ok ? `Assigned template ${res.template.name} to ${this.botDisplayName?.(res.bot) || `Bot ${res.bot.id}`}.` : res.error;
-      if (res.ok && res.bot?.id === bot.id) return;
-      if (res.ok) advance();
-      return;
-    }
-    if (step.op === 'rename_bot') {
-      const targetBot = step.botId ? this.findBot(step.botId) : bot;
-      const res = this.setBotName(targetBot, step.name);
-      bot.message = res.ok
-        ? `Renamed ${res.bot.id === bot.id ? 'this bot' : `Bot ${res.bot.id}`} to ${this.botDisplayName(res.bot)}.`
-        : res.error;
-      if (res.ok) advance();
-      return;
-    }
-    if (step.op === 'promote_to_manager') {
-      const targetBot = step.botId ? this.findBot(step.botId) : bot;
-      const res = this.promoteBotToManager(targetBot, step.knowledgePacks);
-      bot.message = res.ok
-        ? `Promoted ${res.bot.id === bot.id ? 'this bot' : this.botDisplayName(res.bot)} to manager.`
-        : res.error;
-      if (res.ok) advance();
-      return;
-    }
-    if (step.op === 'delegate_to_manager') {
-      const res = this.delegateMessageToManager(bot, step.recipientBotId || step.recipient, step.message, { throttleKey: `${bot.id}:${bot.runtime.pc}:${step.recipientBotId || step.recipient}:${step.message}` });
-      bot.message = res.ok
-        ? (res.throttled ? `Delegate to ${step.recipientName || step.recipient} throttled briefly.` : `Delegated to ${this.botDisplayName(res.manager)}.`)
-        : res.error;
-      if (res.ok) advance();
-      return;
-    }
-    if (step.op === 'follow') {
-      if (this.executeFollowStep(bot, step, dt)) advance();
-      return;
-    }
-    if (step.op === 'attack') {
-      this.executeAttackStep(bot, step, dt);
-      return;
-    }
-    if (step.op === 'guard_area') {
-      this.executeGuardAreaStep(bot, step, dt);
-      return;
-    }
-    if (step.op === 'patrol_route') {
-      this.executePatrolRouteStep(bot, step, dt);
-      return;
-    }
-    if (step.op === 'equip_item') {
-      if (this.executeEquipItemStep(bot, step, dt)) advance();
-      return;
-    }
-    if (step.op === 'craft_smithery') {
-      if (this.executeCraftSmitheryStep(bot, step, dt)) advance();
-      return;
-    }
-    if (step.op === 'craft_bowmaker') {
-      if (this.executeCraftBowmakerStep(bot, step, dt)) advance();
-      return;
-    }
-    if (step.op === 'craft_arrowmaker') {
-      if (this.executeCraftArrowmakerStep(bot, step, dt)) advance();
-      return;
-    }
-    if (step.op === 'deploy_building_kit') {
-      if (this.executeDeployBuildingKitStep(bot, step, dt)) advance();
-      return;
-    }
-    if (step.op === 'disassemble_building_to_kit') {
-      if (this.executeDisassembleBuildingToKitStep(bot, step, dt)) advance();
-      return;
-    }
-    if (step.op === 'pick_up' || step.op === 'pick_up_from_storage') {
-      if (this.actorAlreadyHasPickupType(bot, step.type)) { bot.message = `Taught loop already has ${itemLabel(step.type)}; pick_up skipped.`; advance(); return; }
-      const heldType = this.pickupBlockedByHeldTool(bot, step.type);
-      if (heldType) { bot.message = `Taught loop needs empty hands for ${itemLabel(step.type)}; already holding ${itemLabel(heldType)}.`; return; }
-      if (step.op === 'pick_up_from_storage') { const s = this.resolveRecordedStructure(step, bot); if (s && this.takeStoredItemFromStructure(bot, s, step.type, dt)) { advance(); return; } if (s) { bot.message = `Taught loop waiting for ${itemLabel(step.type)} in ${s.name}.`; return; } }
-      const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
-      let item = bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && i.type === step.type && this.objectInZone(i, zone, bot)) : null;
-      if (!item) { item = nearest(this.items, bot.x, bot.y, i => i.type === step.type && this.objectInZone(i, zone, bot) && (!i.reservedBy || i.reservedBy === bot.id)); if (item) { item.reservedBy = bot.id; bot.targetItemId = item.id; bot.targetItemPurpose = 'taught_loop'; } }
-      if (!item) { bot.message = `Taught loop waiting for loose ${itemLabel(step.type)}.`; return; }
-      if (!this.moveBotTo(bot, item, dt, 12)) { bot.message = `Taught loop: pick_up ${itemLabel(step.type)}.`; return; }
-      if (!this.pickItem(bot, item)) return;
-      bot.message = `Taught loop picked up ${itemLabel(step.type)}.`; advance(); return;
-    }
-    if (step.op === 'move_to_structure') {
-      const s = this.resolveRecordedStructure(step, bot);
-      if (!s) { bot.message = `Taught loop cannot find ${step.structureName || 'structure'}.`; return; }
-      if (!this.moveBotTo(bot, s, dt, 32)) { bot.message = `Taught loop: move_to ${s.name}.`; return; }
-      bot.message = `Taught loop reached ${s.name}.`; advance(); return;
-    }
-    if (step.op === 'take_from_player') {
-      if (this.actorAlreadyHasPickupType(bot, step.type)) { bot.message = `Taught loop already has ${itemLabel(step.type)}; take_from_player skipped.`; advance(); return; }
-      const heldType = this.pickupBlockedByHeldTool(bot, step.type);
-      if (heldType) { bot.message = `Taught loop needs empty hands for ${itemLabel(step.type)}; already holding ${itemLabel(heldType)}.`; return; }
-      if (!this.moveBotTo(bot, this.player, dt, 30)) { bot.message = `Taught loop: take ${itemLabel(step.type)} from player.`; return; }
-      if (!this.takePlayerItemForBot(bot, step.type)) return;
-      bot.message = `Taught loop took ${itemLabel(step.type)} from player.`;
-      advance();
-      return;
-    }
-    if (step.op === 'deposit_to_player') {
-      if (!bot.inventory || bot.inventory.type !== step.type) { bot.message = `Taught loop needs ${itemLabel(step.type)} before bringing it to player.`; bot.runtime.pc = 0; return; }
-      if (!this.moveBotTo(bot, this.player, dt, 30)) { bot.message = `Taught loop: bring ${itemLabel(step.type)} to player.`; return; }
-      if (!this.depositBotItemToPlayer(bot, step.type)) return;
-      bot.message = `Taught loop delivered ${itemLabel(step.type)} to player.`;
-      advance();
-      return;
-    }
-    if (step.op === 'deposit_to_structure') {
-      const s = this.resolveRecordedStructure(step, bot);
-      if (!s) { bot.message = `Taught loop cannot find ${step.structureName || 'structure'}.`; return; }
-      if (!bot.inventory || bot.inventory.type !== step.type) { bot.message = `Taught loop needs ${itemLabel(step.type)} before depositing.`; bot.runtime.pc = 0; return; }
-      if (!this.moveBotTo(bot, s, dt, 32)) { bot.message = `Taught loop: deposit ${itemLabel(step.type)} into ${s.name}.`; return; }
-      if (!this.depositHeldItemToStructure(s, step.type, { worker: { bot } })) { bot.message = this.isStructureProcessing(s) ? `Taught loop waiting for ${s.name} to finish.` : `${s.name} cannot take ${itemLabel(step.type)}.`; return; }
-      bot.inventory = null; bot.message = this.isStructureProcessing(s) ? `Taught loop deposited ${itemLabel(step.type)} and started ${s.processing.label}.` : `Taught loop deposited ${itemLabel(step.type)} into ${s.name}.`; advance(); return;
-    }
-    if (step.op === 'drop_item') {
-      if (!bot.inventory || bot.inventory.type !== step.type) { bot.message = `Taught loop needs ${itemLabel(step.type)} before dropping.`; bot.runtime.pc = 0; return; }
-      const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
-      const target = this.zoneCenter(zone, bot);
-      if (target && !this.moveBotTo(bot, target, dt, 12)) { bot.message = `Taught loop: drop ${itemLabel(step.type)} in ${this.zoneLabel(zone)}.`; return; }
-      this.spawnItem(step.type, bot.x, bot.y, bot.inventory.count || 1);
-      bot.inventory = null;
-      bot.message = `Taught loop dropped ${itemLabel(step.type)} in ${this.zoneLabel(zone)}.`;
-      advance();
-      return;
-    }
-    if (step.op === 'dig_hole') {
-      if (!this.ensureDigTool(bot, dt)) return;
-      const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
-      let spot = bot.target?.kind === 'dig_spot' && this.pointInZone(bot.target.x, bot.target.y, zone, bot) && this.isDiggable(bot.target.x, bot.target.y) ? bot.target : null;
-      if (!spot) { spot = this.findDigSpotInZone(bot, zone); bot.target = spot; bot.timer = 0; }
-      if (!spot) { bot.message = `Taught loop waiting for open dirt in ${this.zoneLabel(zone)}.`; return; }
-      if (!this.moveBotTo(bot, spot, dt, 12)) { bot.message = `Taught loop: dig hole in ${this.zoneLabel(zone)}.`; return; }
-      bot.timer += dt;
-      bot.message = `Taught loop: digging hole (${Math.ceil(bot.timer * 2)}/2).`;
-      if (bot.timer >= 1) {
-        bot.timer = 0;
-        bot.tool.durability--;
-        this.spawnHole(spot.x, spot.y);
-        this.addFloat('Dug hole', spot.x, spot.y - 16, '#6b4a28');
-        this.emitSound('dig', { cooldownKey: `bot:dig:${bot.id}`, minGapMs: 220 });
-        if (bot.tool.durability <= 0) { this.addFloat(`${itemLabel(bot.tool.type)} broke`, bot.x, bot.y - 24, '#c86b5f'); bot.tool = null; }
-        advance();
-      }
-      return;
-    }
-    if (step.op === 'plant_seed') {
-      if (!bot.inventory || bot.inventory.type !== 'tree_seed') { bot.message = 'Taught loop needs tree seed before planting.'; bot.runtime.pc = 0; return; }
-      const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
-      let hole = step.holeId ? this.holes.find(h => h.id === step.holeId && !h.planted && this.objectInZone(h, zone, bot)) : null;
-      if (!hole) hole = this.nearestOpenHole(bot.x, bot.y, zone, Infinity, bot.id, bot);
-      if (!hole) { bot.message = `Taught loop waiting for an open dug hole in ${this.zoneLabel(zone)}.`; return; }
-      if (!this.moveBotTo(bot, hole, dt, 12)) { bot.message = `Taught loop: plant tree seed in ${this.zoneLabel(zone)}.`; return; }
-      this.plantSeedInHole(hole, bot); bot.inventory = null; bot.message = `Taught loop planted tree seed in ${this.zoneLabel(zone)}.`; advance(); return;
-    }
-    if (step.op === 'chop_tree') {
-      if (!this.ensureChopTool(bot, dt)) return;
-      const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
-      let tree = bot.target && this.isChoppableTree(bot.target) && this.objectInZone(bot.target, zone, bot) ? bot.target : null;
-      if (!tree && step.treeId) tree = this.trees.find(t => t.id === step.treeId && this.isChoppableTree(t) && this.objectInZone(t, zone, bot)) || null;
-      if (!tree) tree = nearest(this.trees, bot.x, bot.y, t => this.isChoppableTree(t) && this.objectInZone(t, zone, bot));
-      if (!tree) { bot.message = `Taught loop waiting for a grown tree in ${this.zoneLabel(zone)}.`; return; }
-      bot.target = tree;
-      if (!this.moveBotTo(bot, tree, dt, tree.radius + 14)) { bot.message = `Taught loop: move to tree in ${this.zoneLabel(zone)}.`; return; }
-      bot.timer += dt;
-      bot.message = `Taught loop: chopping tree (${Math.min(RESOURCE_HIT_SECONDS, Math.ceil(bot.timer))}/${RESOURCE_HIT_SECONDS}).`;
-      if (bot.timer >= RESOURCE_HIT_SECONDS) { bot.timer = 0; tree.hp--; this.spawnItem('log', tree.x, tree.y, 1); bot.tool.durability--; if (tree.hp <= 0) { tree.stump = true; tree.regrow = 0; this.spawnItem('stick', tree.x, tree.y, 2); this.spawnItem('tree_seed', tree.x, tree.y, 1); advance(); } }
-      return;
-    }
-    if (step.op === 'search_tree') {
-      const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
-      let tree = bot.target && this.treeSearchAvailable(bot.target, bot.id) && this.objectInZone(bot.target, zone, bot) ? bot.target : null;
-      if (!tree && step.treeId) tree = this.trees.find(t => t.id === step.treeId && this.treeSearchAvailable(t, bot.id) && this.objectInZone(t, zone, bot)) || null;
-      if (!tree) tree = nearest(this.trees, bot.x, bot.y, t => this.treeSearchAvailable(t, bot.id) && this.objectInZone(t, zone, bot));
-      if (!tree) { bot.message = `Taught loop waiting for an unsearched tree in ${this.zoneLabel(zone)}.`; return; }
-      tree.searchReservedBy = bot.id;
-      bot.target = tree;
-      if (!this.moveBotTo(bot, tree, dt, tree.radius + 14)) { bot.message = 'Taught loop: move to tree and search for sticks/seeds.'; return; }
-      bot.timer += dt;
-      bot.message = `Searching tree for sticks/seeds (${Math.ceil(bot.timer)}/${Math.ceil(TREE_SEARCH_SECONDS)}).`;
-      if (bot.timer >= TREE_SEARCH_SECONDS) { this.dropTreeSearchFinds(tree); this.addFloat('Found stick + seed', tree.x, tree.y - 34, '#d3a95f'); advance(); }
-      return;
-    }
-    if (step.op === 'chop_hemp' || step.op === 'search_hemp') {
-      const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
-      if (step.op === 'chop_hemp' && !this.ensureChopTool(bot, dt)) return;
-      if (step.op === 'search_hemp' && bot.inventory) { bot.message = `Taught loop needs empty hands to search hemp.`; return; }
-      let hemp = bot.target && !bot.target.harvested && this.objectInZone(bot.target, zone, bot) ? bot.target : null;
-      if (!hemp && step.hempId) hemp = this.hempPlants.find(h => h.id === step.hempId && !h.harvested && this.objectInZone(h, zone, bot)) || null;
-      if (!hemp) hemp = nearest(this.hempPlants, bot.x, bot.y, h => !h.harvested && this.objectInZone(h, zone, bot) && (step.op === 'chop_hemp' || !h.searched));
-      if (!hemp) { bot.message = `Taught loop waiting for hemp in ${this.zoneLabel(zone)}.`; return; }
-      bot.target = hemp;
-      if (!this.moveBotTo(bot, hemp, dt, (hemp.radius || 14) + 12)) { bot.message = step.op === 'chop_hemp' ? 'Taught loop: move to hemp with axe.' : 'Taught loop: move to hemp and search.'; return; }
-      bot.timer += dt;
-      const total = step.op === 'chop_hemp' ? HEMP_CHOP_SECONDS : HEMP_SEARCH_SECONDS;
-      bot.message = `${step.op === 'chop_hemp' ? 'Chopping' : 'Searching'} hemp (${Math.ceil(bot.timer)}/${Math.ceil(total)}).`;
-      if (bot.timer >= total) {
-        if (step.op === 'chop_hemp') { hemp.harvested = true; this.hempPlants = this.hempPlants.filter(h => h.id !== hemp.id); this.spawnItem('hemp', hemp.x, hemp.y, 1); this.spawnItem('hemp_seed', hemp.x, hemp.y, 1); }
-        else { hemp.searched = true; this.spawnItem('hemp_seed', hemp.x, hemp.y, 1); }
-        advance();
-      }
-      return;
-    }
-    if (step.op === 'mine_stone') {
-      if (!this.ensureMineTool(bot, dt)) return;
-      const zone = step.zoneSpec || (step.zoneId ? this.zones.find(z => z.id === step.zoneId) : null);
-      let rock = bot.target?.type === 'stone_deposit' && !bot.target.depleted && this.objectInZone(bot.target, zone, bot) ? bot.target : null;
-      if (!rock && step.rockId) rock = this.rocks.find(r => r.id === step.rockId && !r.depleted && this.objectInZone(r, zone, bot)) || null;
-      if (!rock) rock = nearest(this.rocks, bot.x, bot.y, r => !r.depleted && this.objectInZone(r, zone, bot));
-      if (!rock) { bot.message = `Taught loop waiting for a stone deposit in ${this.zoneLabel(zone)}.`; return; }
-      bot.target = rock;
-      if (!this.moveBotTo(bot, rock, dt, rock.radius + 14)) { bot.message = `Taught loop: move to stone deposit in ${this.zoneLabel(zone)}.`; return; }
-      bot.timer += dt;
-      bot.message = `Taught loop: mining stone (${Math.min(RESOURCE_HIT_SECONDS, Math.ceil(bot.timer))}/${RESOURCE_HIT_SECONDS}).`;
-      if (bot.timer >= RESOURCE_HIT_SECONDS) { bot.timer = 0; rock.hp--; this.spawnItem('stone', rock.x, rock.y, 1); bot.tool.durability--; if (rock.hp <= 0) { rock.depleted = true; rock.respawn = 24; advance(); } }
-      return;
-    }
-    advance();
-  }
-  programMakePlanks(bot, dt) {
-    const s = this.nearestStructure('sawbench', bot.x, bot.y, bot.targetStructureId);
-    if (!s) return bot.message='No sawbench.';
-    if (!this.moveBotTo(bot, s, dt, 34)) return bot.message=`Going to ${s.name}.`;
-    if (this.isStructureProcessing(s)) return bot.message = `${s.name} is processing ${s.processing.label}.`;
-    if (s.logs <= 0) return bot.message=`${s.name} needs logs.`;
-    this.maybeStartStructureProcessing(s, { bot });
-    bot.message=this.isStructureProcessing(s) ? `Started sawing logs at ${s.name}.` : `${s.name} needs logs.`;
-  }
-  programMakePoles(bot, dt) {
-    const s = this.nearestStructure('sawbench', bot.x, bot.y, bot.targetStructureId);
-    if (!s) return bot.message='No sawbench.';
-    if (!bot.inventory) { this.takePlankSource(bot, dt); return; }
-    if (bot.inventory.type !== 'plank') return bot.message=`Holding ${itemLabel(bot.inventory.type)}; needs plank for ${s.name}.`;
-    if (!this.moveBotTo(bot, s, dt, 34)) return bot.message=`Putting plank into ${s.name}.`;
-    if (!this.depositToSawbench(s, 'plank', { worker: { bot } })) { bot.message = this.isStructureProcessing(s) ? `${s.name} is processing; waiting to add plank.` : `${s.name} cannot take plank.`; return; }
-    bot.inventory = null;
-    bot.message = this.isStructureProcessing(s) ? `Delivered plank and started ${s.processing.label} at ${s.name}.` : `Delivered plank to ${s.name} for pole production.`;
-  }
-  takePlankSource(bot, dt) {
-    const explicitSource = Boolean(bot.sourceStructureId);
-    const sourceId = bot.sourceStructureId || bot.targetStructureId;
-    const saw = sourceId ? this.nearestStructure('sawbench', bot.x, bot.y, sourceId) : null;
-    if (saw && this.takeLooseItemNearStructure(bot, 'plank', dt, saw)) return true;
-    if (saw && explicitSource) return false;
-    return this.takeLooseItem(bot, 'plank', dt);
-  }
-  takePoleSource(bot, dt) {
-    const explicitSource = Boolean(bot.sourceStructureId);
-    const sourceId = bot.sourceStructureId || bot.targetStructureId;
-    const saw = sourceId ? this.nearestStructure('sawbench', bot.x, bot.y, sourceId) : null;
-    if (saw && this.takeLooseItemNearStructure(bot, 'pole', dt, saw)) return true;
-    if (saw && explicitSource) return false;
-    return this.takeLooseItem(bot, 'pole', dt);
-  }
-  takeLogSource(bot, dt) {
-    const saw = bot.sourceStructureId ? this.nearestStructure('sawbench', bot.x, bot.y, bot.sourceStructureId) : null;
-    if (saw) return this.takeLooseItemNearStructure(bot, 'log', dt, saw);
-    return this.takeLooseItem(bot, 'log', dt);
-  }
-  takeLooseItemNearStructure(bot, type, dt, structure, radius = PRODUCTION_SOURCE_RADIUS) {
-    let item = bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && i.type === type && rectDistance(i.x, i.y, structure) <= radius && this.objectInZone(i, this.getBotZone(bot), bot)) : null;
-    if (!item) { item = this.findItemNearStructureFor(bot, type, structure, radius); if (item) { item.reservedBy=bot.id; bot.targetItemId=item.id; bot.targetItemPurpose='production_radius'; } }
-    if (!item) { bot.message=`Waiting for loose ${itemLabel(type)}s around ${structure.name}.`; return false; }
-    if (!this.moveBotTo(bot,item,dt,12)) { bot.message=`Picking up loose ${itemLabel(type)} near ${structure.name}.`; return false; }
-    this.pickItem(bot,item); return true;
-  }
-  takeLooseItem(bot, type, dt) {
-    let item = bot.targetItemId ? this.items.find(i => i.id === bot.targetItemId && i.type === type && this.objectInZone(i, this.getBotZone(bot), bot)) : null;
-    if (!item) { item = this.findItemFor(bot,type); if (item) { item.reservedBy=bot.id; bot.targetItemId=item.id; bot.targetItemPurpose='haul'; } }
-    if (!item) { bot.message=`Waiting for ${itemLabel(type)}s in ${this.zoneLabel(this.getBotZone(bot))}.`; return false; }
-    if (!this.moveBotTo(bot,item,dt,12)) { bot.message=`Picking up ${itemLabel(type)}.`; return false; }
-    this.pickItem(bot,item); return true;
-  }
-  takeFactoryResource(bot, type, dt) {
-    if (type === 'log') return this.takeLogSource(bot, dt);
-    if (type === 'plank') return this.takePlankSource(bot, dt);
-    if (type === 'pole') return this.takePoleSource(bot, dt);
-    return this.takeLooseItem(bot, type, dt);
-  }
-  programHaulPlanks(bot, dt) { if (!bot.inventory) { this.takePlankSource(bot, dt); return; } const f = this.nearestStructure('factory', bot.x, bot.y, bot.targetFactoryId); if (!f) return bot.message='No factory.'; if (!this.moveBotTo(bot, f, dt, 36)) return bot.message=`Delivering plank to ${f.name}.`; if (!this.depositHeldItemToStructure(f, bot.inventory.type, { worker: { bot } })) { bot.message = this.isStructureProcessing(f) ? `${f.name} is processing; waiting to add ${itemLabel(bot.inventory.type)}.` : `${f.name} cannot take ${itemLabel(bot.inventory.type)}.`; return; } bot.inventory=null; bot.message=this.isStructureProcessing(f) ? `Delivered plank and started ${f.processing.label} at ${f.name}.` : `Delivered plank to ${f.name}.`; }
-  programCraftAxes(bot, dt) {
-    const w = this.nearestStructure('workbench', bot.x, bot.y, bot.targetWorkbenchId); if (!w) return bot.message='No crude tool bench.';
-    if (bot.inventory?.type === 'stick' || bot.inventory?.type === 'stone') { if (!this.moveBotTo(bot, w, dt, 34)) return bot.message=`Supplying ${itemLabel(bot.inventory.type)} to ${w.name}.`; if (!this.depositHeldItemToStructure(w, bot.inventory.type, { worker: { bot } })) { bot.message = this.isStructureProcessing(w) ? `${w.name} is processing; waiting to add ${itemLabel(bot.inventory.type)}.` : `${w.name} cannot take ${itemLabel(bot.inventory.type)}.`; return; } bot.inventory=null; bot.message=this.isStructureProcessing(w) ? `Delivered material and started ${w.processing.label} at ${w.name}.` : `Delivered material to ${w.name}.`; return; }
-    if (this.isStructureProcessing(w) || (w.sticks >= 1 && w.stones >= 1)) { if (!this.moveBotTo(bot, w, dt, 34)) return bot.message=`Going to craft at ${w.name}.`; this.maybeStartStructureProcessing(w, { bot }); bot.message = this.isStructureProcessing(w) ? `${w.name} is crafting ${w.processing.label}.` : `${w.name} needs materials.`; return; }
-    const needed = w.sticks < 1 ? 'stick' : 'stone';
-    this.takeLooseItem(bot, needed, dt);
-  }
-  programBuildBots(bot, dt) {
-    const f = this.nearestStructure('factory', bot.x, bot.y, bot.targetFactoryId); if (!f) return bot.message='No factory.';
-    const ready = Object.entries(FACTORY_BOT_RECIPE).every(([type, cost]) => (f[`${type}s`] ?? f[type] ?? 0) >= cost);
-    if (ready || this.isStructureProcessing(f)) { if (!this.moveBotTo(bot, f, dt, 38)) return bot.message=`Assembling bot at ${f.name}.`; this.maybeStartStructureProcessing(f, { bot }); bot.message = this.isStructureProcessing(f) ? `${f.name} is assembling a bot.` : `${f.name} needs materials.`; return; }
-    if (bot.inventory && FACTORY_BOT_RECIPE[bot.inventory.type]) { if (!this.moveBotTo(bot, f, dt, 36)) return bot.message=`Supplying ${itemLabel(bot.inventory.type)} to ${f.name}.`; if (!this.depositHeldItemToStructure(f, bot.inventory.type, { worker: { bot } })) { bot.message = this.isStructureProcessing(f) ? `${f.name} is processing; waiting to add ${itemLabel(bot.inventory.type)}.` : `${f.name} cannot take ${itemLabel(bot.inventory.type)}.`; return; } bot.inventory=null; return; }
-    const missing = Object.entries(FACTORY_BOT_RECIPE).find(([type, cost]) => (f[`${type}s`] ?? f[type] ?? 0) < cost)?.[0];
-    if (missing) this.takeFactoryResource(bot, missing, dt);
-  }
-
   acceptNearestItemForPalette(palette) {
     const item = nearest(this.items, palette.x, palette.y, i => distXY(i.x, i.y, palette.x, palette.y) < 70 && (!palette.storageType || i.type === palette.storageType));
     if (!item) {
@@ -4590,113 +3564,6 @@ export class Game {
     this.syncTeachUi();
     return true;
   }
-  manualPickupItem(item) {
-    if (!item) return false;
-    if (item.reservedBy && item.reservedBy !== 'player') { this.addFloat(`${itemLabel(item.type)} is reserved`, this.player.x, this.player.y - 30, '#c86b5f'); return false; }
-    if (this.player.inventory && !this.isEquipmentItem(item.type)) { this.addFloat(`Carrying ${itemLabel(this.player.inventory.type)}`, this.player.x, this.player.y - 30, '#c86b5f'); return false; }
-    if (this.isEquipmentItem(item.type)) {
-      const equipped = this.equipActorFromGround(this.player, item, 'player');
-      if (equipped) { this.recordTeachStep({ op: 'pick_up', type: item.type }); this.syncTeachUi(); }
-      if (equipped) this.emitSound('equip', { cooldownKey: 'player:equip', minGapMs: 120 });
-      if (equipped) return true;
-      if (item.type === 'arrow_pack') { this.addFloat('Ammo already full', this.player.x, this.player.y - 30, '#c86b5f'); return false; }
-      if (distXY(item.x, item.y, this.player.x, this.player.y) >= 44) return false;
-      if (!this.carryEquipmentItem(this.player, item.type)) { this.addFloat(`Carrying ${itemLabel(this.player.inventory?.type || 'item')}`, this.player.x, this.player.y - 30, '#c86b5f'); return false; }
-      this.items = this.items.filter(i => i.id !== item.id);
-      this.addFloat(`Carrying ${itemLabel(item.type)}`, this.player.x, this.player.y - 30, '#d3a95f');
-      this.emitSound('pickup', { cooldownKey: 'player:pickup', minGapMs: 120 });
-      this.recordTeachStep({ op: 'pick_up', type: item.type });
-      this.syncTeachUi();
-      return true;
-    }
-    if (distXY(item.x, item.y, this.player.x, this.player.y) >= 44) return false;
-    this.player.inventory = { type: item.type, count: 1 };
-    this.items = this.items.filter(i => i.id !== item.id);
-    this.addFloat(`Picked up ${itemLabel(item.type)}`, this.player.x, this.player.y - 30, '#d3a95f');
-    this.emitSound('pickup', { cooldownKey: 'player:pickup', minGapMs: 120 });
-    this.recordTeachStep({ op: 'pick_up', type: item.type });
-    this.syncTeachUi();
-    return true;
-  }
-  manualPickupNearest(type = null) {
-    const item = nearest(this.items, this.player.x, this.player.y, i => (!type || i.type === type) && (!i.reservedBy || i.reservedBy === 'player') && distXY(i.x, i.y, this.player.x, this.player.y) < 44);
-    return this.manualPickupItem(item);
-  }
-  takeStoredItemFromStructure(bot, s, type, dt) {
-    if (!s || (bot.inventory && !this.isEquipmentItem(type)) || !STORAGE_STRUCTURE_TYPES.includes(s.type) || s.storageType !== type || (s.stored || 0) <= 0) return false;
-    if (this.isEquipmentItem(type) && !this.canEquipActor(bot, type) && bot.inventory) return false;
-    if (type === 'arrow_pack' && (bot.ammunition || 0) >= 10) { bot.message = 'Ammo already full.'; return false; }
-    if (!this.moveBotTo(bot, s, dt, 32)) { bot.message = `Taught loop: pick up ${itemLabel(type)} from ${s.name}.`; return false; }
-    s.stored--;
-    if (s.stored <= 0) s.storageType = null;
-    if (this.isEquipmentItem(type)) {
-      if (!this.equipActor(bot, type)) {
-        if (type === 'arrow_pack') { bot.message = 'Ammo already full.'; return false; }
-        this.carryEquipmentItem(bot, type);
-      }
-    } else {
-      bot.inventory = { type, count: 1 };
-    }
-    bot.message = `Taught loop took ${itemLabel(type)} from ${s.name}.`;
-    return true;
-  }
-  manualTakeFromPalette(s) {
-    if (!s || !STORAGE_STRUCTURE_TYPES.includes(s.type)) return false;
-    const type = s.storageType;
-    if (this.player.inventory && !this.isEquipmentItem(type)) { this.addFloat(`Carrying ${itemLabel(this.player.inventory.type)}`, this.player.x, this.player.y - 30, '#c86b5f'); return false; }
-    if (!type || (s.stored || 0) <= 0) { this.addFloat(`${s.name} is empty`, s.x, s.y - 35, '#c86b5f'); return false; }
-    if (rectDistance(this.player.x, this.player.y, s) >= 45) return false;
-    if (this.isEquipmentItem(type) && !this.canEquipActor(this.player, type) && this.player.inventory) { this.addFloat(`Carrying ${itemLabel(this.player.inventory.type)}`, this.player.x, this.player.y - 30, '#c86b5f'); return false; }
-    if (type === 'arrow_pack' && (this.player.ammunition || 0) >= 10) { this.addFloat('Ammo already full', this.player.x, this.player.y - 30, '#c86b5f'); return false; }
-    s.stored--;
-    if (s.stored <= 0) s.storageType = null;
-    if (this.isEquipmentItem(type)) {
-      if (!this.equipActor(this.player, type)) {
-        if (type === 'arrow_pack') { this.addFloat('Ammo already full', this.player.x, this.player.y - 30, '#c86b5f'); return false; }
-        this.carryEquipmentItem(this.player, type);
-      }
-    } else {
-      this.player.inventory = { type, count: 1 };
-    }
-    this.addFloat(`${this.isEquipmentItem(type) && !this.player.inventory ? 'Equipped' : 'Took'} ${itemLabel(type)} from ${s.name}`, this.player.x, this.player.y - 30, '#d3a95f');
-    this.emitSound(this.isEquipmentItem(type) && !this.player.inventory ? 'equip' : 'storage', { cooldownKey: 'player:storage', minGapMs: 120 });
-    this.recordTeachStep({ op: 'pick_up_from_storage', type, structureId: s.id, structureRef: s.ref, structureType: s.type, structureName: s.name, target: s.name });
-    this.syncTeachUi();
-    return true;
-  }
-  manualDropItem() {
-    const held = this.player.inventory;
-    if (!held) {
-      const droppedType = this.dropActiveEquipmentItem(this.player);
-      if (!droppedType) { this.addFloat('Hands empty', this.player.x, this.player.y - 30, '#c86b5f'); return false; }
-      this.addFloat(`Dropped ${itemLabel(droppedType)}`, this.player.x, this.player.y - 30, '#d3a95f');
-      this.emitSound('drop', { cooldownKey: 'player:drop', minGapMs: 120 });
-      this.recordTeachStep(this.dropItemStep(droppedType, this.player.x, this.player.y + 18));
-      this.syncTeachUi();
-      return true;
-    }
-    const dropX = this.player.x, dropY = this.player.y + 18;
-    this.spawnItem(held.type, dropX, dropY, held.count || 1);
-    this.player.inventory = null;
-    this.addFloat(`Dropped ${itemLabel(held.type)}`, this.player.x, this.player.y - 30, '#d3a95f');
-    this.emitSound('drop', { cooldownKey: 'player:drop', minGapMs: 120 });
-    this.recordTeachStep(this.dropItemStep(held.type, dropX, dropY));
-    this.syncTeachUi();
-    return true;
-  }
-  manualDepositToStructure(s = null, { waitIfProcessing = false } = {}) {
-    if (!this.player.inventory) return false;
-    const target = s || this.structures.find(st => rectDistance(this.player.x, this.player.y, st) < 45 && [...STORAGE_STRUCTURE_TYPES, 'sawbench', 'workbench', 'factory', 'smithery', 'bowmaker', 'arrowmaker', 'assembler'].includes(st.type));
-    if (!target) { this.addFloat(`No production building nearby for ${itemLabel(this.player.inventory.type)}`, this.player.x, this.player.y - 30, '#c86b5f'); return false; }
-    const type = this.player.inventory.type;
-    if (this.isStructureProcessing(target)) { if (!waitIfProcessing) this.addFloat(`${target.name} is processing`, target.x, target.y - 35, '#c7b683'); return false; }
-    if (!this.depositHeldItemToStructure(target, type, { worker: { kind: 'player' } })) return false;
-    this.player.inventory = null;
-    this.addFloat(`Deposited ${itemLabel(type)} into ${target.name}`, target.x, target.y - 35, '#d3a95f');
-    this.recordTeachStep({ op: 'deposit_to_structure', type, structureId: target.id, structureRef: target.ref, structureType: target.type, structureName: target.name, target: target.name });
-    this.syncTeachUi();
-    return true;
-  }
   interact() {
     const s = this.structures.find(st => rectDistance(this.player.x,this.player.y,st)<45);
     if (this.player.inventory?.type === 'crude_hammer' && this.manualDemolishStructure(s)) return;
@@ -4706,7 +3573,10 @@ export class Game {
     if (this.player.inventory?.type === 'crude_axe' && this.manualChopTree()) return;
     const hemp = nearest(this.hempPlants, this.player.x, this.player.y, h => !h.harvested && distXY(this.player.x, this.player.y, h.x, h.y) < 46);
     if (hemp && this.queuePlayerHempAction(hemp)) return;
-    if (this.player.inventory && s && this.manualDepositToStructure(s)) return;
+    if (this.player.inventory && s) {
+      if (this.manualDepositToStructure(s, { waitIfProcessing: true })) return;
+      if (this.player.inventory && this.isStructureProcessing(s) && this.queuePlayerStructureDeposit(s)) return;
+    }
     if (!this.player.inventory && this.player.target?.action === 'pickup_item') {
       const targetItem = this.items.find(i => i.id === this.player.target.itemId);
       if (this.manualPickupItem(targetItem)) { this.player.target = null; return; }
@@ -4956,12 +3826,12 @@ export class Game {
     if (status) status.textContent = edit.status || 'Edit JSON, or adjust the DSL cards and accept them.';
   }
 
-  setBotMenuEditSteps(steps) {
+  setBotMenuEditSteps(steps, status = 'DSL cards edited. Accept card flow to activate.') {
     if (!this.botMenuEdit) return false;
     const nextSteps = clone(steps || []);
     for (const step of nextSteps) step.text = this.stepText(step);
     this.botMenuEdit.program = { ...this.botMenuEdit.program, steps: nextSteps };
-    this.botMenuEdit.status = 'DSL cards edited. Accept card flow to activate.';
+    if (status !== null) this.botMenuEdit.status = status;
     return true;
   }
 
@@ -5132,7 +4002,7 @@ export class Game {
     const displayName = this.botDisplayName(bot);
     const statusLabel = this.isManagerBot(bot) ? 'manager' : ((this.isDogBot(bot) || bot.program === 'dog_fetch') ? 'dog' : (bot.status || 'worker'));
     const promoteButton = this.isManagerBot(bot) ? '' : '<button type="button" data-promote-manager>Promote to Manager</button>';
-    const managerSection = this.isManagerBot(bot) ? `<section class="manager-menu" data-manager-section><b>Manager controls</b><p>Status: <code>manager</code> · Known packs: <span data-manager-pack-summary>${escapeHtml((bot.managerKnowledgePacks || []).join(', ') || 'starter_automation')}</span></p><div class="manager-pack-list">${this.renderManagerPackControls(bot)}</div><label class="manager-message-input">Message manager <textarea data-manager-message rows="3" placeholder="make bot 2 chop trees"></textarea></label><button type="button" data-send-manager-message>Send to Manager</button><p class="manager-message-status" data-manager-status></p></section>` : '';
+    const managerSection = this.isManagerBot(bot) ? `<section class="manager-menu" data-manager-section><b>Manager controls</b><p>Status: <code>manager</code> · Known packs: <span data-manager-pack-summary>${escapeHtml((bot.managerKnowledgePacks || []).join(', ') || 'none')}</span></p><div class="manager-pack-list">${this.renderManagerPackControls(bot)}</div><label class="manager-message-input">Message manager <textarea data-manager-message rows="3" placeholder="make bot 2 chop trees"></textarea></label><button type="button" data-send-manager-message>Send to Manager</button><p class="manager-message-status" data-manager-status></p></section>` : '';
     const dogPackSummary = `<span>${escapeHtml((bot.knowledgePacks || []).join(', ') || 'dog_fetch')}</span>`;
     const dogSection = (() => {
       if (!this.isDogBot(bot) && bot.program !== 'dog_fetch') return '';
@@ -5160,7 +4030,7 @@ export class Game {
       const ids = [...el.querySelectorAll('[data-manager-pack]:checked')].map(box => box.dataset.managerPack);
       this.setManagerKnowledgePacks(bot.id, ids);
       const summary = el.querySelector('[data-manager-pack-summary]');
-      if (summary) summary.textContent = (bot.managerKnowledgePacks || []).join(', ') || 'starter_automation';
+      if (summary) summary.textContent = (bot.managerKnowledgePacks || []).join(', ') || 'none';
     }));
     el.querySelector('[data-send-manager-message]')?.addEventListener('click', () => {
       const text = el.querySelector('[data-manager-message]')?.value || '';
@@ -5348,9 +4218,49 @@ export class Game {
     ...this.rocks.map(r=>({ id:r.ref, numericId:r.id, kind:'resource', type:'stone_deposit', name:'stone deposit', x:Math.round(r.x), y:Math.round(r.y), hp:r.hp, maxHp:r.maxHp, depleted:!!r.depleted })),
     ...this.bots.map(b=>({ id:b.ref, numericId:b.id, kind:b.kind || 'bot', name:this.botDisplayName(b), status:b.status||'worker', managerKnowledgePacks:b.managerKnowledgePacks||[], knowledgePacks:b.knowledgePacks||b.managerKnowledgePacks||[], dogFetchMemory:b.dogFetchMemory ? clone(b.dogFetchMemory) : null, dogFetchState:b.dogFetchState ? clone(b.dogFetchState) : null, x:Math.round(b.x), y:Math.round(b.y), hp:b.hp, maxHp:b.maxHp, hostile:!!b.hostile, equipment:this.equipmentSummary(b), program:b.program, teamId:b.teamId||null, teamName:this.botTeam(b)?.name||null }))
   ]; }
-  getState(){ return { gameMode:this.gameMode||this.multiplayer?.mapMode||'test', map:{...this.map}, mapFeatures:clone(this.mapFeatures || []), paused:!!this.paused, fps:Math.round(this.fps||0), targetFps:this.targetFps, dynamicShadowsEnabled:!!this.dynamicShadowsEnabled, lightingEffectsEnabled:this.lightingEffectsEnabled!==false, showFpsOverlay:this.showFpsOverlay!==false, dayNight:this.getDayNightState(), fogOfWar:getFogStats(this.fogOfWar), nightSpawns:clone(this.nightSpawns||{}), multiplayer:this.getMultiplayerSnapshot(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),ammunition:Number(this.player.ammunition||0),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null,targetQueue:(this.player.targetQueue||[]).map(target=>({...target,x:Math.round(target.x),y:Math.round(target.y)}))}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), customTemplates:clone(this.customTemplates || []), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),kind:b.kind||'bot',status:b.status||'worker',managerKnowledgePacks:b.managerKnowledgePacks||[],knowledgePacks:b.knowledgePacks||b.managerKnowledgePacks||[],dogFetchMemory:b.dogFetchMemory?clone(b.dogFetchMemory):null,dogFetchState:b.dogFetchState?clone(b.dogFetchState):null,teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,customTemplateName:b.customTemplateName||'',paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),ammunition:Number(b.ammunition||0),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,label:s.label,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,hammers:s.hammers||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,arrow_packs:s.arrow_packs||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:z.kind==='rect'?Math.round(z.w):undefined,h:z.kind==='rect'?Math.round(z.h):undefined,radius:z.kind==='radius'?Math.round(z.radius||DEFAULT_RESOURCE_RADIUS):undefined})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, rendererBackend:this.renderer.backend || this.renderBackend?.kind || null, webgpuAvailable:this.renderer.webgpu, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
+  getState(){ return { gameMode:this.gameMode||this.multiplayer?.mapMode||'test', map:{...this.map}, mapFeatures:clone(this.mapFeatures || []), campaignArrival:clone(this.campaignArrival || null), paused:!!this.paused, fps:Math.round(this.fps||0), targetFps:this.targetFps, dynamicShadowsEnabled:!!this.dynamicShadowsEnabled, lightingEffectsEnabled:this.lightingEffectsEnabled!==false, showFpsOverlay:this.showFpsOverlay!==false, dayNight:this.getDayNightState(), fogOfWar:getFogStats(this.fogOfWar), nightSpawns:clone(this.nightSpawns||{}), multiplayer:this.getMultiplayerSnapshot(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),ammunition:Number(this.player.ammunition||0),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null,targetQueue:(this.player.targetQueue||[]).map(target=>({...target,x:Math.round(target.x),y:Math.round(target.y)}))}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), customTemplates:clone(this.customTemplates || []), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),kind:b.kind||'bot',status:b.status||'worker',managerKnowledgePacks:b.managerKnowledgePacks||[],knowledgePacks:b.knowledgePacks||b.managerKnowledgePacks||[],dogFetchMemory:b.dogFetchMemory?clone(b.dogFetchMemory):null,dogFetchState:b.dogFetchState?clone(b.dogFetchState):null,teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,customTemplateName:b.customTemplateName||'',paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),ammunition:Number(b.ammunition||0),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,label:s.label,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,hammers:s.hammers||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,arrow_packs:s.arrow_packs||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:z.kind==='rect'?Math.round(z.w):undefined,h:z.kind==='rect'?Math.round(z.h):undefined,radius:z.kind==='radius'?Math.round(z.radius||DEFAULT_RESOURCE_RADIUS):undefined})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, rendererBackend:this.renderer.backend || this.renderBackend?.kind || null, webgpuAvailable:this.renderer.webgpu, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
 }
 
+installProductionSystem(Game, {
+  ASSEMBLER_KIT_RECIPE,
+  BOW_RECIPE,
+  BUILDING_KIT_ITEM_TYPES,
+  BUILDING_TYPES,
+  DEFAULT_ASSEMBLER_RECIPE,
+  FACTORY_BOT_RECIPE,
+  itemLabel,
+  rand
+});
+
+installTaughtLoopSystem(Game, {
+  BUILDING_DISASSEMBLE_SECONDS,
+  BUILDING_KIT_DEPLOY_SECONDS,
+  DEFAULT_FOLLOW_DISTANCE,
+  HEMP_CHOP_SECONDS,
+  HEMP_SEARCH_SECONDS,
+  RESOURCE_HIT_SECONDS,
+  TREE_SEARCH_SECONDS,
+  clamp,
+  itemLabel,
+  nearest
+});
+
+installInventorySystem(Game, {
+  BOT_STORAGE_RETRY_SECONDS,
+  EQUIPMENT_SHIELDS,
+  EQUIPMENT_WEAPONS,
+  MAX_WEAPON_SETS,
+  STORAGE_STRUCTURE_TYPES,
+  clone,
+  createCarriedTool,
+  ensureEquipment,
+  itemLabel,
+  productionInputCount,
+  productionInputNeeds,
+  syncActiveEquipmentSet
+});
+
+installCombatSystem(Game);
 
 
 

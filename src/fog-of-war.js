@@ -309,3 +309,42 @@ export function drawFogOfWarOverlay(c, { fog, map = {}, view, sources = [], occl
   c.drawImage(layer, view.left, view.top);
   c.restore();
 }
+
+export function drawFogOfWarOverlayScreen(c, { fog, map = {}, view, fogView = null, sources = [], occluders = [], nightAmount = 0, zoom = 1, width = 0, height = 0, originX = null, originY = null } = {}) {
+  const normalized = ensureFogOfWarState(fog);
+  const scale = Math.max(0.001, Number.isFinite(zoom) ? zoom : 1);
+  const layerWidth = Math.max(1, Math.ceil(width || (view?.width || 0) * scale));
+  const layerHeight = Math.max(1, Math.ceil(height || (view?.height || 0) * scale));
+  if (!normalized.enabled || !view || view.width <= 0 || view.height <= 0) return;
+  const drawView = fogView || view;
+  if (!drawView || drawView.width <= 0 || drawView.height <= 0) return;
+  const originLeft = Number.isFinite(originX) ? originX : view.left;
+  const originTop = Number.isFinite(originY) ? originY : view.top;
+  const cell = normalized.cellSize || FOG_CELL_SIZE;
+  const layer = createFogLayer(layerWidth, layerHeight, c);
+  const layerContext = layer?.getContext?.('2d');
+  if (!layerContext) return;
+
+  layerContext.save();
+  layerContext.setTransform(1, 0, 0, 1, 0, 0);
+  layerContext.clearRect(0, 0, layerWidth, layerHeight);
+  layerContext.setTransform(scale, 0, 0, scale, -originLeft * scale, -originTop * scale);
+  layerContext.fillStyle = `rgba(1, 5, 9, ${0.82 + clamp(nightAmount, 0, 1) * 0.12})`;
+  layerContext.fillRect(drawView.left, drawView.top, drawView.width, drawView.height);
+  layerContext.globalCompositeOperation = 'destination-out';
+  drawCellLayer(layerContext, normalized.explored, cell, 0.18, drawView, map);
+  drawCellLayer(layerContext, normalized.visible, cell, 1, drawView, map);
+  for (const source of sources || []) {
+    if (source.x + source.radius < drawView.left || source.x - source.radius > drawView.right || source.y + source.radius < drawView.top || source.y - source.radius > drawView.bottom) continue;
+    drawRadialReveal(layerContext, source);
+  }
+  layerContext.globalCompositeOperation = 'source-over';
+  drawOccluderShadows(layerContext, { sources, occluders, view: drawView });
+  layerContext.restore();
+
+  c.save();
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalCompositeOperation = 'source-over';
+  c.drawImage(layer, 0, 0);
+  c.restore();
+}

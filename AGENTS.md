@@ -17,4 +17,10 @@ When adding, changing, or deleting a step, update the whole chain in the same ch
 - UI card/editor fields and the Settings step-chain table representation.
 - Tests that prove the chain is intact.
 
+[`ASSISTANT_PROTOCOL_KERNEL` (line 645)](G:\\Coding\\Projects\\orchestrator-grove-prototype\\src\\assistant.js#L645)
+
 Do not add a new action by only updating one representation. Do not remove or rename a step without removing or renaming all linked representations. If a step is intentionally not available in one layer yet, record that as explicit registry metadata and add or update a test so the gap is visible rather than accidental.
+
+## Rendering policy
+
+Rendering work should be implemented against the Canvas 2D path first. Any new feature, visual change, overlay, or rendering behavior that depends on a renderer should assume the Canvas 2D setting is the standard execution path unless the task explicitly requires PixiJS or another backend.

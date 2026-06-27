@@ -8,6 +8,7 @@ import { createMultiplayerController } from './multiplayer.js?v=t_f62dde4d_modes
 import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f';
 import { createRenderBackend } from './renderers/index.js?v=t_building_kits_0618';
 import { createSimWorkerClient } from './sim/sim-worker-client.js?v=t_building_kits_0618';
+import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js?v=t_campaign_scenes_0623';
 import { LOCAL_AI_PROVIDERS, buildOllamaRequestBody, buildOpenAiCompatibleRequestBody, defaultOllamaEndpoint, estimateTokenCount, formatOllamaFinalPrompt, getDefaultProviderConfig, normalizeAssistantLoadout, normalizeAssistantKnowledgePack, normalizeAssistantPackCatalog, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, summarizeAssistantLoadout, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_building_kits_0618';
 import { createAssistantSemanticRouter } from './assistant-router.js?v=t_building_kits_0618';
 import { formatSemanticRouteSummary } from './semantic-router.js?v=t_building_kits_0618';
@@ -17,7 +18,7 @@ export async function startGame() {
   const $ = id => document.getElementById(id);
   const dom = {
     canvas: $('game'), gameStage: $('gameStage'), chatLog: $('chatLog'), chatForm: $('chatForm'), chatInput: $('chatInput'), micButton: $('micButton'), asrStatus: $('asrStatus'), quickCommands: $('quickCommands'), drawZoneButton: $('drawZoneButton'),
-    botList: $('botList'), statline: $('statline'), rendererStatus: $('rendererStatus'), targetFps: $('targetFps'), targetFpsValue: $('targetFpsValue'), maxBots: $('maxBots'), maxBotsValue: $('maxBotsValue'), performanceProfile: $('performanceProfile'), applyAutoPerformance: $('applyAutoPerformance'), fogOfWarToggle: $('fogOfWarToggle'), lightingEffects: $('lightingEffects'), dynamicShadows: $('dynamicShadows'), showFpsOverlay: $('showFpsOverlay'), pixiHighResolution: $('pixiHighResolution'), pixiAntialias: $('pixiAntialias'), detectedGpu: $('detectedGpu'), detectedVram: $('detectedVram'), detectedProfile: $('detectedProfile'), recommendedBots: $('recommendedBots'), recommendedFps: $('recommendedFps'), performanceNotes: $('performanceNotes'),
+    botList: $('botList'), statline: $('statline'), rendererStatus: $('rendererStatus'), targetFps: $('targetFps'), targetFpsValue: $('targetFpsValue'), maxBots: $('maxBots'), maxBotsValue: $('maxBotsValue'), performanceProfile: $('performanceProfile'), applyAutoPerformance: $('applyAutoPerformance'), fogOfWarToggle: $('fogOfWarToggle'), lightingEffects: $('lightingEffects'), dynamicShadows: $('dynamicShadows'), showFpsOverlay: $('showFpsOverlay'), useCanvas2dRenderer: $('useCanvas2dRenderer'), pixiHighResolution: $('pixiHighResolution'), pixiAntialias: $('pixiAntialias'), detectedGpu: $('detectedGpu'), detectedVram: $('detectedVram'), detectedProfile: $('detectedProfile'), recommendedBots: $('recommendedBots'), recommendedFps: $('recommendedFps'), performanceNotes: $('performanceNotes'),
     teachPanel: $('teachPanel'), teachCloseBtn: $('teachCloseBtn'), teachRecordBtn: $('teachRecordBtn'), teachAssignBtn: $('teachAssignBtn'), teachBotId: $('teachBotId'), teachStatus: $('teachStatus'), teachSteps: $('teachSteps'),
     sawLogs: $('sawLogs'), sawPlanks: $('sawPlanks'), sawPoles: $('sawPoles'), factoryPlanks: $('factoryPlanks'), factoryRecipe: $('factoryRecipe'), looseLogs: $('looseLogs'), loosePlanks: $('loosePlanks'), looseBase: $('looseBase'), paletteItems: $('paletteItems'), programSelect: $('programSelect'), programView: $('programView'),
     llmMode: $('llmMode'), templateRouting: $('templateRouting'), semanticRouting: $('semanticRouting'), semanticRouterStatus: $('semanticRouterStatus'), semanticRouterPackSelect: $('semanticRouterPackSelect'), semanticRouterTrainBtn: $('semanticRouterTrainBtn'), ollamaEndpoint: $('ollamaEndpoint'), ollamaModel: $('ollamaModel'), refreshModels: $('refreshModels'), benchmarkBtn: $('benchmarkBtn'), ollamaStatus: $('ollamaStatus'), llmProviderLabel: $('llmProviderLabel'), serverOllamaBtn: $('serverOllamaBtn'), localOllamaBtn: $('localOllamaBtn'), localTabbyBtn: $('localTabbyBtn'), localOllamaWindowsHelp: $('localOllamaWindowsHelp'), localTabbyHelp: $('localTabbyHelp'), asrMode: $('asrMode'), asrModeHelp: $('asrModeHelp'), browserSttModel: $('browserSttModel'), browserSttDownloadBtn: $('browserSttDownloadBtn'), browserSttUnloadBtn: $('browserSttUnloadBtn'), browserSttStatus: $('browserSttStatus'), browserSttProgress: $('browserSttProgress'), browserSttProgressText: $('browserSttProgressText'),
@@ -119,33 +120,6 @@ export async function startGame() {
   const SAVE_KEY = 'orchestratorGrove.save.v1';
   const SAVE_LIBRARY_KEY = 'orchestratorGrove.saveLibrary.v2';
   const RECENT_SAVE_MS = 30000;
-  const CAMPAIGN_INTRO_SCENES = [
-    {
-      kicker: 'City noise',
-      title: 'Paul had stopped seeing the sun.',
-      text: 'He loved AI early, when it still felt like a secret door to the future. But the big city was all sirens, calendars, office lights, and daylight spent behind glass.'
-    },
-    {
-      kicker: 'A late-night spark',
-      title: 'Then the gadget videos found him.',
-      text: 'One evening, after too many tabs and too much noise, a YouTube rabbit hole showed him a smaller kind of freedom: simple tools, portable power, and a life that could move.'
-    },
-    {
-      kicker: 'The escape kit',
-      title: 'He bought only what could help him build.',
-      text: 'A plain white camper van. A hammock. An ultrabook. Solar panels, a power station, a portable 3D printer and assembler, plus boxes of DIY robotics parts.'
-    },
-    {
-      kicker: 'No return commute',
-      title: 'Paul quit the office and closed the apartment door.',
-      text: 'No dramatic speech. Just a final email, a cancelled lease, and the quiet click of a key left behind. The city kept rushing. Paul drove away from it.'
-    },
-    {
-      kicker: 'The old lake',
-      title: 'He went back to where nature had once felt endless.',
-      text: 'Out in the countryside waited the lake his father had taken him to as a child. This time Paul arrived with a van full of tools, ready to grow a gentler world with little robotic helpers.'
-    }
-  ];
   let campaignIntroActive = false;
   let campaignIntroSceneIndex = 0;
   const PERFORMANCE_PRESETS = {
@@ -211,6 +185,7 @@ export async function startGame() {
       lightingEffects: getLightingEffectsEnabled(),
       dynamicShadows: getDynamicShadowsEnabled(),
       showFpsOverlay: getShowFpsOverlayEnabled(),
+      rendererMode: getRendererModeFromUi(),
       rendererSettings,
       browserSttModel: dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL,
       ai: getCurrentLocalAiConfig()
@@ -227,6 +202,14 @@ export async function startGame() {
       highResolution: dom.pixiHighResolution?.checked ?? DEFAULT_RENDERER_SETTINGS.highResolution,
       antialias: dom.pixiAntialias?.checked ?? DEFAULT_RENDERER_SETTINGS.antialias
     });
+  }
+  function getRendererModeFromUi() {
+    return dom.useCanvas2dRenderer?.checked ? 'canvas2d' : 'pixi';
+  }
+  function syncRendererModeUi(mode = 'canvas2d') {
+    const normalized = String(mode || 'canvas2d').toLowerCase();
+    if (dom.useCanvas2dRenderer) dom.useCanvas2dRenderer.checked = normalized === 'canvas2d';
+    return normalized;
   }
   function syncRendererSettingsUi(settings = DEFAULT_RENDERER_SETTINGS) {
     const normalized = normalizeRendererSettings(settings);
@@ -765,6 +748,7 @@ export async function startGame() {
   let game;
   const params = new URLSearchParams(window.location.search);
   const storedSettings = readJson(SETTINGS_KEY, null);
+  const storedRendererMode = String(storedSettings?.rendererMode || 'canvas2d').toLowerCase();
   const storedRendererSettings = normalizeRendererSettings(storedSettings?.rendererSettings);
   const storedPerformanceProfile = storedSettings?.performanceProfile || 'auto';
   const storedAsrMode = storedSettings?.asrMode || storageGet(ASR_MODE_KEY);
@@ -787,7 +771,8 @@ export async function startGame() {
     browserStt,
     onSubmit: text => handleAssistant(text)
   });
-  const rendererMode = params.get('renderer') || storedSettings?.rendererMode || 'pixi';
+  const rendererMode = params.get('renderer') || storedRendererMode || 'canvas2d';
+  syncRendererModeUi(rendererMode);
   syncRendererSettingsUi(storedRendererSettings);
   const renderBackend = await createRenderBackend({ canvas: dom.canvas, mode: rendererMode, settings: storedRendererSettings });
   game = new Game({ canvas: dom.canvas, chat, dom, isChatActive: () => isChatOpen(), renderBackend });
@@ -1198,8 +1183,20 @@ export async function startGame() {
     return true;
   }
   function finishCampaignIntro(reason = 'finished') {
-    const message = reason === 'skip' ? 'Campaign intro skipped. Welcome to the old lake.' : 'Campaign intro complete. Welcome to the old lake.';
-    return closeCampaignIntro({ resume: true, message });
+    if (reason === 'skip') {
+      const message = 'Campaign intro skipped. Camper van arriving.';
+      closeCampaignIntro({ resume: false, message });
+      setChatOpen(false);
+      game.beginCampaignArrival?.();
+      syncSaveUi(message);
+      return true;
+    }
+    const message = 'Campaign intro complete. Camper van arriving.';
+    closeCampaignIntro({ resume: false, message });
+    setChatOpen(false);
+    game.beginCampaignArrival?.();
+    syncSaveUi(message);
+    return true;
   }
   function advanceCampaignIntro() {
     if (!campaignIntroActive) return false;
@@ -1636,6 +1633,11 @@ export async function startGame() {
     syncPerformanceUi(game.showFpsOverlay ? 'FPS meter visible in the top-right HUD.' : 'FPS meter hidden.');
     saveBrowserSettings();
   });
+  dom.useCanvas2dRenderer?.addEventListener('change', () => {
+    const mode = getRendererModeFromUi();
+    syncPerformanceUi(mode === 'canvas2d' ? 'Canvas 2D renderer selected. Reload the page to switch from Pixi.' : 'Pixi renderer selected. Reload the page to switch from Canvas 2D.');
+    saveBrowserSettings();
+  });
   dom.pixiHighResolution?.addEventListener('change', () => {
     applyRendererSettings(getRendererSettingsFromUi(), {
       save: true,
@@ -1870,6 +1872,10 @@ export async function startGame() {
     if (campaignIntroActive) {
       if (k === 'escape') { e.preventDefault(); finishCampaignIntro('skip'); return; }
       if (k === 'enter' || k === ' ' || k === 'spacebar') { e.preventDefault(); advanceCampaignIntro(); return; }
+    }
+    if (game.campaignArrival?.active) {
+      e.preventDefault();
+      return;
     }
     if (k === 'escape') {
       e.preventDefault();

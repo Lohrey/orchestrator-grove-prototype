@@ -1,7 +1,9 @@
 import { BUILDING_TYPES } from '../data.js?v=t_building_kits_0618';
+import { getCampaignArrivalScene } from '../campaign-scenes.js?v=t_campaign_scenes_0623';
 import { getDepthAnchorY } from '../depth-sort.js?v=t_da28d8dd';
+import { clamp } from '../utils.js?v=20260613-player-tools';
 import {
-  drawFogOfWarOverlay,
+  drawFogOfWarOverlayScreen,
   fogRevealSources as buildFogRevealSources,
   isLightEmittingStructure,
   isPointCurrentlyVisible,
@@ -22,8 +24,16 @@ const BOT_RENDER_MIN_ZOOM = 0.30;
 const BOT_HAND_TOOL_TYPES = new Set(['crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer']);
 const LIGHT_OCCLUDER_PAD = 420;
 const MAX_HIGH_RES_DEVICE_PIXEL_RATIO = 2;
-
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const CHARACTER_FRAME_SIZE = { width: 96, height: 80 };
+const CHARACTER_ANIMATION_NAMES = ['idle', 'run', 'attack1', 'attack2'];
+const CHARACTER_PATHS = {
+  idle: 'IDLE',
+  run: 'RUN',
+  attack1: 'ATTACK 1',
+  attack2: 'ATTACK 2'
+};
+const CHARACTER_SCALE = 1.38;
+const CHARACTER_GROUND_OFFSET = 11;
 
 function normalizeRendererSettings(settings = {}) {
   return {
@@ -74,6 +84,13 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
   app.ticker.stop();
   app.stage.sortableChildren = true;
 
+  const characterAssets = { ready: false };
+  loadCharacterAssets(PIXI).then(assets => {
+    Object.assign(characterAssets, assets);
+  }).catch(error => {
+    console.warn('Character sprites failed to load; using fallback actor rendering.', error);
+  });
+
   const textureCache = new Map();
   const objectMaps = {
     zones: new Map(),
@@ -98,12 +115,13 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
   const depthLayer = new PIXI.Container();
   const effectsLayer = new PIXI.Container();
   const floaterLayer = new PIXI.Container();
+  const worldOverlayLayer = new PIXI.Container();
   const overlayLayer = new PIXI.Container();
   const hudLayer = new PIXI.Container();
 
   depthLayer.sortableChildren = true;
   floaterLayer.sortableChildren = true;
-  worldViewport.addChild(worldStaticLayer, zoneLayer, holeLayer, depthLayer, effectsLayer, floaterLayer);
+  worldViewport.addChild(worldStaticLayer, zoneLayer, holeLayer, depthLayer, effectsLayer, floaterLayer, worldOverlayLayer);
   app.stage.addChild(backgroundLayer, worldViewport, overlayLayer, hudLayer);
 
   const backdrop = new PIXI.Sprite();
@@ -112,7 +130,10 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
   const terrainBaseSprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
   const terrainDetailSprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
   const terrainFeatureSprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
-  worldStaticLayer.addChild(terrainBaseSprite, terrainDetailSprite, terrainFeatureSprite);
+  const campaignArrivalLayer = new PIXI.Container();
+  const campaignArrivalGraphics = new PIXI.Graphics();
+  campaignArrivalLayer.addChild(campaignArrivalGraphics);
+  worldStaticLayer.addChild(terrainBaseSprite, terrainDetailSprite, terrainFeatureSprite, campaignArrivalLayer);
   terrainDetailSprite.visible = false;
 
   const playerView = createActorView(PIXI, {
@@ -121,7 +142,8 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
     bodyColor: 0xeef5ef,
     accentColor: 0x76b77f,
     radius: 14,
-    showLabel: false
+    showLabel: false,
+    characterAssets
   });
   const assistantView = createAssistantView(PIXI);
   const placementPreview = new PIXI.Sprite();
@@ -141,11 +163,16 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
   const overlayContext = overlayCanvas.getContext('2d', { alpha: true });
   const overlayTexture = PIXI.Texture.from(overlayCanvas);
   const overlaySprite = new PIXI.Sprite(overlayTexture);
-  overlayLayer.addChild(overlaySprite);
+  const fogOverlayCanvas = makeCanvas(canvas.width, canvas.height);
+  const fogOverlayContext = fogOverlayCanvas.getContext('2d', { alpha: true });
+  const fogOverlayTexture = PIXI.Texture.from(fogOverlayCanvas);
+  const fogOverlaySprite = new PIXI.Sprite(fogOverlayTexture);
+  worldOverlayLayer.addChild(overlaySprite, fogOverlaySprite);
 
   let lastViewportWidth = 0;
   let lastViewportHeight = 0;
   let lastMapSignature = '';
+  let lastFogOverlaySignature = '';
   let terrainTextures = {
     base: null,
     details: null,
@@ -302,21 +329,23 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
     backdrop.texture = getBackdropTexture(width, height);
     backdrop.width = width;
     backdrop.height = height;
-    const resolution = getRendererResolution(rendererSettings);
-    const physicalWidth = Math.max(1, Math.round(width * resolution));
-    const physicalHeight = Math.max(1, Math.round(height * resolution));
-    if (overlayCanvas.width !== physicalWidth) overlayCanvas.width = physicalWidth;
-    if (overlayCanvas.height !== physicalHeight) overlayCanvas.height = physicalHeight;
-    overlaySprite.width = width;
-    overlaySprite.height = height;
-    overlayTexture.source.update();
-    overlayTexture.update();
+    lastFogOverlaySignature = '';
+  }
+
+  function resizeOverlayCanvas(targetCanvas, targetSprite, targetTexture, width, height, x = 0, y = 0) {
+    if (targetCanvas.width !== width) targetCanvas.width = width;
+    if (targetCanvas.height !== height) targetCanvas.height = height;
+    targetSprite.position.set(x, y);
+    targetSprite.scale.set(1);
+    targetTexture.source.update();
+    targetTexture.update();
   }
 
   function updateWorldStatic(renderState) {
     const featureSignature = JSON.stringify({
       width: renderState.map.width,
       height: renderState.map.height,
+      campaignArrival: renderState.campaignArrival?.active ? renderState.campaignArrival.sceneId || 'active' : 'idle',
       features: (renderState.mapFeatures || []).map(feature => ({
         id: feature.id || null,
         type: feature.type || null,
@@ -398,11 +427,81 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
     const height = renderState.map.height;
     return buildStaticTexture(width, height, layer => {
       for (const feature of renderState.mapFeatures || []) {
+        if (isCampaignArrivalActive(renderState) && feature.id === getCampaignArrivalScene()?.parkedFeatureId) continue;
         const graphic = new PIXI.Graphics();
         layer.addChild(graphic);
         renderMapFeature(graphic, feature);
       }
     });
+  }
+
+  function isCampaignArrivalActive(renderState) {
+    return !!renderState.campaignArrival?.active && renderState.gameMode === 'campaign';
+  }
+
+  function updateCampaignArrival(renderState) {
+    campaignArrivalGraphics.clear();
+    if (!isCampaignArrivalActive(renderState)) return;
+    const scene = getCampaignArrivalScene(renderState.campaignArrival?.sceneId);
+    if (!scene) return;
+    const parkedFeature = (renderState.mapFeatures || []).find(feature => feature.id === scene.parkedFeatureId) || null;
+    const points = scene.path || [];
+    if (points.length < 2) return;
+    const progress = clamp(Number(renderState.campaignArrival?.progress ?? computePolylineProgress(performance.now(), renderState.campaignArrival?.startedAt, scene.durationMs)), 0, 1);
+    const state = samplePolyline(points, progress);
+    const parkedRotation = Number.isFinite(parkedFeature?.rotation) ? parkedFeature.rotation : state.angle;
+    const rotation = state.angle + ((parkedRotation - state.angle) * Math.min(1, progress * 1.15));
+    renderMapFeature(campaignArrivalGraphics, {
+      ...parkedFeature,
+      x: state.x,
+      y: state.y,
+      rotation,
+      label: parkedFeature?.label || 'camper van',
+      hideLabel: true
+    });
+  }
+
+  function computePolylineProgress(now, startedAt, durationMs) {
+    if (!Number.isFinite(now) || !Number.isFinite(startedAt) || !Number.isFinite(durationMs) || durationMs <= 0) return 1;
+    return clamp((now - startedAt) / durationMs, 0, 1);
+  }
+
+  function samplePolyline(points, progress) {
+    const segments = [];
+    let total = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i];
+      const b = points[i + 1];
+      if (!a || !b) continue;
+      const ax = a.x ?? a[0] ?? 0;
+      const ay = a.y ?? a[1] ?? 0;
+      const bx = b.x ?? b[0] ?? 0;
+      const by = b.y ?? b[1] ?? 0;
+      const length = Math.hypot(bx - ax, by - ay);
+      if (length <= 0) continue;
+      segments.push({ ax, ay, bx, by, length, angle: Math.atan2(by - ay, bx - ax) });
+      total += length;
+    }
+    if (!segments.length || total <= 0) {
+      const first = points[0] || {};
+      return { x: first.x ?? first[0] ?? 0, y: first.y ?? first[1] ?? 0, angle: 0 };
+    }
+    const target = total * clamp(progress, 0, 1);
+    let traveled = 0;
+    for (const segment of segments) {
+      const next = traveled + segment.length;
+      if (target <= next) {
+        const local = segment.length ? (target - traveled) / segment.length : 0;
+        return {
+          x: segment.ax + ((segment.bx - segment.ax) * local),
+          y: segment.ay + ((segment.by - segment.ay) * local),
+          angle: segment.angle
+        };
+      }
+      traveled = next;
+    }
+    const last = segments[segments.length - 1];
+    return { x: last.bx, y: last.by, angle: last.angle };
   }
 
   function drawAtmosphericBands(graphics, width, height) {
@@ -755,7 +854,7 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
   }
 
   function updatePlayer(renderState) {
-    updateActorView(playerView, {
+    updateActorView(PIXI, playerView, {
       x: renderState.player.x,
       y: renderState.player.y,
       radius: renderState.player.r || 13,
@@ -766,6 +865,7 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
       inventoryType: renderState.player.inventory?.type || null,
       weaponType: renderState.player.equipment?.weapon || null,
       shieldType: renderState.player.equipment?.shield || null,
+      action: inferPlayerAction(renderState),
       hover: false,
       zIndex: getDepthAnchorY('player', renderState.player)
     }, getItemTexture, getToolTexture);
@@ -897,6 +997,18 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
     return { left, top, width, height, right: left + width, bottom: top + height };
   }
 
+  function getClippedMapView(renderState, view) {
+    const mapWidth = renderState.map?.width || 0;
+    const mapHeight = renderState.map?.height || 0;
+    if (mapWidth <= 0 || mapHeight <= 0) return null;
+    const left = Math.max(0, Math.floor(view?.left ?? 0));
+    const top = Math.max(0, Math.floor(view?.top ?? 0));
+    const right = Math.min(mapWidth, Math.ceil(view?.right ?? mapWidth));
+    const bottom = Math.min(mapHeight, Math.ceil(view?.bottom ?? mapHeight));
+    if (right <= left || bottom <= top) return null;
+    return { left, top, right, bottom, width: right - left, height: bottom - top };
+  }
+
   function circleInView(x, y, radius, view) {
     return x + radius >= view.left && x - radius <= view.right && y + radius >= view.top && y - radius <= view.bottom;
   }
@@ -982,17 +1094,17 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
       const center = structureFogPoint(structure);
       if (!fogStaticVisible(renderState, center.x, center.y)) continue;
       const radius = getFogStructureLightRadius(structure);
-      if (!circleInView(structure.x || 0, structure.y || 0, radius + 24, view)) continue;
+      if (!circleInView(center.x, center.y, radius + 24, view)) continue;
       const alpha = 0.08 + night * 0.34;
       context.save();
       context.globalCompositeOperation = 'screen';
-      const glow = context.createRadialGradient(structure.x || 0, structure.y || 0, 0, structure.x || 0, structure.y || 0, radius);
+      const glow = context.createRadialGradient(center.x, center.y, 0, center.x, center.y, radius);
       glow.addColorStop(0, `rgba(255, 209, 113, ${alpha})`);
       glow.addColorStop(0.45, `rgba(211, 169, 95, ${alpha * 0.46})`);
       glow.addColorStop(1, 'rgba(211, 169, 95, 0)');
       context.fillStyle = glow;
       context.beginPath();
-      context.arc(structure.x || 0, structure.y || 0, radius, 0, Math.PI * 2);
+      context.arc(center.x, center.y, radius, 0, Math.PI * 2);
       context.fill();
       context.restore();
     }
@@ -1025,9 +1137,79 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
     context.restore();
   }
 
+  function fogOverlaySignature(renderState, view, fogView, revealSources, occluders, nightAmount) {
+    const zoom = Math.max(0.001, renderState.camera?.zoom || 1);
+    const cameraX = Math.round((renderState.camera?.x || 0) * zoom);
+    const cameraY = Math.round((renderState.camera?.y || 0) * zoom);
+    const zoomBucket = Math.round(zoom * 1000);
+    const nightBucket = Math.round(clamp(nightAmount || 0, 0, 1) * 20);
+    const sourcesKey = (revealSources || []).map(source => [
+      source.kind || '',
+      Math.round((source.x || 0) * 2),
+      Math.round((source.y || 0) * 2),
+      Math.round(source.radius || 0),
+      Math.round((source.strength ?? 1) * 100)
+    ].join(':')).join('|');
+    const occluderKey = renderState.dynamicShadowsEnabled
+      ? (occluders || []).map(occluder => [
+          occluder.kind || '',
+          Math.round(occluder.x || 0),
+          Math.round(occluder.y || 0),
+          Math.round(occluder.radius || occluder.w || 0),
+          Math.round(occluder.h || 0)
+        ].join(':')).join('|')
+      : '';
+    return [
+      fogOverlayCanvas.width,
+      fogOverlayCanvas.height,
+      renderState.map?.width || 0,
+      renderState.map?.height || 0,
+      renderState.fogOfWar?.revision || 0,
+      renderState.fogOfWar?.cellSize || 0,
+      nightBucket,
+      fogView.left,
+      fogView.top,
+      fogView.right,
+      fogView.bottom,
+      sourcesKey,
+      occluderKey
+    ].join(';');
+  }
+
+  function updateFogOverlay(renderState, view, fogView, revealSources, occluders, nightAmount) {
+    if (!fogOverlayContext || !fogView) {
+      fogOverlaySprite.visible = false;
+      lastFogOverlaySignature = '';
+      return;
+    }
+    const signature = fogOverlaySignature(renderState, view, fogView, revealSources, occluders, nightAmount);
+    fogOverlaySprite.visible = true;
+    if (signature === lastFogOverlaySignature) return;
+    lastFogOverlaySignature = signature;
+    resizeOverlayCanvas(fogOverlayCanvas, fogOverlaySprite, fogOverlayTexture, fogView.width, fogView.height, fogView.left, fogView.top);
+    fogOverlayContext.clearRect(0, 0, fogOverlayCanvas.width, fogOverlayCanvas.height);
+    drawFogOfWarOverlayScreen(fogOverlayContext, {
+      fog: renderState.fogOfWar,
+      map: renderState.map,
+      view: fogView,
+      fogView,
+      sources: revealSources,
+      occluders,
+      nightAmount,
+      zoom: 1,
+      width: fogOverlayCanvas.width,
+      height: fogOverlayCanvas.height,
+      originX: fogView.left,
+      originY: fogView.top
+    });
+    fogOverlayTexture.source.update();
+    fogOverlayTexture.update();
+  }
+
   function updateOverlay(renderState) {
     if (!overlayContext) {
       overlaySprite.visible = false;
+      fogOverlaySprite.visible = false;
       return;
     }
     const lighting = lightingEnabled(renderState);
@@ -1035,41 +1217,36 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
     if (!lighting && !fog) {
       overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
       overlaySprite.visible = false;
+      fogOverlaySprite.visible = false;
+      lastFogOverlaySignature = '';
       overlayTexture.source.update();
       overlayTexture.update();
       return;
     }
     const view = getWorldViewBounds(renderState);
+    const clippedFogView = getClippedMapView(renderState, view);
     const revealSources = fog || lighting ? fogRevealSources(renderState) : [];
-    const occluders = renderState.dynamicShadowsEnabled ? fogLightOccluders(renderState, view) : [];
-    overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-    overlayContext.save();
-    const overlayResolution = getRendererResolution(rendererSettings);
-    overlayContext.setTransform(
-      (renderState.camera?.zoom || 1) * overlayResolution,
-      0,
-      0,
-      (renderState.camera?.zoom || 1) * overlayResolution,
-      -(renderState.camera?.x || 0) * (renderState.camera?.zoom || 1) * overlayResolution,
-      -(renderState.camera?.y || 0) * (renderState.camera?.zoom || 1) * overlayResolution
-    );
-    if (lighting) drawNightTintOverlay(renderState, overlayContext, view);
-    if (lighting) drawStructureLightGlowsOverlay(renderState, overlayContext, view);
-    if (lighting) drawRevealSourceGlowsOverlay(renderState, overlayContext, view, revealSources);
-    if (fog) {
-      drawFogOfWarOverlay(overlayContext, {
-        fog: renderState.fogOfWar,
-        map: renderState.map,
-        view,
-        sources: revealSources,
-        occluders,
-        nightAmount: lighting ? getNightAmount(renderState) : 0
-      });
+    const occluders = renderState.dynamicShadowsEnabled ? fogLightOccluders(renderState, clippedFogView || view) : [];
+    const nightAmount = lighting ? getNightAmount(renderState) : 0;
+    if (lighting && clippedFogView) {
+      resizeOverlayCanvas(overlayCanvas, overlaySprite, overlayTexture, clippedFogView.width, clippedFogView.height, clippedFogView.left, clippedFogView.top);
+      overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      overlayContext.setTransform(1, 0, 0, 1, -clippedFogView.left, -clippedFogView.top);
+      drawNightTintOverlay(renderState, overlayContext, clippedFogView);
+      drawStructureLightGlowsOverlay(renderState, overlayContext, clippedFogView);
+      drawRevealSourceGlowsOverlay(renderState, overlayContext, clippedFogView, revealSources);
+      overlayTexture.source.update();
+      overlayTexture.update();
+      overlaySprite.visible = true;
+    } else {
+      overlaySprite.visible = false;
     }
-    overlayContext.restore();
-    overlayTexture.source.update();
-    overlayTexture.update();
-    overlaySprite.visible = true;
+    if (fog && clippedFogView) {
+      updateFogOverlay(renderState, view, clippedFogView, revealSources, occluders, nightAmount);
+    } else {
+      fogOverlaySprite.visible = false;
+      lastFogOverlaySignature = '';
+    }
   }
 
   return {
@@ -1099,6 +1276,7 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
       worldViewport.position.set(-(renderState.camera?.x || 0) * (renderState.camera?.zoom || 1), -(renderState.camera?.y || 0) * (renderState.camera?.zoom || 1));
       terrainDetailSprite.visible = (renderState.camera?.zoom || 1) >= DECORATIVE_DETAIL_RENDER_MIN_ZOOM;
 
+      updateCampaignArrival(renderState);
       updateZones(renderState);
       updateHoles(renderState);
       updateTrees(renderState);
@@ -1435,7 +1613,7 @@ function updateBotView(container, bot, hover, getItemTexture, getToolTexture) {
   const bodyColor = parseColor(bot.color || '#76b77f');
   const facingRight = (bot.facingX ?? 1) >= 0;
   const inventoryIsHandTool = isBotHandTool(bot.inventory?.type);
-  const handToolTypes = [bot.tool?.type, inventoryIsHandTool ? bot.inventory?.type : null].filter(Boolean);
+  const handToolTypes = inventoryIsHandTool ? [bot.inventory?.type] : [];
   container.position.set(bot.x || 0, bot.y || 0);
   container.zIndex = getDepthAnchorY('bot', bot);
   container.shadow.clear();
@@ -1502,6 +1680,7 @@ function createActorView(PIXI, options) {
   const container = new PIXI.Container();
   container.shadow = new PIXI.Graphics();
   container.body = new PIXI.Graphics();
+  container.character = null;
   container.inventory = new PIXI.Sprite();
   container.inventory.anchor.set(0.5);
   container.weapon = new PIXI.Sprite();
@@ -1514,17 +1693,36 @@ function createActorView(PIXI, options) {
   return { container, options };
 }
 
-function updateActorView(view, actorState, getItemTexture, getToolTexture) {
+function updateActorView(PIXI, view, actorState, getItemTexture, getToolTexture) {
   const { container } = view;
   const radius = actorState.radius || 13;
   container.position.set(actorState.x || 0, actorState.y || 0);
   container.zIndex = actorState.zIndex || 0;
   container.shadow.clear();
   fillPath(container.shadow, 0x000000, 0.28, path => path.ellipse(0, radius + 5, radius + 8, 5));
-  container.body.clear();
-  fillAndStrokePath(container.body, { fill: actorState.bodyColor, fillAlpha: 1, stroke: 0x26322d, strokeWidth: 2 }, path => path.circle(0, 0, radius + 1));
-  const look = getLookOffset(actorState.facingX, actorState.facingY, 4);
-  fillPath(container.body, actorState.accentColor, 1, path => path.circle(look.x, -3 + look.y, 3));
+  const animation = getCharacterAnimationFrame(view.options.characterAssets, actorState);
+  if (animation) {
+    if (!container.character) {
+      container.character = new PIXI.Sprite(animation.textures[0]);
+      container.character.anchor.set(0.5, 1);
+      container.character.visible = false;
+      container.addChildAt(container.character, 1);
+    }
+    container.character.visible = true;
+    container.body.visible = false;
+    const frameTexture = getCharacterFrameTexture(container.character, animation, actorState);
+    if (frameTexture) container.character.texture = frameTexture;
+    container.character.scale.set(animation.scale);
+    container.character.position.set(0, animation.yOffset);
+    container.character.anchor.set(0.5, 1);
+  } else {
+    if (container.character) container.character.visible = false;
+    container.body.visible = true;
+    container.body.clear();
+    fillAndStrokePath(container.body, { fill: actorState.bodyColor, fillAlpha: 1, stroke: 0x26322d, strokeWidth: 2 }, path => path.circle(0, 0, radius + 1));
+    const look = getLookOffset(actorState.facingX, actorState.facingY, 4);
+    fillPath(container.body, actorState.accentColor, 1, path => path.circle(look.x, -3 + look.y, 3));
+  }
   container.inventory.visible = !!actorState.inventoryType;
   if (actorState.inventoryType) {
     container.inventory.texture = getItemTexture(actorState.inventoryType);
@@ -1619,4 +1817,166 @@ function parseColor(value) {
 
 function isBotHandTool(type) {
   return BOT_HAND_TOOL_TYPES.has(type);
+}
+
+async function loadCharacterAssets(PIXI) {
+  const basePath = '/public/assets/character/Sprites';
+  const entries = await Promise.all(CHARACTER_ANIMATION_NAMES.flatMap(name => ['up', 'down', 'left', 'right'].map(async direction => {
+    const folder = CHARACTER_PATHS[name];
+    const file = `${basePath}/${folder}/${name}_${direction}.png`;
+    try {
+      const image = await loadImage(file);
+      const animation = sliceCharacterSheet(PIXI, image, CHARACTER_FRAME_SIZE);
+      return [`${name}:${direction}`, animation];
+    } catch {
+      return [`${name}:${direction}`, null];
+    }
+  })));
+  const byAction = {};
+  for (const [key, frameTextures] of entries) {
+    const [name, direction] = key.split(':');
+    (byAction[name] ||= {})[direction] = frameTextures;
+  }
+  return {
+    ready: true,
+    ...byAction
+  };
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`Failed to load character asset: ${src}`));
+    image.src = src;
+  });
+}
+
+function sliceCharacterSheet(PIXI, image, frameSize) {
+  const bounds = findOpaqueBounds(image, frameSize);
+  if (!bounds) return null;
+  const frames = [];
+  const columns = Math.max(1, Math.floor((image.width || 0) / frameSize.width));
+  const rows = Math.max(1, Math.floor((image.height || 0) / frameSize.height));
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < columns; col++) {
+      const canvas = document.createElement('canvas');
+      canvas.width = bounds.width;
+      canvas.height = bounds.height;
+      const ctx = canvas.getContext('2d', { alpha: true });
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(
+        image,
+        col * frameSize.width + bounds.x,
+        row * frameSize.height + bounds.y,
+        bounds.width,
+        bounds.height,
+        0,
+        0,
+        bounds.width,
+        bounds.height
+      );
+      const texture = PIXI.Texture.from(canvas);
+      frames.push(texture);
+    }
+  }
+  return { textures: frames, scale: CHARACTER_SCALE, yOffset: CHARACTER_GROUND_OFFSET };
+}
+
+function getCharacterAnimationFrame(characterAssets, actorState) {
+  if (!characterAssets?.ready) return null;
+  const facing = getFacingDirection(actorState.facingX, actorState.facingY);
+  const action = getCharacterAction(actorState.action);
+  const animationKey = action === 'attack' ? (Math.floor(performance.now() / 250) % 2 === 0 ? 'attack1' : 'attack2') : action;
+  const animation = characterAssets[animationKey] || characterAssets.idle;
+  const textures = animation?.[facing]?.textures || animation?.down?.textures;
+  if (!Array.isArray(textures) || textures.length === 0) return null;
+  const speed = action === 'run' ? 70 : action === 'attack' ? 55 : 110;
+  return {
+    textures,
+    speed,
+    scale: animation?.[facing]?.scale || animation?.down?.scale || CHARACTER_SCALE,
+    yOffset: animation?.[facing]?.yOffset || animation?.down?.yOffset || CHARACTER_GROUND_OFFSET
+  };
+}
+
+function getCharacterFrameTexture(characterSprite, animation, actorState) {
+  const textures = animation.textures || [];
+  if (textures.length === 0) return null;
+  const now = performance.now();
+  const action = getCharacterAction(actorState.action);
+  const stateKey = `${action}:${getFacingDirection(actorState.facingX, actorState.facingY)}:${textures.length}`;
+  characterSprite._animState ||= { key: null, startedAt: 0, frameIndex: 0, lastFrameIndex: -1 };
+  const animState = characterSprite._animState;
+  if (animState.key !== stateKey) {
+    animState.key = stateKey;
+    animState.startedAt = now;
+    animState.frameIndex = 0;
+    animState.lastFrameIndex = -1;
+  }
+  if (action === 'attack') {
+    const attackDuration = 280;
+    const elapsed = now - animState.startedAt;
+    const lastIndex = textures.length - 1;
+    const nextIndex = elapsed >= attackDuration ? lastIndex : Math.min(lastIndex, Math.floor((elapsed / attackDuration) * textures.length));
+    animState.frameIndex = nextIndex;
+  } else {
+    const frameDuration = Math.max(50, animation.speed || 100);
+    animState.frameIndex = Math.floor((now - animState.startedAt) / frameDuration) % textures.length;
+  }
+  return textures[animState.frameIndex] || textures[0];
+}
+
+function findOpaqueBounds(image, frameSize) {
+  const canvas = document.createElement('canvas');
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0);
+  const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const alpha = data[(y * width + x) * 4 + 3];
+      if (alpha <= 0) continue;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (maxX < minX || maxY < minY) return null;
+  const frameX = minX % frameSize.width;
+  const frameY = minY % frameSize.height;
+  const widthPx = Math.min(frameSize.width, maxX - minX + 1);
+  const heightPx = Math.min(frameSize.height, maxY - minY + 1);
+  return {
+    x: frameX,
+    y: frameY,
+    width: widthPx,
+    height: heightPx
+  };
+}
+
+function getCharacterAction(action) {
+  const value = String(action || '').toLowerCase();
+  if (value.includes('attack')) return 'attack';
+  if (value.includes('run') || value.includes('move') || value.includes('walk') || value.includes('dash') || value.includes('target')) return 'run';
+  if (value.includes('hurt') || value.includes('death') || value.includes('heal')) return 'idle';
+  return 'idle';
+}
+
+function getFacingDirection(facingX = 1, facingY = 0) {
+  if (Math.abs(facingX) > Math.abs(facingY)) return facingX < 0 ? 'left' : 'right';
+  return facingY < 0 ? 'up' : 'down';
+}
+
+function inferPlayerAction(renderState) {
+  if (renderState.player?.attackCooldown > 0) return 'attack';
+  if (renderState.player?.target || (Array.isArray(renderState.player?.targetQueue) && renderState.player.targetQueue.length > 0)) return 'run';
+  return 'idle';
 }

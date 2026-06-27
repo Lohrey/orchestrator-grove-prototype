@@ -5,10 +5,12 @@ export function createRenderState(game) {
   return {
     W: game.W,
     H: game.H,
+    gameMode: game.gameMode || game.multiplayer?.mapMode || 'test',
     map: { ...game.map },
     camera: { ...game.camera },
     zones: game.zones,
     mapFeatures: game.mapFeatures || [],
+    campaignArrival: game.campaignArrival ? { ...game.campaignArrival, path: Array.isArray(game.campaignArrival.path) ? game.campaignArrival.path.map(point => ({ ...point })) : game.campaignArrival.path } : null,
     rocks: game.rocks,
     holes: game.holes,
     trees: game.trees,

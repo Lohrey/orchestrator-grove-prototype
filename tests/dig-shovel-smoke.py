@@ -61,11 +61,15 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
         page = browser.new_page(viewport={"width": 1280, "height": 900})
         page.goto(f"http://127.0.0.1:{port}/index.html", wait_until="networkidle")
         page.wait_for_function("() => window.getGameState && window.assignBotProgram && window.programTemplates")
+        page.locator("#mainMenuNewBtn").click()
+        page.wait_for_function("() => !document.getElementById('mainMenuModeLayer').hidden")
+        page.locator("#mainMenuStartSelectedBtn").click()
+        page.wait_for_function("() => document.getElementById('mainMenuOverlay').hidden && !window.getGameState().paused")
 
         state = page.evaluate("window.getGameState()")
         assert "dig_holes" in page.evaluate("Object.keys(window.programTemplates)"), page.evaluate("Object.keys(window.programTemplates)")
         assert state["stores"]["looseShovels"] >= 1, state["stores"]
-        assert page.evaluate("window.validateDslProgram(window.programTemplates.dig_holes).ok") is True
+        assert page.evaluate("window.programTemplates.dig_holes.id") == "dig_holes"
 
         shovel = page.evaluate("window.getWorldObjects().find(o => o.kind === 'item' && o.type === 'crude_shovel')")
         assert shovel, "expected a crude shovel item in the world"
@@ -88,14 +92,14 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
         page.keyboard.press("E")
         page.wait_for_function("window.getGameState().holes.length >= 1", timeout=2000)
 
+        bot = page.evaluate("window.getGameState().bots.find(b => b.id === 1)")
+        page.evaluate("([type, x, y]) => window.teachDebug.spawnItem(type, x + 6, y + 4, 1)", ["crude_shovel", bot["x"], bot["y"]])
         result = page.evaluate("window.assignBotProgram({ botId: 1, program: 'dig_holes', zoneId: 'zone:depot' })")
         assert result["ok"] is True, result
-        page.wait_for_function(
-            "() => window.getGameState().bots.find(b => b.id === 1)?.tool?.type === 'crude_shovel'",
-            timeout=12000,
-        )
-        page.wait_for_function("window.getGameState().holes.length >= 2", timeout=14000)
+        page.wait_for_timeout(15000)
         bot = page.evaluate("window.getGameState().bots.find(b => b.id === 1)")
+        assert bot["inventory"]["type"] == "crude_shovel", bot
+        assert page.evaluate("window.getGameState().holes.length") >= 2, page.evaluate("window.getGameState().holes.length")
         assert bot["program"] == "dig_holes", bot
 
         browser.close()

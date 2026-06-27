@@ -139,7 +139,7 @@ with socketserver.TCPServer(("127.0.0.1", 0), functools.partial(QuietHandler, di
                   try {
                     window.validateAssistantDslAssignments([{ botId: 1, program: { steps: [
                       { op: 'pick_up', type: 'log' },
-                      { op: 'drop_item', type: 'log' }
+                      { op: 'drop_item' }
                     ] } }]);
                     return { ok: true };
                   } catch (err) {
