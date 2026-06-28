@@ -12,6 +12,13 @@ import {
   drawHeldToolAsset,
   drawMiniItemAsset
 } from '../../visual-assets.js?v=t_building_kits_0618';
+import {
+  getSpriteCache,
+  isSpriteCacheReady,
+  botSpriteKey,
+  playerSpriteKey,
+  SPRITE_SIZE
+} from '../shared/sprite-cache.js?v=t_sprite_cache_0628';
 
 function drawMiniItem(c, x, y, type) {
   c.save();
@@ -120,7 +127,8 @@ export function drawDogBot(game, c, b, now) {
   c.restore();
 }
 
-export function drawBot(game, c, b, now) {
+// Original vector-path bot drawing, kept as fallback for debugging or when sprite cache isn't ready
+export function drawBotVector(game, c, b, now) {
   if (b.kind === 'dog') return drawDogBot(game, c, b, now);
   const hover = game.mouse.hoverBot === b;
   const inventoryIsHandTool = isBotHandTool(b.inventory?.type);
@@ -150,6 +158,81 @@ export function drawBot(game, c, b, now) {
   drawAmmoBadge(c, b, b.x, b.y + b.r + 16);
   if (hover) drawNameTag(c, b.name || `Bot ${b.id}`, b.x, b.y - b.r - 24);
   c.restore();
+}
+
+// Fast sprite-based bot drawing — single drawImage call for the body, then overlay details
+export function drawBot(game, c, b, now) {
+  if (b.kind === 'dog') return drawDogBotSprite(game, c, b, now);
+  const hover = game.mouse.hoverBot === b;
+  const inventoryIsHandTool = isBotHandTool(b.inventory?.type);
+  const facingRight = (b.facingX ?? 1) >= 0;
+  const handToolTypes = inventoryIsHandTool ? [b.inventory.type] : [];
+
+  // Try sprite path; fall back to vector if cache not ready or on hover (hover needs the pulse effect)
+  const spriteCache = getSpriteCache();
+  const useSprite = spriteCache && !hover;
+
+  if (useSprite) {
+    const key = botSpriteKey(b);
+    const sprite = spriteCache[key];
+    if (sprite) {
+      // Single drawImage blit for the body
+      c.drawImage(sprite, b.x - SPRITE_SIZE / 2, b.y - SPRITE_SIZE / 2);
+
+      // Overlay pass: name badge, items, tools (only when zoomed in enough to see them)
+      const zoom = game.camera?.zoom || 1;
+      if (zoom >= 0.5) {
+        c.save();
+        c.fillStyle = '#06100d';
+        c.font = '800 10px system-ui';
+        c.textAlign = 'center';
+        c.fillText(b.id, b.x, b.y + 3);
+        if (b.inventory && !inventoryIsHandTool) drawMiniItem(c, b.x - 1, b.y - 24, b.inventory.type);
+        handToolTypes.slice(0, 2).forEach((type, index) => {
+          const side = (index === 0 ? 1 : -1) * (facingRight ? 1 : -1);
+          drawHeldToolAsset(c, b.x + side * (b.r + 8), b.y + 5 + index * 2, type);
+        });
+        if (b.equipment?.weapon) drawHeldToolAsset(c, b.x + 17, b.y - 5, b.equipment.weapon);
+        if (b.equipment?.shield) drawHeldToolAsset(c, b.x - 17, b.y - 7, b.equipment.shield);
+        drawAmmoBadge(c, b, b.x, b.y + b.r + 16);
+        c.restore();
+      }
+      return;
+    }
+  }
+
+  // Fallback: full vector drawing
+  drawBotVector(game, c, b, now);
+}
+
+// Fast sprite-based dog bot drawing
+function drawDogBotSprite(game, c, b, now) {
+  const hover = game.mouse.hoverBot === b;
+  const spriteCache = getSpriteCache();
+  const useSprite = spriteCache && !hover;
+
+  if (useSprite) {
+    const key = botSpriteKey(b);
+    const sprite = spriteCache[key];
+    if (sprite) {
+      c.drawImage(sprite, b.x - SPRITE_SIZE / 2, b.y - SPRITE_SIZE / 2);
+      // Overlay: name + inventory
+      const zoom = game.camera?.zoom || 1;
+      if (zoom >= 0.5) {
+        c.save();
+        c.fillStyle = '#d7e8cf';
+        c.font = '800 9px system-ui';
+        c.textAlign = 'center';
+        c.fillText(b.name || 'Dog', b.x, b.y + (b.r || 12) + 14);
+        if (b.inventory) drawMiniItem(c, b.x, b.y - (b.r || 12) * 1.75, b.inventory.type);
+        c.restore();
+      }
+      return;
+    }
+  }
+
+  // Fallback: full vector dog drawing
+  drawDogBot(game, c, b, now);
 }
 
 export function pushRemotePlayersToDepth(game, c, view, depthDrawables, now) {
@@ -195,17 +278,29 @@ function drawAmmoBadge(c, actor, x, y) {
 export function drawPlayerActor(game, c, now) {
   c.save();
   const breathe = Math.sin(now / 520) * .8;
-  drawShadow(c, game.player.x, game.player.y + game.player.r + 5, game.player.r + 8, 5, .28);
-  const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
-  // Tint player red-ish when low HP
   const hpRatio = Math.max(0, Math.min(1, (game.player.hp ?? 0) / Math.max(1, game.player.maxHp || 10)));
   const lowHp = hpRatio <= 0.3;
-  c.fillStyle = lowHp ? '#f5d8d4' : '#eef5ef';
-  c.strokeStyle = '#26322d';
-  c.lineWidth = 2;
-  c.beginPath(); c.arc(game.player.x, game.player.y + breathe, game.player.r + 1, 0, Math.PI * 2); c.fill(); c.stroke();
-  c.fillStyle = '#76b77f';
-  c.beginPath(); c.arc(game.player.x + look.x, game.player.y - 3 + breathe + look.y, 3, 0, Math.PI * 2); c.fill();
+
+  // Try sprite path for body
+  const spriteCache = getSpriteCache();
+  const sprite = spriteCache ? spriteCache[playerSpriteKey(game.player)] : null;
+
+  if (sprite) {
+    c.drawImage(sprite, game.player.x - SPRITE_SIZE / 2, game.player.y - SPRITE_SIZE / 2 + breathe);
+  } else {
+    // Fallback: vector drawing
+    drawShadow(c, game.player.x, game.player.y + game.player.r + 5, game.player.r + 8, 5, .28);
+    const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
+    c.fillStyle = lowHp ? '#f5d8d4' : '#eef5ef';
+    c.strokeStyle = '#26322d';
+    c.lineWidth = 2;
+    c.beginPath(); c.arc(game.player.x, game.player.y + breathe, game.player.r + 1, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.fillStyle = '#76b77f';
+    c.beginPath(); c.arc(game.player.x + look.x, game.player.y - 3 + breathe + look.y, 3, 0, Math.PI * 2); c.fill();
+  }
+
+  // Overlay pass (always for player since it's important)
+  const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
   if (game.player.inventory) {
     drawMiniItem(c, game.player.x, game.player.y - 25, game.player.inventory.type);
     drawNameTag(c, game.player.inventory.type, game.player.x, game.player.y - 34);
