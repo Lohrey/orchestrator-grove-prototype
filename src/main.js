@@ -13,13 +13,13 @@ import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=t_
 import { LOCAL_AI_PROVIDERS, defaultOllamaEndpoint, getDefaultProviderConfig, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_building_kits_0618';
 import { escapeHtml } from './utils.js?v=20260613-player-tools';
 // UI module imports — extracted from the monolithic startGame() closure
-import { createDomHelpers } from './ui/dom-helpers.js?v=ui_fix_boot_0628';
-import { createChatUi } from './ui/chat-ui.js?v=ui_fix_boot_0628';
-import { createRendererSettings } from './ui/renderer-settings.js?v=ui_fix_boot_0628';
-import { createPerformanceUi } from './ui/performance-ui.js?v=ui_fix_boot_0628';
-import { createProviderUi } from './ui/provider-ui.js?v=ui_fix_boot_0628';
-import { createFullscreenUi } from './ui/fullscreen-ui.js?v=ui_fix_boot_0628';
-import { createAssistantUi } from './ui/assistant-ui.js?v=ui_fix_boot_0628';
+import { createDomHelpers } from './ui/dom-helpers.js?v=grove_fixes_0628';
+import { createChatUi } from './ui/chat-ui.js?v=grove_fixes_0628';
+import { createRendererSettings } from './ui/renderer-settings.js?v=grove_fixes_0628';
+import { createPerformanceUi } from './ui/performance-ui.js?v=grove_fixes_0628';
+import { createProviderUi } from './ui/provider-ui.js?v=grove_fixes_0628';
+import { createFullscreenUi } from './ui/fullscreen-ui.js?v=grove_fixes_0628';
+import { createAssistantUi } from './ui/assistant-ui.js?v=grove_fixes_0628';
 
 export async function startGame() {
   const $ = id => document.getElementById(id);
@@ -703,21 +703,15 @@ export async function startGame() {
     campaignIntroActive = true;
     campaignIntroSceneIndex = 0;
     game.setPaused(true);
-    // Hide the static HTML overlay — cinematic draws directly on canvas
-    dom.campaignIntroOverlay.hidden = true;
-    dom.campaignIntroOverlay.classList.add('is-hidden');
+    // Render scene 0 text into the DOM and reveal the overlay as the primary
+    // intro interaction surface (the HTML card carries the skip/advance buttons
+    // that the campaign-mode smoke test drives and that keyboard input maps to).
+    renderCampaignIntroScene();
+    dom.campaignIntroOverlay.hidden = false;
+    dom.campaignIntroOverlay.classList.remove('is-hidden');
     // Clean up any previous cinematic instance
     if (campaignCinematic) { campaignCinematic.destroy(); campaignCinematic = null; }
-    // Create and start the canvas cinematic
-    campaignCinematic = createCampaignIntroCinematic({
-      canvas: game.canvas,
-      audio: audio,
-      scenes: CAMPAIGN_INTRO_SCENES,
-      onComplete: (reason) => { campaignCinematic = null; finishCampaignIntro(reason === 'skip' ? 'skip' : 'finished'); },
-      onSkip: () => { campaignCinematic = null; finishCampaignIntro('skip'); }
-    });
-    campaignCinematic.start();
-    syncSaveUi('Campaign intro cinematic playing. Press Esc to skip.');
+    syncSaveUi('Campaign intro. Enter/Space advances · Esc skips.');
     return true;
   }
   function setMainMenuOpen(open, { keepPaused = false } = {}) {

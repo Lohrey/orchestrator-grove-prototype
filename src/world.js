@@ -11,7 +11,7 @@ import { FOG_CELL_SIZE, createFogOfWar, fogRevealSources as createFogRevealSourc
 import { clamp, rand, distXY, nearest, pointInRect, rectDistance, canvasPoint, escapeHtml } from './utils.js?v=20260613-player-tools';
 import { installCameraSystem } from './systems/camera-system.js?v=t_camera_system_0627';
 import { installPlayerSystem } from './systems/player-system.js?v=t_player_system_0627';
-import { installMonsterSystem } from './systems/monster-system.js?v=t_monster_system_0627';
+import { installMonsterSystem } from './systems/monster-system.js?v=grove_fixes_0628';
 import { installStructureSystem } from './systems/structure-system.js?v=t_structure_system_0627';
 import { installBotSystem } from './systems/bot-system.js?v=t_bot_system_0627';
 import { installTeachSystem } from './systems/teach-system.js?v=t_teach_system_0627';

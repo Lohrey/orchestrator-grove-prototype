@@ -30,6 +30,11 @@ source of truth for what action steps are actually possible.
 - ES modules; the entry point is `src/main.js`, imported by `index.html`/`game.js`.
 - Keep the plain-HTML run path working without a bundler for these modules.
 - Bundler/TypeScript/Svelte-only surfaces live under `src/ui/` and the worker under `src/sim/`.
+- Campaign intro is driven by the **HTML overlay card** (`#campaignIntroOverlay` in `index.html`,
+  populated by `renderCampaignIntroScene()` in `main.js`); its Skip/Next buttons and the
+  Esc/Enter/Space keys are the interaction surface. `campaign-intro-cinematic.js` is an optional
+  canvas cinematic module (currently not wired into the active intro path) — do not re-wire it to
+  hide the HTML overlay, since the smoke test and skip input depend on the overlay staying visible.
 
 ## Verification
 - `npm run test:steps` → `node tests/action-step-chain-integrity.mjs` (binding for the chain).

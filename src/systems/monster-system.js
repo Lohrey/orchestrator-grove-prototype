@@ -4,6 +4,9 @@
 
 import { clamp, distXY, nearest, rand, rectDistance } from '../utils.js?v=20260613-player-tools';
 
+/** Center point of an axis-aligned rect (structure), matching world.js's local helper. */
+const rectCenter = z => ({ x: z.x + z.w / 2, y: z.y + z.h / 2 });
+
 export function installMonsterSystem(Game, deps) {
   const {
     NIGHT_MONSTER_CONFIG,
