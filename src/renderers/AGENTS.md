@@ -20,10 +20,17 @@ Orchestrator Grove prototype maintainers.
 ## Work Guidance
 - Prefer a single selection entry in `index.js`; both backends expose the same surface.
 - Do not introduce bundler-only code into the canvas2d renderer.
+- Pixi overlay sprites (fog, night/lighting) are parented inside `worldViewport` so the Pixi
+  transform pipeline moves/scales them with the camera. Their local position must be set every
+  frame from the current world-clipped view bounds (`fogView.left/top`), not only when a texture
+  redraw signature changes — otherwise the sprite drifts relative to the world during pan/zoom.
+  The signature gates only the expensive canvas redraw, not the cheap position update.
 
 ## Verification
 - Render behavior is covered by smoke tests under `tests/` (e.g. render-viewport-culling,
   depth-sorting, fog-night-cycle smoke tests).
+- `npm run test:pixi-fog-drift` → `node tests/pixi-fog-drift-unit.mjs` — unit test for the Pixi
+  fog overlay positioning math (signature gating + per-frame sprite repositioning).
 
 ## Child DOX Index
 - None.

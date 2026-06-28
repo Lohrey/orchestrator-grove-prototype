@@ -48,7 +48,7 @@ import {
   drawPlayerActor,
   drawPlayerTarget,
   pushRemotePlayersToDepth
-} from './renderers/canvas2d/entities-layer.js?v=t_renderer_split_0627';
+} from './renderers/canvas2d/entities-layer.js?v=t_health_system_0628';
 
 import {
   drawFloaters,
@@ -63,7 +63,7 @@ import {
   drawZoneDraft
 } from './renderers/canvas2d/overlay-layer.js?v=t_renderer_split_0627';
 
-import { drawHud } from './renderers/canvas2d/hud-layer.js?v=t_renderer_split_0627';
+import { drawHud } from './renderers/canvas2d/hud-layer.js?v=t_health_system_0628';
 
 // Re-export public API surface that tests and consumers rely on
 export {

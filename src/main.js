@@ -2,11 +2,11 @@ import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS
 import { createChatController } from './chat.js?v=20260613-player-tools';
 import { createAudioController } from './audio.js?v=t_3ef6c5ab_menu_polish';
 import { createBrowserSttController, DEFAULT_BROWSER_STT_MODEL } from './browser-stt.js';
-import { Game } from './world.js?v=t_building_kits_0618';
+import { Game } from './world.js?v=t_health_system_0628';
 import { createSaveGameManager, GAME_MODE_LABELS, normalizeGameMode } from './savegames.js?v=t_777178b3';
 import { createMultiplayerController } from './multiplayer.js?v=t_f62dde4d_modes';
 import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f';
-import { createRenderBackend } from './renderers/index.js?v=t_building_kits_0618';
+import { createRenderBackend } from './renderers/index.js?v=t_health_system_0628';
 import { createSimWorkerClient } from './sim/sim-worker-client.js?v=t_building_kits_0618';
 import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js?v=t_campaign_scenes_0623';
 import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=t_intro_cinematic_0627';
@@ -1237,7 +1237,7 @@ export async function startGame() {
   dom.knowledgePackList?.addEventListener('click', e => {
     const edit = e.target.closest('[data-edit-custom-pack]');
     if (edit) {
-      const pack = customActionPacks[edit.dataset.editCustomPack];
+      const pack = assistantModule.customActionPacks[edit.dataset.editCustomPack];
       if (pack) clearCustomPackForm(pack);
       return;
     }
@@ -1379,6 +1379,7 @@ export async function startGame() {
       setSettingsOpen(true);
       return;
     }
+    if (k === 'r' && !e.repeat && game.player?.dead) { e.preventDefault(); game.respawnPlayer(); return; }
     if (k === 'enter' && !chat.isTypingTarget(e.target) && dom.settingsOverlay.hidden) { e.preventDefault(); if (!isChatOpen()) { setBuildDrawerOpen(false); setZonesDrawerOpen(false); game.hideMenus(); setChatOpen(true); } else dom.chatInput.focus(); return; }
     if ((k === 'l') && !chat.isTypingTarget(e.target)) { e.preventDefault(); toggleChat(); return; }
     if ((k === 'b') && !chat.isTypingTarget(e.target)) { e.preventDefault(); toggleBuildDrawer(); return; }
@@ -1411,11 +1412,11 @@ export async function startGame() {
     train: (text, packId, options = {}) => semanticRouter.train(text, packId, { knowledgePacks: options.knowledgePacks || getActionPackCatalog(), loadout: options.loadout || getAssistantLoadout() }),
     syncCatalog: () => semanticRouter.syncCatalog(getActionPackCatalog(), getAssistantLoadout())
   };
-  window.getCustomActionPacks = () => JSON.parse(JSON.stringify(customActionPacks));
+  window.getCustomActionPacks = () => JSON.parse(JSON.stringify(assistantModule.customActionPacks));
   window.createCustomActionPack = pack => upsertCustomActionPack(pack);
-  window.updateCustomActionPack = (id, patch = {}) => upsertCustomActionPack({ ...(customActionPacks[id] || {}), ...patch, id });
+  window.updateCustomActionPack = (id, patch = {}) => upsertCustomActionPack({ ...(assistantModule.customActionPacks[id] || {}), ...patch, id });
   window.deleteCustomActionPack = deleteCustomActionPack;
-  window.clearCustomActionPacks = () => { customActionPacks = {}; persistCustomActionPacks('Cleared custom action packs.'); return {}; };
+  window.clearCustomActionPacks = () => { assistantModule.customActionPacks = {}; persistCustomActionPacks('Cleared custom action packs.'); return {}; };
   window.getActionPackCatalog = getActionPackCatalog;
   window.renderKnowledgePackSelector = renderKnowledgePackSelector;
   window.generateAssistantDsl = (text, options = {}) => parseAssistantRequest(text, game, { enableTemplates: options.enableTemplates ?? true, loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
@@ -1489,7 +1490,10 @@ export async function startGame() {
     tickPlayer: seconds => { game.updatePlayer(Number(seconds) || 0); return window.getGameState(); },
     tickProduction: seconds => { game.updateProductionStructures(Number(seconds) || 0); return window.getGameState(); },
     tickCombat: seconds => { game.updatePlayer(Number(seconds) || 0); game.updateRangedAttackStructures(Number(seconds) || 0); game.updateProjectiles(Number(seconds) || 0); return window.getGameState(); },
-    tickWorld: seconds => { game.update(Number(seconds) || 0); return window.getGameState(); }
+    tickWorld: seconds => { game.update(Number(seconds) || 0); return window.getGameState(); },
+    damagePlayer: (amount = 1) => { game.player.invulnerableUntil = 0; game.damagePlayer(amount); return window.getGameState(); },
+    respawnPlayer: () => { game.respawnPlayer(); return window.getGameState(); },
+    getPlayerHealthState: () => ({ hp: game.player.hp, maxHp: game.player.maxHp, dead: !!game.player.dead, invulnerable: (game.player.invulnerableUntil ?? 0) > (game.worldTime || 0) })
   };
   window.dogDebug = {
     fetch: (botId, text) => game.setDogFetchCommand(botId, text),

@@ -1,4 +1,4 @@
-import { drawWorld } from '../canvas-renderer.js?v=t_building_kits_0618';
+import { drawWorld } from '../canvas-renderer.js?v=t_health_system_0628';
 
 export function createCanvas2dRenderer({ canvas }) {
   const ctx = canvas.getContext('2d', { alpha: false });

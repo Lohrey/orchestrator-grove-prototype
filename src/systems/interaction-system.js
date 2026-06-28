@@ -2,7 +2,7 @@
 // Canvas event binding, tap/context handling, hover detection, and context menus.
 // Part of the Game class composition root — installed via installInteractionSystem(Game, deps).
 
-import { distXY, escapeHtml } from '../utils.js?v=20260613-player-tools';
+import { distXY, escapeHtml, canvasPoint } from '../utils.js?v=20260613-player-tools';
 
 export function installInteractionSystem(Game, deps) {
   const {
@@ -16,6 +16,7 @@ export function installInteractionSystem(Game, deps) {
   Object.assign(Game.prototype, {
     handleCanvasTap(p, { allowMoveOnEmpty = false } = {}) {
       Object.assign(this.mouse, p);
+      if (this.player?.dead) { this.respawnPlayer(); return true; }
       if (this.justDraggedZone) { this.justDraggedZone = false; return true; }
       if (this.justDrewZone) { this.justDrewZone = false; return true; }
       if (this.zoneDraft?.active) return true;
@@ -279,6 +280,7 @@ export function installInteractionSystem(Game, deps) {
       }, { passive: false });
       this.canvas.addEventListener('click', e => {
         if (this.suppressNextClick) { this.suppressNextClick = false; e.preventDefault(); return; }
+        if (this.player?.dead && typeof this.respawnPlayer === 'function') { this.respawnPlayer(); e.preventDefault(); return; }
         const p = this.canvasToWorld(e);
         this.handleCanvasTap(p, { allowMoveOnEmpty: false });
       });

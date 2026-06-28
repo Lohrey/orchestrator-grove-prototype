@@ -11,6 +11,10 @@ Key files (not exhaustive): `main.js`, `world.js`, `action-steps.js`, `data.js`,
 `chat.js`, `audio.js`, `browser-runtime.js`, `canvas-renderer.js`, `campaign-scenes.js`,
 `campaign-intro-cinematic.js`, `depth-sort.js`, `fog-of-war.js`, `render-state.js`,
 `savegames.js`, `multiplayer.js`, `utils.js`, `visual-assets.js`.
+Systems live under `src/systems/` as mixins installed via `install*System(Game, deps)` at the
+bottom of `world.js`. Notable system mixins: `player-system.js`, `monster-system.js`,
+`combat/combat-system.js`, `health-system.js` (player damage/death/respawn/regen),
+`interaction-system.js`, `spawn-system.js`, `structure-system.js`, `bot-system.js`.
 
 ## Ownership
 Orchestrator Grove prototype maintainers. The backend working code in `world.js` is the ultimate
@@ -38,6 +42,7 @@ source of truth for what action steps are actually possible.
 
 ## Verification
 - `npm run test:steps` → `node tests/action-step-chain-integrity.mjs` (binding for the chain).
+- `python3 tests/player-health-mechanic-smoke.py` — verifies player damage, death, respawn, and passive regen.
 - Various Python smoke tests under `tests/` exercise runtime behavior.
 
 ## Child DOX Index

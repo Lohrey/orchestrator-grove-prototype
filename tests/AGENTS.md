@@ -7,7 +7,8 @@ Verification surface for the prototype. Mostly Python browser smoke tests (drive
 running game), plus Node `.mjs` integrity/unit checks. These tests are how changes are proven.
 
 Notable binding checks: `action-step-chain-integrity.mjs` (proves the Action Step Mechanism Chain
-is intact), `orchestrator-actions-unit.mjs`, `building-kits-unit.mjs`, `zoom-culling-focused.mjs`.
+is intact), `orchestrator-actions-unit.mjs`, `building-kits-unit.mjs`, `zoom-culling-focused.mjs`,
+`pixi-fog-drift-unit.mjs`.
 
 ## Ownership
 Orchestrator Grove prototype maintainers.
@@ -27,7 +28,7 @@ Orchestrator Grove prototype maintainers.
 ## Verification
 - `npm run test:steps` → `node tests/action-step-chain-integrity.mjs`.
 - `npm run test:sim-worker`, `npm run test:architecture`, `npm run test:camera`,
-  `npm run test:zoom-culling` (see `package.json`).
+  `npm run test:zoom-culling`, `npm run test:pixi-fog-drift` (see `package.json`).
 - Run individual smoke tests directly: `python3 tests/<name>-smoke.py`.
 
 ## Child DOX Index

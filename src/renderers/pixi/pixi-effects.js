@@ -1,5 +1,4 @@
 import {
-  clamp,
   lightingEnabled,
   fogEnabled,
   getNightAmount,
@@ -25,6 +24,8 @@ import {
 } from '../../fog-of-war.js?v=t_building_kits_0618';
 
 const fogHelpers = { isPointCurrentlyVisible, isPointExplored };
+
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
 export function drawNightTintOverlay(renderState, context, view) {
   const night = getNightAmount(renderState);
@@ -83,11 +84,7 @@ export function drawRevealSourceGlowsOverlay(renderState, context, view, revealS
   context.restore();
 }
 
-export function fogOverlaySignature(renderState, view, fogView, revealSources, occluders, nightAmount, fogOverlayCanvas) {
-  const zoom = Math.max(0.001, renderState.camera?.zoom || 1);
-  const cameraX = Math.round((renderState.camera?.x || 0) * zoom);
-  const cameraY = Math.round((renderState.camera?.y || 0) * zoom);
-  const zoomBucket = Math.round(zoom * 1000);
+export function fogOverlaySignature(renderState, fogView, revealSources, occluders, nightAmount) {
   const nightBucket = Math.round(clamp(nightAmount || 0, 0, 1) * 20);
   const sourcesKey = (revealSources || []).map(source => [
     source.kind || '',
@@ -106,8 +103,6 @@ export function fogOverlaySignature(renderState, view, fogView, revealSources, o
       ].join(':')).join('|')
     : '';
   return [
-    fogOverlayCanvas.width,
-    fogOverlayCanvas.height,
     renderState.map?.width || 0,
     renderState.map?.height || 0,
     renderState.fogOfWar?.revision || 0,
@@ -131,8 +126,16 @@ export function updateFogOverlay(renderState, view, fogView, revealSources, occl
     lastFogOverlaySignatureRef.value = '';
     return;
   }
-  const signature = fogOverlaySignature(renderState, view, fogView, revealSources, occluders, nightAmount, fogOverlayCanvas);
   fogOverlaySprite.visible = true;
+  // Reposition the sprite every frame so it tracks the camera exactly.
+  // The sprite is parented inside worldViewport (worldOverlayLayer), so Pixi's
+  // own transform pipeline handles the camera scale/translate for it. We only
+  // need to set its local world-space position from the current fogView bounds.
+  fogOverlaySprite.position.set(fogView.left, fogView.top);
+  fogOverlaySprite.scale.set(1);
+
+  // Only do the expensive canvas redraw when the content actually changed.
+  const signature = fogOverlaySignature(renderState, fogView, revealSources, occluders, nightAmount);
   if (signature === lastFogOverlaySignatureRef.value) return;
   lastFogOverlaySignatureRef.value = signature;
   resizeOverlayCanvas(fogOverlayCanvas, fogOverlaySprite, fogOverlayTexture, fogView.width, fogView.height, fogView.left, fogView.top);
@@ -182,6 +185,9 @@ export function updateOverlay(renderState, {
   const occluders = renderState.dynamicShadowsEnabled ? fogLightOccluders(renderState, clippedFogView || view, fogHelpers) : [];
   const nightAmount = lighting ? getNightAmount(renderState) : 0;
   if (lighting && clippedFogView) {
+    // Reposition the lighting overlay sprite every frame (same drift fix as fog).
+    overlaySprite.position.set(clippedFogView.left, clippedFogView.top);
+    overlaySprite.scale.set(1);
     resizeOverlayCanvas(overlayCanvas, overlaySprite, overlayTexture, clippedFogView.width, clippedFogView.height, clippedFogView.left, clippedFogView.top);
     overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
     overlayContext.setTransform(1, 0, 0, 1, -clippedFogView.left, -clippedFogView.top);

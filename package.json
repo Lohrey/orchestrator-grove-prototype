@@ -15,6 +15,7 @@
     "test:architecture": "npm run test:steps && python3 tests/sim-worker-smoke.py && python3 tests/architecture-overlay-smoke.py && npm run test:dog-fetch",
     "test:camera": "python3 tests/camera-shift-speed-smoke.py && python3 tests/mobile-touch-camera-bounds-smoke.py",
     "test:zoom-culling": "node tests/zoom-culling-focused.mjs",
+    "test:pixi-fog-drift": "node tests/pixi-fog-drift-unit.mjs",
     "build:sim-worker": "esbuild src/sim/sim-worker.ts --bundle --format=esm --outfile=src/sim/sim-worker.js --target=es2022",
     "build:architecture": "npm run build:wasm && npm run build:sim-worker && npm run build:ui",
     "postinstall": "node scripts/copy-onnx-wasm.mjs && node scripts/copy-browser-stt-vendor.mjs"

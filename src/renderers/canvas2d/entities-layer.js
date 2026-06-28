@@ -197,7 +197,10 @@ export function drawPlayerActor(game, c, now) {
   const breathe = Math.sin(now / 520) * .8;
   drawShadow(c, game.player.x, game.player.y + game.player.r + 5, game.player.r + 8, 5, .28);
   const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
-  c.fillStyle = '#eef5ef';
+  // Tint player red-ish when low HP
+  const hpRatio = Math.max(0, Math.min(1, (game.player.hp ?? 0) / Math.max(1, game.player.maxHp || 10)));
+  const lowHp = hpRatio <= 0.3;
+  c.fillStyle = lowHp ? '#f5d8d4' : '#eef5ef';
   c.strokeStyle = '#26322d';
   c.lineWidth = 2;
   c.beginPath(); c.arc(game.player.x, game.player.y + breathe, game.player.r + 1, 0, Math.PI * 2); c.fill(); c.stroke();
@@ -211,6 +214,9 @@ export function drawPlayerActor(game, c, now) {
   if (game.player.equipment?.shield) drawHeldToolAsset(c, game.player.x - 18, game.player.y - 5, game.player.equipment.shield);
   drawAmmoBadge(c, game.player, game.player.x, game.player.y + 28);
   c.restore();
+  // ── Health bar above player (green→yellow→red gradient) ──
+  const barColor = hpRatio > 0.6 ? '#5ecf6e' : hpRatio > 0.3 ? '#d3a95f' : '#c86b5f';
+  drawBar(c, game.player.x - 22, game.player.y - game.player.r - 18, 44, 5, hpRatio, barColor);
 }
 
 export function drawPlayerTarget(game, c) {
