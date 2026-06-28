@@ -120,6 +120,31 @@ export async function probeRenderer({ userAgent = navigator.userAgent, gpu = nav
   }
 }
 
+// Render-path performance multipliers for maxBots recommendations.
+// WebGL2 batcher (instanced) handles 5-10× more sprites than Canvas2D.
+// OffscreenCanvas + worker offloads the render thread, 2-3× improvement.
+export const RENDER_PATH_MULTIPLIERS = {
+  webgl2: { recommended: 5, cap: 5 },      // 5× for WebGL2 instanced batcher
+  offscreen: { recommended: 2, cap: 3 },    // 2-3× for OffscreenCanvas worker
+  canvas2d: { recommended: 1, cap: 1 }      // baseline (Tier 1 sprite cache still helps)
+};
+
+/**
+ * Apply render-path multiplier to a GPU profile's bot recommendations.
+ * @param {object} profile - GPU profile from probeRenderer
+ * @param {string} renderPath - 'webgl2' | 'offscreen' | 'canvas2d'
+ * @returns {object} adjusted profile with recommendedMaxBots and maxBotsCap scaled
+ */
+export function applyRenderPathMultiplier(profile, renderPath = 'canvas2d') {
+  const mult = RENDER_PATH_MULTIPLIERS[renderPath] || RENDER_PATH_MULTIPLIERS.canvas2d;
+  return {
+    ...profile,
+    renderPath,
+    recommendedMaxBots: Math.round((profile.recommendedMaxBots || 48) * mult.recommended),
+    maxBotsCap: Math.round((profile.maxBotsCap || 120) * mult.cap)
+  };
+}
+
 export function startGameLoop(game, { requestFrame = requestAnimationFrame } = {}) {
   let lastTick = 0;
   let frameDebt = 0;

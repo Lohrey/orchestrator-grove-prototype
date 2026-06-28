@@ -12,9 +12,22 @@ export async function createRenderBackend({ canvas, mode = 'canvas2d', capture =
     }
   }
 
-  // Try OffscreenCanvas + worker path (Tier 2) — only for canvas2d mode
-  // The offscreen renderer does its own feature detection and pings the worker
-  // before transferring the canvas, so if it fails, the fallback Canvas2D path still works.
+  // WebGL2 path (Tier 3): highest performance for large sprite counts
+  // Disabled by default — opt-in via ?renderer=webgl2 URL param or mode flag
+  // The Canvas2D + OffscreenCanvas path is the default for canvas2d mode
+  if (normalized === 'webgl2') {
+    try {
+      const { createWebGL2Renderer, isWebGL2Supported } = await import('./webgl2-renderer.js?v=t_webgl2_0628');
+      if (isWebGL2Supported()) {
+        const gl2 = await createWebGL2Renderer({ canvas });
+        if (gl2) return gl2;
+      }
+    } catch (err) {
+      console.warn('WebGL2 renderer failed; falling back', err);
+    }
+  }
+
+  // OffscreenCanvas + worker path (Tier 2)
   if (normalized === 'canvas2d' && isOffscreenCanvasSupported()) {
     try {
       const offscreen = await createOffscreenRenderer({ canvas });
@@ -24,5 +37,6 @@ export async function createRenderBackend({ canvas, mode = 'canvas2d', capture =
     }
   }
 
+  // Main-thread Canvas2D fallback (Tier 1)
   return createCanvas2dRenderer({ canvas });
 }
