@@ -1,10 +1,9 @@
 // src/ui/chat-ui.js — chat message helpers and AI log formatting.
-// v=t_ui_refactor_0627
+// v=ui_fix_boot_0628
 
 import { estimateTokenCount, formatOllamaFinalPrompt } from '../assistant.js?v=t_building_kits_0618';
-import { parseJsonPreview, stringifyLog } from './dom-helpers.js?v=t_ui_refactor_0627';
 
-export function createChatUi({ dom }) {
+export function createChatUi({ dom, parseJsonPreview, stringifyLog }) {
   function addChat(kind, html) {
     const d = document.createElement('div');
     const labels = { user: 'You', assistant: 'Orchestrator', system: 'System', error: 'Error' };

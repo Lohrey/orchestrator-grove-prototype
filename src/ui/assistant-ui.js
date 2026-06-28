@@ -1,6 +1,6 @@
 // src/ui/assistant-ui.js — assistant loadout, prompt preview, semantic router UI,
 // action pack editors, and custom pack alias editor.
-// v=t_ui_refactor_0627
+// v=ui_fix_boot_0628
 
 import {
   ASSISTANT_KNOWLEDGE_PACKS,
@@ -19,9 +19,8 @@ import {
 import { createAssistantSemanticRouter } from '../assistant-router.js?v=t_building_kits_0618';
 import { formatSemanticRouteSummary } from '../semantic-router.js?v=t_building_kits_0618';
 import { escapeHtml } from '../utils.js?v=20260613-player-tools';
-import { formatTokenCount } from './chat-ui.js?v=t_ui_refactor_0627';
 
-export function createAssistantUi({ dom }) {
+export function createAssistantUi({ dom, formatTokenCount }) {
   const ASSISTANT_LOADOUT_KEY = 'orchestratorGrove.assistantLoadout.v1';
   const CUSTOM_ACTION_PACKS_KEY = 'orchestratorGrove.customActionPacks.v1';
 

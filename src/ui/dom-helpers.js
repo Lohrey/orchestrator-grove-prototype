@@ -1,5 +1,5 @@
 // src/ui/dom-helpers.js — pure DOM/utility helpers extracted from startGame() closure.
-// v=t_ui_refactor_0627
+// v=ui_fix_boot_0628
 
 export function createDomHelpers() {
   const $ = id => document.getElementById(id);

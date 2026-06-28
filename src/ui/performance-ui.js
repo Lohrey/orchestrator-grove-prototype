@@ -1,7 +1,8 @@
 // src/ui/performance-ui.js — performance HUD, presets, and bot-limit clamping.
-// v=t_ui_refactor_0627
+// v=ui_fix_boot_0628
 
-export function createPerformanceUi({ dom, game, PERFORMANCE_PRESETS }) {
+export function createPerformanceUi({ dom, getGame, PERFORMANCE_PRESETS }) {
+  const game = () => getGame && getGame();
   const clampBotLimit = value => {
     const min = Number(dom.maxBots?.min || 4);
     const max = Number(dom.maxBots?.max || 1000);
@@ -14,7 +15,8 @@ export function createPerformanceUi({ dom, game, PERFORMANCE_PRESETS }) {
     dom.maxBots.max = String(safeLimit);
     dom.maxBots.step = '1';
     if (Number(dom.maxBots.value) > safeLimit) dom.maxBots.value = String(safeLimit);
-    if (game && Number(game.maxBots) > safeLimit) game.maxBots = safeLimit;
+    const g = game();
+    if (g && Number(g.maxBots) > safeLimit) g.maxBots = safeLimit;
   }
 
   function setPerformanceProfileValue(profile) {
@@ -23,10 +25,12 @@ export function createPerformanceUi({ dom, game, PERFORMANCE_PRESETS }) {
   }
 
   function syncPerformanceUi(message = '', getRendererRecommendation) {
+    const g = game();
     const recommendation = typeof getRendererRecommendation === 'function' ? getRendererRecommendation() : {};
     setMaxBotsUiLimit(recommendation.maxBotsCap);
-    if (dom.targetFpsValue) dom.targetFpsValue.textContent = String(game.targetFps);
-    if (dom.maxBotsValue) dom.maxBotsValue.textContent = String(game.maxBots);
+    if (!g) return;
+    if (dom.targetFpsValue) dom.targetFpsValue.textContent = String(g.targetFps);
+    if (dom.maxBotsValue) dom.maxBotsValue.textContent = String(g.maxBots);
     if (dom.rendererStatus) dom.rendererStatus.textContent = `Renderer: ${recommendation.rendererText}`;
     if (dom.detectedGpu) dom.detectedGpu.textContent = recommendation.gpuText;
     if (dom.detectedVram) dom.detectedVram.textContent = recommendation.inferredVramGb ? `~${recommendation.inferredVramGb} GB` : 'Unknown / browser not exposed';
@@ -40,16 +44,18 @@ export function createPerformanceUi({ dom, game, PERFORMANCE_PRESETS }) {
   }
 
   function applyPerformancePreset(profile, { save = true, getRendererRecommendation, syncPerformanceUi: syncPerf, saveBrowserSettings } = {}) {
+    const g = game();
+    if (!g) return;
     const recommendation = typeof getRendererRecommendation === 'function' ? getRendererRecommendation() : {};
     const targetProfile = profile === 'auto' ? recommendation.profile : profile;
     const preset = PERFORMANCE_PRESETS[targetProfile] || PERFORMANCE_PRESETS.balanced;
     const nextFps = profile === 'auto' ? recommendation.recommendedTargetFps : preset.targetFps;
     const baseBots = profile === 'auto' ? recommendation.recommendedMaxBots : preset.maxBots;
-    game.targetFps = Number(nextFps);
+    g.targetFps = Number(nextFps);
     setMaxBotsUiLimit(recommendation.maxBotsCap);
-    game.maxBots = clampBotLimit(Math.min(baseBots, recommendation.maxBotsCap));
-    if (dom.targetFps) dom.targetFps.value = String(game.targetFps);
-    if (dom.maxBots) dom.maxBots.value = String(game.maxBots);
+    g.maxBots = clampBotLimit(Math.min(baseBots, recommendation.maxBotsCap));
+    if (dom.targetFps) dom.targetFps.value = String(g.targetFps);
+    if (dom.maxBots) dom.maxBots.value = String(g.maxBots);
     setPerformanceProfileValue(profile);
     if (typeof syncPerf === 'function') {
       syncPerf(profile === 'auto' ? 'Applied hardware-based performance recommendation.' : `Applied ${preset.label.toLowerCase()} preset.`);

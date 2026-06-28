@@ -1,5 +1,5 @@
 // src/ui/renderer-settings.js — renderer mode and quality settings UI helpers.
-// v=t_ui_refactor_0627
+// v=ui_fix_boot_0628
 
 export function createRendererSettings({ dom, game, PERFORMANCE_PRESETS }) {
   const DEFAULT_RENDERER_SETTINGS = Object.freeze({ highResolution: true, antialias: true });

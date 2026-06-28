@@ -1,5 +1,5 @@
 // src/ui/provider-ui.js — local AI provider (Ollama / TabbyAPI) settings UI.
-// v=t_ui_refactor_0627
+// v=ui_fix_boot_0628
 
 import {
   LOCAL_AI_PROVIDERS,

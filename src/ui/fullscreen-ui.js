@@ -1,5 +1,5 @@
 // src/ui/fullscreen-ui.js — fullscreen toggle helpers.
-// v=t_ui_refactor_0627
+// v=ui_fix_boot_0628
 
 export function createFullscreenUi({ dom }) {
   const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;

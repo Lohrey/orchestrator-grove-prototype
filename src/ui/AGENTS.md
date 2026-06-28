@@ -20,9 +20,17 @@ Orchestrator Grove prototype maintainers.
 - UI helper modules (`dom-helpers.js`, `chat-ui.js`, `renderer-settings.js`, `performance-ui.js`,
   `provider-ui.js`, `fullscreen-ui.js`, `assistant-ui.js`) are **plain ES modules** imported by
   `src/main.js`. They do not require a bundler; they are consumed by the no-build HTML path.
-- Each helper module exports a `create*` factory function that accepts `{ dom, game, ... }` and
+- Each helper module exports a `create*` factory function that accepts `{ dom, ... }` and
   returns the extracted helpers. `src/main.js` calls these factories and wires the results.
-- Use cache-busting query params on imports (e.g. `?v=t_ui_refactor_0627`).
+- Inner helpers that were module-level named imports before the refactor (e.g.
+  `parseJsonPreview`, `stringifyLog` from `dom-helpers.js`; `formatTokenCount` from `chat-ui.js`)
+  are **not** module-scope exports — they are values returned by the owning factory.
+  Pass them as dependencies through the factory destructure: `createChatUi({ dom, parseJsonPreview, stringifyLog })`,
+  `createAssistantUi({ dom, formatTokenCount })`. Do not re-introduce broken cross-module named imports for them.
+- Modules that need the live `game` object (which is created after the factories) must receive a
+  `getGame` accessor (e.g. `createPerformanceUi({ dom, getGame: () => game, PERFORMANCE_PRESETS })`),
+  not a captured `null` value. The accessor resolves the current game at call time.
+- Use cache-busting query params on imports (e.g. `?v=ui_fix_boot_0628`).
 
 ## Work Guidance
 - Svelte 5 conventions; component composition stays within this folder.

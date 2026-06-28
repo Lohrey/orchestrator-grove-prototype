@@ -13,13 +13,13 @@ import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=t_
 import { LOCAL_AI_PROVIDERS, defaultOllamaEndpoint, getDefaultProviderConfig, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_building_kits_0618';
 import { escapeHtml } from './utils.js?v=20260613-player-tools';
 // UI module imports — extracted from the monolithic startGame() closure
-import { createDomHelpers } from './ui/dom-helpers.js?v=t_ui_refactor_0627';
-import { createChatUi } from './ui/chat-ui.js?v=t_ui_refactor_0627';
-import { createRendererSettings } from './ui/renderer-settings.js?v=t_ui_refactor_0627';
-import { createPerformanceUi } from './ui/performance-ui.js?v=t_ui_refactor_0627';
-import { createProviderUi } from './ui/provider-ui.js?v=t_ui_refactor_0627';
-import { createFullscreenUi } from './ui/fullscreen-ui.js?v=t_ui_refactor_0627';
-import { createAssistantUi } from './ui/assistant-ui.js?v=t_ui_refactor_0627';
+import { createDomHelpers } from './ui/dom-helpers.js?v=ui_fix_boot_0628';
+import { createChatUi } from './ui/chat-ui.js?v=ui_fix_boot_0628';
+import { createRendererSettings } from './ui/renderer-settings.js?v=ui_fix_boot_0628';
+import { createPerformanceUi } from './ui/performance-ui.js?v=ui_fix_boot_0628';
+import { createProviderUi } from './ui/provider-ui.js?v=ui_fix_boot_0628';
+import { createFullscreenUi } from './ui/fullscreen-ui.js?v=ui_fix_boot_0628';
+import { createAssistantUi } from './ui/assistant-ui.js?v=ui_fix_boot_0628';
 
 export async function startGame() {
   const $ = id => document.getElementById(id);
@@ -44,9 +44,9 @@ export async function startGame() {
 
   // ── UI module factory invocations (pure helpers, no game dependency) ───
   const { storageGet, storageSet, readJson, formatRendererStatus, stringifyLog, parseJsonPreview } = createDomHelpers();
-  const { addChat, formatTokenCount, formatAssistantPromptPreview, logChatAi, responseRawText, parsedOrError, sentFinalPrompt } = createChatUi({ dom });
+  const { addChat, formatTokenCount, formatAssistantPromptPreview, logChatAi, responseRawText, parsedOrError, sentFinalPrompt } = createChatUi({ dom, parseJsonPreview, stringifyLog });
   const { fullscreenElement, syncFullscreenUi, toggleFullscreen } = createFullscreenUi({ dom });
-  const assistantModule = createAssistantUi({ dom });
+  const assistantModule = createAssistantUi({ dom, formatTokenCount });
   const semanticRouter = assistantModule.semanticRouter;
 
   const ASR_MODE_KEY = 'orchestratorGrove.asrMode';
@@ -93,7 +93,7 @@ export async function startGame() {
   // Renderer settings: re-create with real game + PERFORMANCE_PRESETS after game exists
   const rendererModule = createRendererSettings({ dom, game: null, PERFORMANCE_PRESETS });
   const { DEFAULT_RENDERER_SETTINGS, normalizeRendererSettings, getRendererSettingsFromUi, getRendererModeFromUi, syncRendererModeUi, syncRendererSettingsUi } = rendererModule;
-  const perfModule = createPerformanceUi({ dom, game: null, PERFORMANCE_PRESETS });
+  const perfModule = createPerformanceUi({ dom, getGame: () => game, PERFORMANCE_PRESETS });
   const { clampBotLimit, setMaxBotsUiLimit, setPerformanceProfileValue } = perfModule;
   const providerModule = createProviderUi({ dom, game: null });
   const { getSelectedProvider, getCurrentLocalAiConfig } = providerModule;
