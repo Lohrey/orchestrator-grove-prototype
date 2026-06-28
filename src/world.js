@@ -4,20 +4,20 @@ import { createCanvas2dRenderer } from './renderers/canvas2d-renderer.js?v=t_bui
 import { createRenderState } from './render-state.js?v=t_building_kits_0618';
 import { installCombatSystem, IDLE_BOT_AUTO_ATTACK_RANGE } from './systems/combat/combat-system.js?v=t_combat_system_0627';
 import { BOW_ATTACK, DEFENSE_TOWER_ATTACK, MELEE_AUTO_ATTACK, MONSTER_MELEE_ATTACK } from './systems/combat/combat-config.js?v=t_combat_system_0627';
-import { installTaughtLoopSystem } from './systems/dsl/taught-loop-system.js?v=t_taught_loop_system_0627';
+import { installTaughtLoopSystem } from './systems/dsl/taught-loop-system.js?v=hemp_repeat_search_0628_tl';
 import { installInventorySystem } from './systems/inventory/inventory-system.js?v=t_inventory_system_0627';
 import { assemblerRecipe as getAssemblerRecipe, DEFAULT_SMITHERY_RECIPE, DEFAULT_WORKBENCH_RECIPE, installProductionSystem, productionInputCount, productionInputNeeds as getProductionInputNeeds, SMITHERY_RECIPES, smitheryInputFor, smitheryRecipe, WORKBENCH_TOOL_RECIPES, workbenchRecipe } from './systems/production/production-system.js?v=t_production_system_0627';
 import { FOG_CELL_SIZE, createFogOfWar, fogRevealSources as createFogRevealSources, getFogStats, isLightEmittingStructure as isFogLightEmittingStructure, normalizeFogOfWar, revealFogCircle, serializeFogOfWar, structureLightRadius as fogStructureLightRadius, updateFogOfWarState } from './fog-of-war.js?v=t_building_kits_0618';
 import { clamp, rand, distXY, nearest, pointInRect, rectDistance, canvasPoint, escapeHtml } from './utils.js?v=20260613-player-tools';
 import { installCameraSystem } from './systems/camera-system.js?v=t_camera_system_0627';
-import { installPlayerSystem } from './systems/player-system.js?v=t_player_system_0627';
+import { installPlayerSystem } from './systems/player-system.js?v=hemp_repeat_search_0628_ps';
 import { installMonsterSystem } from './systems/monster-system.js?v=grove_fixes_0628';
 import { installStructureSystem } from './systems/structure-system.js?v=t_structure_system_0627';
 import { installBotSystem } from './systems/bot-system.js?v=t_bot_system_0627';
-import { installTeachSystem } from './systems/teach-system.js?v=t_teach_system_0627';
+import { installTeachSystem } from './systems/teach-system.js?v=hemp_repeat_search_0628_ts';
 import { installSpawnSystem } from './systems/spawn-system.js?v=t_spawn_system_0627';
-import { installInteractionSystem } from './systems/interaction-system.js?v=t_health_system_0628';
-import { installHealthSystem } from './systems/health-system.js?v=t_health_system_0628';
+import { installInteractionSystem } from './systems/interaction-system.js?v=hemp_repeat_search_0628_hs';
+import { installHealthSystem } from './systems/health-system.js?v=hemp_repeat_search_0628_hs';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 const rectCenter = z => ({ x: z.x + z.w / 2, y: z.y + z.h / 2 });
@@ -1321,6 +1321,7 @@ export class Game {
   releaseReservation(bot) { for (const i of this.items) if (i.reservedBy === bot.id) i.reservedBy = null; for (const h of this.holes) if (h.reservedBy === bot.id) h.reservedBy = null; for (const t of this.trees) if (t.searchReservedBy === bot.id) t.searchReservedBy = null; bot.targetItemId = null; bot.targetItemPurpose = null; bot.targetHoleId = null; }
 
   treeSearchAvailable(tree, actorId) { return !!tree && !tree.stump && (!tree.searchReservedBy || tree.searchReservedBy === actorId); }
+  hempSearchAvailable(hemp, actorId) { return !!hemp && !hemp.harvested && (!hemp.searchReservedBy || hemp.searchReservedBy === actorId); }
 
   isChoppableTree(tree) { return !!tree && !tree.stump && (tree.growthStage || 'grown_tree') === 'grown_tree'; }
   updateTreeGrowth(tree, dt) {
@@ -1790,7 +1791,7 @@ export class Game {
       const tree = target.action === 'search_tree' ? this.trees.find(t => t.id === target.resourceId && !t.stump) : null;
       const hemp = target.action !== 'search_tree' ? this.hempPlants.find(h => h.id === target.resourceId && !h.harvested) : null;
       if (target.action === 'search_tree' && (!tree || this.player.inventory)) { this.releasePlayerTargetReservation(); this.advancePlayerTargetQueue(); return; }
-      if (target.action === 'search_hemp' && (!hemp || hemp.searched || this.player.inventory)) { this.releasePlayerTargetReservation(); this.advancePlayerTargetQueue(); return; }
+      if (target.action === 'search_hemp' && (!hemp || this.player.inventory)) { this.releasePlayerTargetReservation(); this.advancePlayerTargetQueue(); return; }
       if (target.action === 'chop_hemp' && (!hemp || this.player.inventory?.type !== 'crude_axe')) { this.releasePlayerTargetReservation(); this.advancePlayerTargetQueue(); return; }
       if (target.action === 'chop_tree' && !this.canFinishPlayerChopTree(target)) { this.advancePlayerTargetQueue(); return; }
       if (target.action === 'mine_stone' && !this.canFinishPlayerMineStone(target)) { this.advancePlayerTargetQueue(); return; }
@@ -1834,7 +1835,7 @@ export class Game {
         const hemp = this.hempPlants.find(h => h.id === target.resourceId && !h.harvested);
         if (!hemp) { this.advancePlayerTargetQueue(); return; }
         if (target.action === 'search_hemp') {
-          if (this.player.inventory || hemp.searched) { this.advancePlayerTargetQueue(); this.addFloat(hemp.searched ? 'Hemp already searched' : 'Hands must be empty', hemp.x, hemp.y - 28, '#c86b5f'); return; }
+          if (this.player.inventory || !this.hempSearchAvailable(hemp, 'player')) { this.advancePlayerTargetQueue(); this.addFloat(this.player.inventory ? 'Hands must be empty' : 'Hemp already being searched', hemp.x, hemp.y - 28, '#c86b5f'); return; }
           hemp.searchReservedBy = 'player';
           this.player.target = { ...target, started: true, remaining: HEMP_SEARCH_SECONDS, total: HEMP_SEARCH_SECONDS, processLabel: 'searching hemp' };
           this.addFloat('Searching hemp…', hemp.x, hemp.y - 28, '#d3a95f');
@@ -2783,7 +2784,7 @@ export class Game {
     ...this.structures.map(s=>({ id:s.ref, numericId:s.id, kind:'structure', type:s.type, name:s.name, x:Math.round(s.x), y:Math.round(s.y), logs:s.logs||0, planks:s.planks||0, poles:s.poles||0, sticks:s.sticks||0, stones:s.stones||0, tree_seeds:s.tree_seeds||0, axes:s.axes||0, pickaxes:s.pickaxes||0, shovels:s.shovels||0, hammers:s.hammers||0, swords:s.swords||0, shields:s.shields||0, hemps:s.hemps||0, bows:s.bows||0, arrow_packs:s.arrow_packs||0, workbenchRecipe:s.workbenchRecipe||null, smitheryRecipe:s.smitheryRecipe||null, rangedAttack:s.rangedAttack?{...s.rangedAttack}:null, storageType:s.storageType||null, stored:s.stored||0, capacity:s.capacity||0, processing:s.processing?{...s.processing}:null })),
     ...this.items.map(i=>({ id:i.ref, numericId:i.id, kind:'item', type:i.type, name:itemLabel(i.type), x:Math.round(i.x), y:Math.round(i.y), reservedBy:i.reservedBy||null })),
     ...this.holes.map(h=>({ id:h.ref, numericId:h.id, kind:'hole', type:'dug_hole', name:h.planted ? 'planted hole' : 'dug hole', x:Math.round(h.x), y:Math.round(h.y), radius:h.radius||HOLE_VISUAL_RADIUS, blockRadius:h.blockRadius||HOLE_BLOCK_RADIUS, planted:!!h.planted, reservedBy:h.reservedBy||null, treeId:h.treeId||null })),
-    ...this.hempPlants.map(h=>({ id:h.ref||`hemp:${h.id}`, numericId:h.id||null, kind:'resource', type:'hemp_plant', name:h.searched ? 'searched hemp' : 'hemp plant', x:Math.round(h.x), y:Math.round(h.y), radius:h.radius, searched:!!h.searched, harvested:!!h.harvested, searchReservedBy:h.searchReservedBy||null })),
+    ...this.hempPlants.map(h=>({ id:h.ref||`hemp:${h.id}`, numericId:h.id||null, kind:'resource', type:'hemp_plant', name:'hemp plant', x:Math.round(h.x), y:Math.round(h.y), radius:h.radius, harvested:!!h.harvested, searchReservedBy:h.searchReservedBy||null })),
     ...this.trees.map(t=>({ id:t.ref||`tree:${t.id}`, numericId:t.id||null, kind:'resource', type:'tree', name:t.stump ? 'tree stump' : (t.growthStage === 'sapling' ? 'small sapling' : t.growthStage === 'small_tree' ? 'small tree' : 'grown tree'), x:Math.round(t.x), y:Math.round(t.y), hp:t.hp, maxHp:t.maxHp, radius:t.radius, stump:!!t.stump, planted:!!t.planted, growthStage:t.growthStage||'grown_tree', growTimer:Math.max(0, Math.round((t.growTimer||0)*10)/10), searchReservedBy:t.searchReservedBy||null })),
     ...this.projectiles.map(p=>({ id:p.ref, numericId:p.id, kind:'projectile', type:p.type, sourceStructureId:p.sourceStructureId, targetRef:p.targetRef, x:Math.round(p.x), y:Math.round(p.y), damage:p.damage })),
     ...this.monsters.map(m=>({ id:m.ref||`monster:${m.id}`, numericId:m.id||null, kind:'monster', type:m.type||'passive_monster', name:m.name||'passive monster', x:Math.round(m.x), y:Math.round(m.y), hp:m.hp, maxHp:m.maxHp, radius:m.radius, passive:!!m.passive, spawnedAtNight:!!m.spawnedAtNight, avoidRadius:m.avoidRadius, roamRadius:m.roamRadius })),

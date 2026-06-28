@@ -312,7 +312,7 @@ export function installTaughtLoopSystem(Game, deps) {
         if (step.op === 'search_hemp' && bot.inventory) { bot.message = `Taught loop needs empty hands to search hemp.`; return; }
         let hemp = bot.target && !bot.target.harvested && this.objectInZone(bot.target, zone, bot) ? bot.target : null;
         if (!hemp && step.hempId) hemp = this.hempPlants.find(h => h.id === step.hempId && !h.harvested && this.objectInZone(h, zone, bot)) || null;
-        if (!hemp) hemp = nearest(this.hempPlants, bot.x, bot.y, h => !h.harvested && this.objectInZone(h, zone, bot) && (step.op === 'chop_hemp' || !h.searched));
+        if (!hemp) hemp = nearest(this.hempPlants, bot.x, bot.y, h => !h.harvested && this.objectInZone(h, zone, bot));
         if (!hemp) { bot.message = `Taught loop waiting for hemp in ${this.zoneLabel(zone)}.`; return; }
         bot.target = hemp;
         if (!this.moveBotTo(bot, hemp, dt, (hemp.radius || 14) + 12)) { bot.message = step.op === 'chop_hemp' ? 'Taught loop: move to hemp with axe.' : 'Taught loop: move to hemp and search.'; return; }
@@ -321,7 +321,7 @@ export function installTaughtLoopSystem(Game, deps) {
         bot.message = `${step.op === 'chop_hemp' ? 'Chopping' : 'Searching'} hemp (${Math.ceil(bot.timer)}/${Math.ceil(total)}).`;
         if (bot.timer >= total) {
           if (step.op === 'chop_hemp') { hemp.harvested = true; this.hempPlants = this.hempPlants.filter(h => h.id !== hemp.id); this.spawnItem('hemp', hemp.x, hemp.y, 1); this.spawnItem('hemp_seed', hemp.x, hemp.y, 1); }
-          else { hemp.searched = true; this.spawnItem('hemp_seed', hemp.x, hemp.y, 1); }
+          else { this.spawnItem('hemp_seed', hemp.x, hemp.y, 1); }
           advance();
         }
         return;

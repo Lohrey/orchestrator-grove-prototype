@@ -2,11 +2,11 @@ import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS
 import { createChatController } from './chat.js?v=20260613-player-tools';
 import { createAudioController } from './audio.js?v=t_3ef6c5ab_menu_polish';
 import { createBrowserSttController, DEFAULT_BROWSER_STT_MODEL } from './browser-stt.js';
-import { Game } from './world.js?v=t_health_system_0628';
+import { Game } from './world.js?v=hemp_repeat_search_0628';
 import { createSaveGameManager, GAME_MODE_LABELS, normalizeGameMode } from './savegames.js?v=t_777178b3';
 import { createMultiplayerController } from './multiplayer.js?v=t_f62dde4d_modes';
 import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f';
-import { createRenderBackend } from './renderers/index.js?v=t_health_system_0628';
+import { createRenderBackend } from './renderers/index.js?v=hemp_repeat_search_0628';
 import { createSimWorkerClient } from './sim/sim-worker-client.js?v=t_building_kits_0618';
 import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js?v=t_campaign_scenes_0623';
 import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=t_intro_cinematic_0627';

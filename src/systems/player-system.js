@@ -244,11 +244,11 @@ export function installPlayerSystem(Game, deps) {
         this.setPlayerDestination(hemp.x, hemp.y, { action: 'chop_hemp', resourceId: hemp.id, floatText: 'Chop hemp' }, { append });
         return true;
       }
-      if (!this.player.inventory && !hemp.searched) {
+      if (!this.player.inventory && this.hempSearchAvailable(hemp, 'player')) {
         this.setPlayerDestination(hemp.x, hemp.y, { action: 'search_hemp', resourceId: hemp.id, floatText: 'Search hemp for seed' }, { append });
         return true;
       }
-      this.addFloat(this.player.inventory ? `Need empty hands or crude axe (holding ${itemLabel(this.player.inventory.type)})` : 'Hemp already searched', hemp.x, hemp.y - 28, '#c86b5f');
+      this.addFloat(this.player.inventory ? `Need empty hands or crude axe (holding ${itemLabel(this.player.inventory.type)})` : 'Hemp already being searched', hemp.x, hemp.y - 28, '#c86b5f');
       return true;
     },
     treeDisplayName(tree) {
@@ -259,8 +259,7 @@ export function installPlayerSystem(Game, deps) {
       this.spawnItem('tree_seed', tree.x, tree.y, 1);
     },
     finishHempSearch(hemp) {
-      if (!hemp || hemp.harvested || hemp.searched || this.player.inventory) return false;
-      hemp.searched = true;
+      if (!hemp || hemp.harvested || this.player.inventory) return false;
       hemp.searchReservedBy = null;
       this.spawnItem('hemp_seed', hemp.x, hemp.y, 1);
       this.addFloat('Found hemp seed', hemp.x, hemp.y - 28, '#d3a95f');

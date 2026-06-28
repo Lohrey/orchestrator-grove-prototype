@@ -123,9 +123,9 @@ export function drawHempPlant(game, c, h, now) {
     c.quadraticCurveTo(h.x + i * 5 + sway, h.y - 3, h.x + i * 7 + sway, h.y - 16 - Math.abs(i) * 2);
     c.stroke();
   }
-  c.fillStyle = h.searched ? '#6f9b5f' : '#9ac887';
+  c.fillStyle = '#9ac887';
   c.beginPath(); c.ellipse(h.x + sway, h.y - 5, h.radius || 13, 9, -.35, 0, Math.PI * 2); c.fill();
-  if (hover) drawNameTag(c, h.searched ? 'searched hemp' : 'hemp plant', h.x, h.y - 28);
+  if (hover) drawNameTag(c, 'hemp plant', h.x, h.y - 28);
   c.restore();
 }
 
