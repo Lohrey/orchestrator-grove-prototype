@@ -67,7 +67,7 @@ import {
   updatePlayerTarget,
   updateZoneDraft,
   updateHud
-} from './pixi/pixi-effects.js?v=fog_pixi_drift_0628';
+} from './pixi/pixi-effects.js?v=fog_fullmap_0628';
 
 export async function createPixiRenderer({ canvas, capture = false, settings = null }) {
   const PIXI = await import('../../vendor/pixi/pixi.mjs');

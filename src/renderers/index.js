@@ -4,7 +4,7 @@ export async function createRenderBackend({ canvas, mode = 'canvas2d', capture =
   const normalized = String(mode || 'canvas2d').toLowerCase();
   if (normalized === 'pixi' || normalized === 'auto') {
     try {
-      const { createPixiRenderer } = await import('./pixi-renderer.js?v=fog_pixi_drift_0628');
+      const { createPixiRenderer } = await import('./pixi-renderer.js?v=fog_fullmap_0628');
       return await createPixiRenderer({ canvas, capture, settings });
     } catch (err) {
       console.warn('Pixi renderer failed; falling back to Canvas2D', err);

@@ -84,7 +84,26 @@ export function drawRevealSourceGlowsOverlay(renderState, context, view, revealS
   context.restore();
 }
 
-export function fogOverlaySignature(renderState, fogView, revealSources, occluders, nightAmount) {
+export function updateFogOverlay(renderState, view, fogView, revealSources, occluders, nightAmount, {
+  fogOverlayCanvas, fogOverlayContext, fogOverlaySprite, fogOverlayTexture,
+  resizeOverlayCanvas, lastFogOverlaySignatureRef
+}) {
+  if (!fogOverlayContext || !fogView) {
+    fogOverlaySprite.visible = false;
+    lastFogOverlaySignatureRef.value = '';
+    return;
+  }
+  fogOverlaySprite.visible = true;
+
+  // The fog sprite covers the ENTIRE map at world (0,0). The worldViewport
+  // transform (scale + translate) handles camera movement automatically, so
+  // we never need to reposition the sprite. This eliminates drift, opposite-
+  // direction movement, and visible canvas edges.
+  const mapWidth = renderState.map?.width || 0;
+  const mapHeight = renderState.map?.height || 0;
+
+  // Signature: only depends on fog state, sources, and map size — NOT camera.
+  // Adding camera position here would force a full-map redraw every frame.
   const nightBucket = Math.round(clamp(nightAmount || 0, 0, 1) * 20);
   const sourcesKey = (revealSources || []).map(source => [
     source.kind || '',
@@ -102,57 +121,42 @@ export function fogOverlaySignature(renderState, fogView, revealSources, occlude
         Math.round(occluder.h || 0)
       ].join(':')).join('|')
     : '';
-  return [
-    renderState.map?.width || 0,
-    renderState.map?.height || 0,
+  const signature = [
+    mapWidth, mapHeight,
     renderState.fogOfWar?.revision || 0,
     renderState.fogOfWar?.cellSize || 0,
     nightBucket,
-    fogView.left,
-    fogView.top,
-    fogView.right,
-    fogView.bottom,
     sourcesKey,
     occluderKey
   ].join(';');
-}
 
-export function updateFogOverlay(renderState, view, fogView, revealSources, occluders, nightAmount, {
-  fogOverlayCanvas, fogOverlayContext, fogOverlaySprite, fogOverlayTexture,
-  resizeOverlayCanvas, lastFogOverlaySignatureRef
-}) {
-  if (!fogOverlayContext || !fogView) {
-    fogOverlaySprite.visible = false;
-    lastFogOverlaySignatureRef.value = '';
-    return;
-  }
-  fogOverlaySprite.visible = true;
-  // Reposition the sprite every frame so it tracks the camera exactly.
-  // The sprite is parented inside worldViewport (worldOverlayLayer), so Pixi's
-  // own transform pipeline handles the camera scale/translate for it. We only
-  // need to set its local world-space position from the current fogView bounds.
-  fogOverlaySprite.position.set(fogView.left, fogView.top);
-  fogOverlaySprite.scale.set(1);
-
-  // Only do the expensive canvas redraw when the content actually changed.
-  const signature = fogOverlaySignature(renderState, fogView, revealSources, occluders, nightAmount);
   if (signature === lastFogOverlaySignatureRef.value) return;
   lastFogOverlaySignatureRef.value = signature;
-  resizeOverlayCanvas(fogOverlayCanvas, fogOverlaySprite, fogOverlayTexture, fogView.width, fogView.height, fogView.left, fogView.top);
+
+  // Resize canvas to full map size (only when map dimensions change).
+  if (fogOverlayCanvas.width !== mapWidth || fogOverlayCanvas.height !== mapHeight) {
+    fogOverlayCanvas.width = Math.max(1, mapWidth);
+    fogOverlayCanvas.height = Math.max(1, mapHeight);
+  }
+  fogOverlaySprite.position.set(0, 0);
+  fogOverlaySprite.scale.set(1);
+
+  // Redraw the full-map fog. Areas outside the current viewport are still
+  // drawn (cheap fillRect + cell punch-out) so the edges are always dark.
   fogOverlayContext.clearRect(0, 0, fogOverlayCanvas.width, fogOverlayCanvas.height);
   drawFogOfWarOverlayScreen(fogOverlayContext, {
     fog: renderState.fogOfWar,
     map: renderState.map,
-    view: fogView,
-    fogView,
+    view: { left: 0, top: 0, width: mapWidth, height: mapHeight, right: mapWidth, bottom: mapHeight },
+    fogView: { left: 0, top: 0, width: mapWidth, height: mapHeight, right: mapWidth, bottom: mapHeight },
     sources: revealSources,
     occluders,
     nightAmount,
     zoom: 1,
-    width: fogOverlayCanvas.width,
-    height: fogOverlayCanvas.height,
-    originX: fogView.left,
-    originY: fogView.top
+    width: mapWidth,
+    height: mapHeight,
+    originX: 0,
+    originY: 0
   });
   fogOverlayTexture.source.update();
   fogOverlayTexture.update();
