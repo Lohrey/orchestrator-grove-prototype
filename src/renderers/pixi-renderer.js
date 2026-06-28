@@ -60,14 +60,14 @@ import {
   createFloaterView,
   updateFloaterView,
   drawProjectile
-} from './pixi/pixi-entities.js?v=t_renderer_split_0627';
+} from './pixi/pixi-entities.js?v=stone_deposit_interact_0628';
 import {
   updateOverlay,
   updatePlacementPreview,
   updatePlayerTarget,
   updateZoneDraft,
   updateHud
-} from './pixi/pixi-effects.js?v=fog_fullmap_0628';
+} from './pixi/pixi-effects.js?v=stone_deposit_interact_0628';
 
 export async function createPixiRenderer({ canvas, capture = false, settings = null }) {
   const PIXI = await import('../../vendor/pixi/pixi.mjs');
@@ -160,8 +160,11 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
   const placementPreview = new PIXI.Sprite();
   placementPreview.alpha = 0.72;
   const playerTargetGraphics = new PIXI.Graphics();
+  const playerTargetLabel = createText(PIXI, '', { fontSize: 11, fontWeight: '700' });
+  playerTargetLabel.anchor.set(0.5, 1);
+  playerTargetLabel.visible = false;
   const zoneDraftGraphics = new PIXI.Graphics();
-  effectsLayer.addChild(placementPreview, playerTargetGraphics, zoneDraftGraphics);
+  effectsLayer.addChild(placementPreview, playerTargetGraphics, playerTargetLabel, zoneDraftGraphics);
   depthLayer.addChild(playerView.container, assistantView.container);
 
   const hudBar = new PIXI.Graphics();
@@ -445,8 +448,8 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
       objectMaps.rocks,
       renderState.rocks || [],
       rock => rock.id || rock.ref,
-      rock => ({ container: createRockView(PIXI, rock) }),
-      (view, rock) => updateRockView(view.container, rock),
+      rock => ({ container: createRockView(PIXI, rock, getNameTagTexture) }),
+      (view, rock) => updateRockView(view.container, rock, renderState.mouse.hoverRock === rock, getNameTagTexture),
       depthLayer
     );
   }
@@ -554,7 +557,7 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
 
   function updateEffects(renderState) {
     updatePlacementPreview(renderState, placementPreview, getPlacementTexture, BUILDING_TYPES);
-    updatePlayerTarget(renderState, playerTargetGraphics);
+    updatePlayerTarget(renderState, playerTargetGraphics, playerTargetLabel);
     updateZoneDraft(renderState, zoneDraftGraphics);
   }
 

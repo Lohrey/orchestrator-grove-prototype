@@ -12,6 +12,7 @@ export function installPlayerSystem(Game, deps) {
     HEMP_SEARCH_SECONDS,
     HEMP_CHOP_SECONDS,
     RESOURCE_HIT_SECONDS,
+    MINE_STONE_HAND_SECONDS,
     BUILDING_KIT_DEPLOY_SECONDS,
     BUILDING_DISASSEMBLE_SECONDS,
     isBuildingKitItemType,
@@ -177,7 +178,11 @@ export function installPlayerSystem(Game, deps) {
       return true;
     },
     startPlayerResourceWork(target, resource, processLabel) {
-      this.player.target = { ...target, x: resource.x, y: resource.y, started: true, remaining: RESOURCE_HIT_SECONDS, total: RESOURCE_HIT_SECONDS, processLabel };
+      let duration = RESOURCE_HIT_SECONDS;
+      if (target.action === 'mine_stone') {
+        duration = this.player.inventory?.type === 'crude_pickaxe' ? RESOURCE_HIT_SECONDS : MINE_STONE_HAND_SECONDS;
+      }
+      this.player.target = { ...target, x: resource.x, y: resource.y, started: true, remaining: duration, total: duration, processLabel };
       this.addFloat(`${processLabel[0].toUpperCase()}${processLabel.slice(1)}…`, resource.x, resource.y - 34, '#d3a95f');
       return true;
     },
@@ -206,7 +211,10 @@ export function installPlayerSystem(Game, deps) {
       return !!this.trees.find(t => t.id === target.resourceId && this.isChoppableTree(t)) && this.player.inventory?.type === 'crude_axe';
     },
     canFinishPlayerMineStone(target) {
-      return !!this.rocks.find(r => r.id === target.resourceId && !r.depleted) && this.player.inventory?.type === 'crude_pickaxe';
+      const rock = this.rocks.find(r => r.id === target.resourceId && !r.depleted);
+      if (!rock) return false;
+      const invType = this.player.inventory?.type;
+      return invType === 'crude_pickaxe' || !this.player.inventory;
     },
     finishPlayerChopTree(target) {
       const tree = this.trees.find(t => t.id === target.resourceId && this.isChoppableTree(t));
@@ -222,7 +230,9 @@ export function installPlayerSystem(Game, deps) {
     },
     finishPlayerMineStone(target) {
       const rock = this.rocks.find(r => r.id === target.resourceId && !r.depleted);
-      if (!rock || this.player.inventory?.type !== 'crude_pickaxe') return false;
+      if (!rock) return false;
+      const invType = this.player.inventory?.type;
+      if (invType !== 'crude_pickaxe' && this.player.inventory) return false;
       rock.hp--;
       this.spawnItem('stone', rock.x, rock.y, 1);
       this.addFloat('Mined stone', rock.x, rock.y - 24, '#d3a95f');
@@ -340,6 +350,18 @@ export function installPlayerSystem(Game, deps) {
       if (op === 'mine_stone' && this.player.inventory?.type !== 'crude_pickaxe') return false;
       const label = op === 'chop_tree' ? 'Chop tree' : 'Mine stone deposit';
       this.setPlayerDestination(resource.x, resource.y, { action: op, resourceId: resource.id, floatText: label }, { append });
+      return true;
+    },
+    queuePlayerStoneMining(rock, { append = false } = {}) {
+      if (!rock || rock.depleted) return false;
+      const hasPickaxe = this.player.inventory?.type === 'crude_pickaxe';
+      const hasEmptyHands = !this.player.inventory;
+      if (!hasPickaxe && !hasEmptyHands) {
+        const held = this.player.inventory ? ` (holding ${itemLabel(this.player.inventory.type)})` : '';
+        this.addFloat(`Need empty hands or crude pickaxe${held}`, rock.x, rock.y - 34, '#c86b5f');
+        return true;
+      }
+      this.setPlayerDestination(rock.x, rock.y, { action: 'mine_stone', resourceId: rock.id, floatText: hasPickaxe ? 'Mine stone deposit' : 'Mine stone (bare hands)' }, { append });
       return true;
     },
     queuePlayerDemolishStructure(s, { append = false } = {}) {

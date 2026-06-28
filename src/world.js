@@ -10,13 +10,13 @@ import { assemblerRecipe as getAssemblerRecipe, DEFAULT_SMITHERY_RECIPE, DEFAULT
 import { FOG_CELL_SIZE, createFogOfWar, fogRevealSources as createFogRevealSources, getFogStats, isLightEmittingStructure as isFogLightEmittingStructure, normalizeFogOfWar, revealFogCircle, serializeFogOfWar, structureLightRadius as fogStructureLightRadius, updateFogOfWarState } from './fog-of-war.js?v=t_building_kits_0618';
 import { clamp, rand, distXY, nearest, pointInRect, rectDistance, canvasPoint, escapeHtml } from './utils.js?v=20260613-player-tools';
 import { installCameraSystem } from './systems/camera-system.js?v=t_camera_system_0627';
-import { installPlayerSystem } from './systems/player-system.js?v=hemp_repeat_search_0628_ps';
+import { installPlayerSystem } from './systems/player-system.js?v=stone_deposit_interact_0628';
 import { installMonsterSystem } from './systems/monster-system.js?v=grove_fixes_0628';
 import { installStructureSystem } from './systems/structure-system.js?v=t_structure_system_0627';
 import { installBotSystem } from './systems/bot-system.js?v=t_bot_system_0627';
 import { installTeachSystem } from './systems/teach-system.js?v=hemp_repeat_search_0628_ts';
 import { installSpawnSystem } from './systems/spawn-system.js?v=t_spawn_system_0627';
-import { installInteractionSystem } from './systems/interaction-system.js?v=hemp_repeat_search_0628_hs';
+import { installInteractionSystem } from './systems/interaction-system.js?v=stone_deposit_interact_0628';
 import { installHealthSystem } from './systems/health-system.js?v=hemp_repeat_search_0628_hs';
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -69,6 +69,7 @@ const DIG_ZONE_RADIUS = 96;
 const HOLE_VISUAL_RADIUS = 16;
 const HOLE_BLOCK_RADIUS = 42;
 const RESOURCE_HIT_SECONDS = 3;
+const MINE_STONE_HAND_SECONDS = 30;
 const BUILDING_KIT_DEPLOY_SECONDS = 1.6;
 const BUILDING_DISASSEMBLE_SECONDS = 1.8;
 const TREE_SEARCH_SECONDS = 2.4;
@@ -2175,9 +2176,9 @@ export class Game {
   manualMineStone() {
     const rock = nearest(this.rocks, this.player.x, this.player.y, r => !r.depleted && distXY(this.player.x,this.player.y,r.x,r.y)<48);
     if (!rock) return false;
-    if (this.player.inventory?.type !== 'crude_pickaxe') {
+    if (this.player.inventory && this.player.inventory?.type !== 'crude_pickaxe') {
       const held = this.player.inventory ? ` (holding ${itemLabel(this.player.inventory.type)})` : '';
-      this.addFloat(`Need crude pickaxe in hands${held}`, this.player.x, this.player.y - 30, '#c86b5f');
+      this.addFloat(`Need empty hands or crude pickaxe${held}`, this.player.x, this.player.y - 30, '#c86b5f');
       return true;
     }
     return this.startPlayerResourceWork({ action: 'mine_stone', resourceId: rock.id, x: rock.x, y: rock.y }, rock, 'mining stone');
@@ -2849,6 +2850,7 @@ installPlayerSystem(Game, {
   HEMP_SEARCH_SECONDS,
   HEMP_CHOP_SECONDS,
   RESOURCE_HIT_SECONDS,
+  MINE_STONE_HAND_SECONDS,
   BUILDING_KIT_DEPLOY_SECONDS,
   BUILDING_DISASSEMBLE_SECONDS,
   isBuildingKitItemType,

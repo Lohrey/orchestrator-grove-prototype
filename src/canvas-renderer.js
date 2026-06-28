@@ -39,7 +39,7 @@ import {
   drawStructure,
   drawTree,
   drawZones
-} from './renderers/canvas2d/world-layer.js?v=t_renderer_split_0627';
+} from './renderers/canvas2d/world-layer.js?v=stone_deposit_interact_0628';
 
 import {
   drawAssistant,
@@ -134,7 +134,7 @@ export function drawWorld(renderState, ctx) {
   for (const hole of game.holes || []) if (circleInView(hole.x, hole.y, 24, view) && fogStaticVisible(game, hole.x, hole.y)) drawHole(game, c, hole);
   for (const rock of game.rocks || []) {
     if (!circleInView(rock.x, rock.y, (rock.radius || 18) + 16, view) || !fogStaticVisible(game, rock.x, rock.y)) continue;
-    pushDepth('rock', rock, () => drawRock(c, rock));
+    pushDepth('rock', rock, () => drawRock(game, c, rock));
   }
   for (const hemp of game.hempPlants || []) {
     if (!circleInView(hemp.x, hemp.y, (hemp.radius || 14) + 18, view) || !fogStaticVisible(game, hemp.x, hemp.y)) continue;
@@ -173,7 +173,6 @@ export function drawWorld(renderState, ctx) {
       pushDepth('bot', bot, () => drawBot(game, c, bot, now));
     }
   }
-  if (game.player.target && (!view || circleInView(game.player.target.x, game.player.target.y, 64, view))) drawPlayerTarget(game, c);
   if (!campaignArrivalActive) {
     if (!view || circleInView(game.player.x, game.player.y, (game.player.r || 13) + 42, view)) {
       pushDepth('player', game.player, () => drawPlayerActor(game, c, now));
@@ -189,6 +188,7 @@ export function drawWorld(renderState, ctx) {
     pushDepth('tree', tree, () => drawTree(game, c, tree, now, getTreeOpacity(game, tree, now, treeOccluders)));
   }
   for (const drawable of sortDepthDrawables(depthDrawables)) drawable.draw();
+  if (game.player.target && (!view || circleInView(game.player.target.x, game.player.target.y, 64, view))) drawPlayerTarget(game, c);
   drawPlacement(game, c);
   drawZoneDraft(game, c);
   drawFloaters(game, c, view);

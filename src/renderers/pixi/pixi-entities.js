@@ -105,20 +105,34 @@ export function updateHempView(container, hemp, hover) {
 }
 
 // ── Rock views ─────────────────────────────────────────────────────
-export function createRockView(PIXI, rock) {
+export function createRockView(PIXI, rock, getNameTagTexture) {
   const container = new PIXI.Container();
+  container.hoverRing = new PIXI.Graphics();
   container.graphics = new PIXI.Graphics();
-  container.addChild(container.graphics);
-  updateRockView(container, rock);
+  container.label = new PIXI.Sprite(getNameTagTexture(''));
+  container.label.anchor.set(0.5);
+  container.label.visible = false;
+  container.addChild(container.hoverRing, container.graphics, container.label);
+  updateRockView(container, rock, false, getNameTagTexture);
   return container;
 }
 
-export function updateRockView(container, rock) {
+export function updateRockView(container, rock, hover, getNameTagTexture) {
   const radius = rock.radius || 18;
   container.position.set(rock.x || 0, rock.y || 0);
   container.zIndex = getDepthAnchorY('rock', rock);
+  container.hoverRing.clear();
+  if (hover) {
+    fillAndStrokePath(container.hoverRing, { fill: 0xfff4d0, fillAlpha: 0.08, stroke: 0xfff4d0, strokeWidth: 2 }, path => {
+      path.ellipse(0, 0, radius + 13, radius + 9);
+    });
+  }
   container.graphics.clear();
-  fillAndStrokePath(container.graphics, { fill: 0x6d7771, fillAlpha: 1, stroke: 0x3a4242, strokeWidth: 2 }, path => {
+  const depleted = rock.depleted;
+  fillAndStrokePath(container.graphics, {
+    fill: depleted ? 0x313733 : 0x6d7771, fillAlpha: 1,
+    stroke: hover ? 0xfff4d0 : 0x3a4242, strokeWidth: hover ? 3 : 2
+  }, path => {
     path.moveTo(-radius * 0.9, radius * 0.1);
     path.lineTo(-radius * 0.3, -radius * 0.75);
     path.lineTo(radius * 0.7, -radius * 0.65);
@@ -127,6 +141,11 @@ export function updateRockView(container, rock) {
     path.lineTo(-radius * 0.7, radius * 0.45);
     path.lineTo(-radius * 0.9, radius * 0.1);
   });
+  container.label.visible = hover;
+  if (hover) {
+    container.label.texture = getNameTagTexture(depleted ? 'depleted stone deposit' : 'stone deposit');
+    container.label.position.set(0, -radius - 16);
+  }
 }
 
 // ── Structure views ────────────────────────────────────────────────

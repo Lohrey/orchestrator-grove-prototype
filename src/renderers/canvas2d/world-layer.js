@@ -85,16 +85,23 @@ export function drawHole(game, c, h) {
   c.restore();
 }
 
-export function drawRock(c, r) {
+export function drawRock(game, c, r) {
   c.save();
+  const hover = game.mouse.hoverRock === r;
   c.globalAlpha = r.depleted ? .38 : 1;
   drawShadow(c, r.x, r.y + r.radius * .72, r.radius * 1.15, r.radius * .34, .26);
+  if (hover) {
+    c.fillStyle = 'rgba(255,244,208,.08)';
+    c.beginPath();
+    c.ellipse(r.x, r.y, r.radius + 10, r.radius + 7, 0, 0, Math.PI * 2);
+    c.fill();
+  }
   const grad = c.createLinearGradient(r.x - r.radius, r.y - r.radius, r.x + r.radius, r.y + r.radius);
   grad.addColorStop(0, r.depleted ? '#555c58' : '#a9b0aa');
   grad.addColorStop(1, r.depleted ? '#313733' : '#5d6761');
   c.fillStyle = grad;
-  c.strokeStyle = r.depleted ? '#6c746f' : '#d2d8d3';
-  c.lineWidth = 2;
+  c.strokeStyle = hover ? '#fff4d0' : (r.depleted ? '#6c746f' : '#d2d8d3');
+  c.lineWidth = hover ? 3 : 2;
   c.beginPath();
   c.moveTo(r.x - r.radius, r.y + 6);
   c.lineTo(r.x - 9, r.y - r.radius);
@@ -106,6 +113,14 @@ export function drawRock(c, r) {
   c.strokeStyle = 'rgba(255,255,255,.22)';
   c.beginPath(); c.moveTo(r.x - 6, r.y - r.radius + 5); c.lineTo(r.x + 8, r.y + 4); c.stroke();
   if (!r.depleted) drawBar(c, r.x - 18, r.y - r.radius - 13, 36, 5, r.hp / r.maxHp, '#d0bf86');
+  if (hover) {
+    c.strokeStyle = '#fff4d0';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.ellipse(r.x, r.y, r.radius + 13, r.radius + 9, 0, 0, Math.PI * 2);
+    c.stroke();
+    drawNameTag(c, r.depleted ? 'depleted stone deposit' : 'stone deposit', r.x, r.y - r.radius - 24);
+  }
   c.restore();
 }
 

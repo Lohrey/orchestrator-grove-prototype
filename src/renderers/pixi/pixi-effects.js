@@ -10,7 +10,10 @@ import {
   getWorldViewBounds,
   getClippedMapView,
   strokePath,
-  fillAndStrokePath
+  fillAndStrokePath,
+  fillPath,
+  drawBarGraphic,
+  drawRoundedRect
 } from './pixi-layers.js?v=t_renderer_split_0627';
 import {
   isLightEmittingStructure,
@@ -230,9 +233,10 @@ export function updatePlacementPreview(renderState, placementPreview, getPlaceme
   placementPreview.zIndex = 999999;
 }
 
-export function updatePlayerTarget(renderState, playerTargetGraphics) {
+export function updatePlayerTarget(renderState, playerTargetGraphics, playerTargetLabel) {
   const target = renderState.player.target;
   playerTargetGraphics.clear();
+  if (playerTargetLabel) playerTargetLabel.visible = false;
   if (!target) return;
   playerTargetGraphics.zIndex = 999998;
   strokePath(playerTargetGraphics, 0x86b6d6, 2, 1, path => {
@@ -242,6 +246,18 @@ export function updatePlayerTarget(renderState, playerTargetGraphics) {
     path.moveTo(target.x, target.y - 19);
     path.lineTo(target.x, target.y + 19);
   });
+  // Process bar (always above entity hover labels since effectsLayer is above depthLayer)
+  if (target.started && target.total) {
+    const total = target.total || 1;
+    const done = 1 - Math.max(0, target.remaining || 0) / total;
+    drawBarGraphic(playerTargetGraphics, target.x - 24, target.y - 34, 48, 7, done, 0xd3a95f);
+    if (playerTargetLabel) {
+      playerTargetLabel.visible = true;
+      playerTargetLabel.text = target.processLabel || 'working';
+      playerTargetLabel.position.set(target.x, target.y - 42);
+      playerTargetLabel.zIndex = 999999;
+    }
+  }
   const queued = renderState.player.targetQueue || [];
   if (queued.length) {
     let previous = target;
