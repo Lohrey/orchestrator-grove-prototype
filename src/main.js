@@ -2,16 +2,16 @@ import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS
 import { createChatController } from './chat.js?v=20260613-player-tools';
 import { createAudioController } from './audio.js?v=t_3ef6c5ab_menu_polish';
 import { createBrowserSttController, DEFAULT_BROWSER_STT_MODEL } from './browser-stt.js';
-import { Game } from './world.js?v=hemp_repeat_search_0628';
+import { Game } from './world.js?v=grove_pixi_fixes_0628';
 import { createSaveGameManager, GAME_MODE_LABELS, normalizeGameMode } from './savegames.js?v=t_777178b3';
 import { createMultiplayerController } from './multiplayer.js?v=t_f62dde4d_modes';
 import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f';
-import { createRenderBackend } from './renderers/index.js?v=fog_fullmap_0628';
+import { createRenderBackend } from './renderers/index.js?v=grove_pixi_fixes_0628';
 import { createSimWorkerClient } from './sim/sim-worker-client.js?v=t_building_kits_0618';
 import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js?v=t_campaign_scenes_0623';
-import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=t_intro_cinematic_0627';
+import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=grove_cinematic_rewire_0628';
 import { LOCAL_AI_PROVIDERS, defaultOllamaEndpoint, getDefaultProviderConfig, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_building_kits_0618';
-import { escapeHtml } from './utils.js?v=20260613-player-tools';
+import { escapeHtml } from './utils.js?v=grove_pixi_fixes_0628';
 // UI module imports — extracted from the monolithic startGame() closure
 import { createDomHelpers } from './ui/dom-helpers.js?v=grove_fixes_0628';
 import { createChatUi } from './ui/chat-ui.js?v=grove_fixes_0628';
@@ -239,7 +239,7 @@ export async function startGame() {
 
   const params = new URLSearchParams(window.location.search);
   const storedSettings = readJson(SETTINGS_KEY, null);
-  const storedRendererMode = String(storedSettings?.rendererMode || 'canvas2d').toLowerCase();
+  const storedRendererMode = String(storedSettings?.rendererMode || 'pixi').toLowerCase();
   const storedRendererSettings = normalizeRendererSettings(storedSettings?.rendererSettings);
   const storedPerformanceProfile = storedSettings?.performanceProfile || 'auto';
   const storedAsrMode = storedSettings?.asrMode || storageGet(ASR_MODE_KEY);
@@ -262,7 +262,8 @@ export async function startGame() {
     browserStt,
     onSubmit: text => handleAssistant(text)
   });
-  const rendererMode = params.get('renderer') || storedRendererMode || 'canvas2d';
+  const rendererUrlParam = params.get('renderer');
+  const rendererMode = rendererUrlParam || storedRendererMode || 'pixi';
   syncRendererModeUi(rendererMode);
   syncRendererSettingsUi(storedRendererSettings);
   const renderBackend = await createRenderBackend({ canvas: dom.canvas, mode: rendererMode, settings: storedRendererSettings });
@@ -703,15 +704,39 @@ export async function startGame() {
     campaignIntroActive = true;
     campaignIntroSceneIndex = 0;
     game.setPaused(true);
-    // Render scene 0 text into the DOM and reveal the overlay as the primary
-    // intro interaction surface (the HTML card carries the skip/advance buttons
-    // that the campaign-mode smoke test drives and that keyboard input maps to).
-    renderCampaignIntroScene();
-    dom.campaignIntroOverlay.hidden = false;
-    dom.campaignIntroOverlay.classList.remove('is-hidden');
-    // Clean up any previous cinematic instance
-    if (campaignCinematic) { campaignCinematic.destroy(); campaignCinematic = null; }
-    syncSaveUi('Campaign intro. Enter/Space advances · Esc skips.');
+
+    // The canvas cinematic draws directly on the game canvas via its own RAF loop.
+    // This conflicts with renderer backends that also own the canvas:
+    // - OffscreenCanvas worker: getContext('2d') returns null after
+    //   transferControlToOffscreen(), so the cinematic can't draw at all
+    // - Main-thread Canvas2D: the game loop and cinematic compete for the
+    //   same canvas, causing flickering and state corruption
+    // Only use the cinematic with the Pixi renderer (which manages its own
+    // canvas/app lifecycle and can yield to the cinematic). For all other
+    // renderers, use the HTML overlay intro which works universally.
+    const useCinematic = rendererMode === 'pixi' && !renderBackend?.isWorker;
+
+    if (useCinematic) {
+      // Hide the HTML overlay — the cinematic draws directly on the game canvas
+      dom.campaignIntroOverlay.hidden = true;
+      dom.campaignIntroOverlay.classList.add('is-hidden');
+      if (campaignCinematic) { campaignCinematic.destroy(); campaignCinematic = null; }
+      campaignCinematic = createCampaignIntroCinematic({
+        canvas: game.canvas,
+        audio: audio,
+        scenes: CAMPAIGN_INTRO_SCENES,
+        onComplete: (reason) => { campaignCinematic = null; finishCampaignIntro(reason === 'skip' ? 'skip' : 'finished'); },
+        onSkip: () => { campaignCinematic = null; finishCampaignIntro('skip'); }
+      });
+      campaignCinematic.start();
+      syncSaveUi('Campaign intro cinematic playing. Press Esc to skip.');
+    } else {
+      // HTML overlay fallback (OffscreenCanvas worker or main-thread canvas2d)
+      renderCampaignIntroScene();
+      dom.campaignIntroOverlay.hidden = false;
+      dom.campaignIntroOverlay.classList.remove('is-hidden');
+      syncSaveUi('Campaign intro. Enter/Space advances · Esc skips.');
+    }
     return true;
   }
   function setMainMenuOpen(open, { keepPaused = false } = {}) {
@@ -1130,6 +1155,9 @@ export async function startGame() {
     saveBrowserSettings();
   });
   dom.useCanvas2dRenderer?.addEventListener('change', () => {
+    // URL ?renderer= param takes priority over the checkbox for this page load.
+    // Don't let the checkbox clobber a URL-forced mode in saved settings.
+    if (rendererUrlParam) { syncRendererModeUi(rendererUrlParam); }
     const mode = getRendererModeFromUi();
     syncPerformanceUi(mode === 'canvas2d' ? 'Canvas 2D renderer selected. Reload the page to switch from Pixi.' : 'Pixi renderer selected. Reload the page to switch from Canvas 2D.');
     saveBrowserSettings();

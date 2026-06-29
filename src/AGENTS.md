@@ -34,11 +34,17 @@ source of truth for what action steps are actually possible.
 - ES modules; the entry point is `src/main.js`, imported by `index.html`/`game.js`.
 - Keep the plain-HTML run path working without a bundler for these modules.
 - Bundler/TypeScript/Svelte-only surfaces live under `src/ui/` and the worker under `src/sim/`.
-- Campaign intro is driven by the **HTML overlay card** (`#campaignIntroOverlay` in `index.html`,
-  populated by `renderCampaignIntroScene()` in `main.js`); its Skip/Next buttons and the
-  Esc/Enter/Space keys are the interaction surface. `campaign-intro-cinematic.js` is an optional
-  canvas cinematic module (currently not wired into the active intro path) — do not re-wire it to
-  hide the HTML overlay, since the smoke test and skip input depend on the overlay staying visible.
+- Campaign intro is rendered by the **canvas cinematic** module
+  (`campaign-intro-cinematic.js`) **only when using the Pixi renderer**.
+  `showCampaignIntro()` in `main.js` checks `rendererMode === 'pixi'` before
+  starting the cinematic. For Canvas2D / OffscreenCanvas renderers, the HTML
+  overlay (`#campaignIntroOverlay` in `index.html`, driven by
+  `renderCampaignIntroScene()`) is used instead because the cinematic's
+  main-thread `getContext('2d')` conflicts with renderer canvas ownership.
+  The cinematic's `onComplete`/`onSkip` callbacks chain to
+  `finishCampaignIntro()` → `closeCampaignIntro()` → `beginCampaignArrival()` →
+  `updateCampaignArrivalState()` → `setPaused(false)` (unpause). The
+  `renderCampaignIntroScene()` text-card path is the Canvas2D fallback.
 
 ## Verification
 - `npm run test:steps` → `node tests/action-step-chain-integrity.mjs` (binding for the chain).
