@@ -1,11 +1,10 @@
 import { createCanvas2dRenderer } from './canvas2d-renderer.js?v=t_health_system_0628';
-import { createOffscreenRenderer, isOffscreenCanvasSupported } from './offscreen-renderer.js?v=t_offscreen_0628';
 
-export async function createRenderBackend({ canvas, mode = 'canvas2d', capture = false, settings = null } = {}) {
-  const normalized = String(mode || 'canvas2d').toLowerCase();
-  if (normalized === 'pixi' || normalized === 'auto') {
+export async function createRenderBackend({ canvas, mode = 'pixi', capture = false, settings = null } = {}) {
+  const normalized = String(mode || 'pixi').toLowerCase();
+  if (normalized === 'pixi') {
     try {
-      const { createPixiRenderer } = await import('./pixi-renderer.js?v=fog_fullmap_0628');
+      const { createPixiRenderer } = await import('./pixi-renderer.js?v=grove_pixi_fixes_0628');
       return await createPixiRenderer({ canvas, capture, settings });
     } catch (err) {
       console.warn('Pixi renderer failed; falling back to Canvas2D', err);
@@ -27,16 +26,11 @@ export async function createRenderBackend({ canvas, mode = 'canvas2d', capture =
     }
   }
 
-  // OffscreenCanvas + worker path (Tier 2)
-  if (normalized === 'canvas2d' && isOffscreenCanvasSupported()) {
-    try {
-      const offscreen = await createOffscreenRenderer({ canvas });
-      if (offscreen) return offscreen;
-    } catch (err) {
-      console.warn('OffscreenCanvas renderer failed; falling back to main-thread Canvas2D', err);
-    }
-  }
-
-  // Main-thread Canvas2D fallback (Tier 1)
+  // Main-thread Canvas2D path (always used for canvas2d mode).
+  // The OffscreenCanvas worker path was removed — it caused multiple bugs:
+  // frozen canvas dimensions (broke resize/zoom), race conditions on
+  // viewport change (devtools open → permanent black screen), silent error
+  // swallowing, and fragile worker module loading. Main-thread Canvas2D
+  // with the sprite cache is fast enough and far more reliable.
   return createCanvas2dRenderer({ canvas });
 }
