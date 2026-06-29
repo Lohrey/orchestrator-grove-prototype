@@ -19,6 +19,51 @@ import {
   playerSpriteKey,
   SPRITE_SIZE
 } from '../shared/sprite-cache.js?v=t_sprite_cache_0628';
+import {
+  loadTinySwordsAtlas,
+  getTinySwordsAtlas
+} from '../shared/tiny-swords-atlas.js?v=ts_fix2_0628';
+
+// ── Tiny Swords sprite atlas integration ──────────────────────────────
+// Loaded once at module init; getTinySwordsAtlas() returns null until ready,
+// at which point bots/pawns switch from procedural circles to atlas sprites.
+// See shared/tiny-swords-atlas.js for the loader contract.
+let _tsReady = false;
+let _tsPawnFrames = null;   // Pawn_Blue walk-cycle cells (192×192 sub-sheet)
+let _tsKnightFrames = null; // Warrior (Knight) walk-cycle cells (192×192 sub-sheet)
+let _tsTowerFrame = null;   // Tower frame rect
+
+export async function initTinySwordsSprites() {
+  if (_tsReady) return;
+  const atlas = await loadTinySwordsAtlas();
+  if (!atlas) { _tsReady = true; return; } // load failed — procedural fallback
+  // Pawn_Blue: 1152×1152 → 6×6 grid of 192px cells (walk/idle cycle)
+  _tsPawnFrames = atlas.getSheetFrames('Pawn_Blue');
+  // Warrior_Blue: 1152×1536 → 6×8 grid of 192px cells (walk/idle/attack cycle)
+  _tsKnightFrames = atlas.getSheetFrames('Warrior_Blue');
+  // Tower_Blue for defensive towers / buildings
+  _tsTowerFrame = atlas.getFrame('Tower_Blue') || atlas.getFrame('Castle_Blue');
+  _tsReady = true;
+  if (_tsPawnFrames) console.info(`[tiny-swords] Pawn walk cycle: ${_tsPawnFrames.length} frames`);
+  else console.warn('[tiny-swords] Pawn_Blue sub-sheet not found — using single frame');
+  if (_tsKnightFrames) console.info(`[tiny-swords] Warrior/Knight walk cycle: ${_tsKnightFrames.length} frames`);
+  else console.warn('[tiny-swords] Warrior_Blue sub-sheet not found — using procedural fallback for player');
+}
+
+/**
+ * Draw a Tiny Swords atlas cell (or full frame) centered at (cx, cy),
+ * scaled to fit drawSize×drawSize. Optionally flip horizontally.
+ */
+function drawAtlasCell(c, bitmap, frame, cx, cy, drawSize, flipX) {
+  if (!frame) return false;
+  c.drawImage(
+    bitmap,
+    frame.x, frame.y, frame.w, frame.h,   // source
+    cx - drawSize / 2, cy - drawSize / 2, // dest (centered)
+    drawSize, drawSize
+  );
+  return true;
+}
 
 function drawMiniItem(c, x, y, type) {
   c.save();
@@ -168,7 +213,49 @@ export function drawBot(game, c, b, now) {
   const facingRight = (b.facingX ?? 1) >= 0;
   const handToolTypes = inventoryIsHandTool ? [b.inventory.type] : [];
 
-  // Try sprite path; fall back to vector if cache not ready or on hover (hover needs the pulse effect)
+  // ── Tiny Swords atlas path (Pawn sprite) ──
+  // When the atlas is loaded, bots render as Tiny Swords Pawn sprites with a
+  // walk-cycle animation driven by bot movement state. Falls back to the
+  // procedural sprite cache (or vector) if the atlas isn't ready.
+  const atlas = getTinySwordsAtlas();
+  if (atlas && _tsPawnFrames && !hover) {
+    // Advance walk-cycle frame based on movement (use bot id + time for variety)
+    const moving = b._moving || b.vx || b.vy;
+    const speed = moving ? 8 : 0; // frames per second of animation
+    const frameIdx = Math.floor((now * speed) / 1000 + (b.id ? String(b.id).charCodeAt(0) : 0)) % _tsPawnFrames.length;
+    const frame = _tsPawnFrames[frameIdx];
+    const drawSize = (b.r || 12) * 2.6; // scale pawn to roughly match bot footprint
+    c.save();
+    drawShadow(c, b.x, b.y + (b.r || 12) * .7, (b.r || 12) + 4, 4, .26);
+    if (!facingRight) {
+      // Flip horizontally for leftward movement
+      c.translate(b.x + drawSize / 2, b.y);
+      c.scale(-1, 1);
+      drawAtlasCell(c, atlas.bitmap, frame, 0, 0, drawSize);
+    } else {
+      drawAtlasCell(c, atlas.bitmap, frame, b.x, b.y, drawSize);
+    }
+    // Overlay: id label + items (only when zoomed in)
+    const zoom = game.camera?.zoom || 1;
+    if (zoom >= 0.5) {
+      c.fillStyle = '#06100d';
+      c.font = '800 10px system-ui';
+      c.textAlign = 'center';
+      c.fillText(b.id, b.x, b.y + 3);
+      if (b.inventory && !inventoryIsHandTool) drawMiniItem(c, b.x - 1, b.y - 24, b.inventory.type);
+      handToolTypes.slice(0, 2).forEach((type, index) => {
+        const side = (index === 0 ? 1 : -1) * (facingRight ? 1 : -1);
+        drawHeldToolAsset(c, b.x + side * (b.r + 8), b.y + 5 + index * 2, type);
+      });
+      if (b.equipment?.weapon) drawHeldToolAsset(c, b.x + 17, b.y - 5, b.equipment.weapon);
+      if (b.equipment?.shield) drawHeldToolAsset(c, b.x - 17, b.y - 7, b.equipment.shield);
+      drawAmmoBadge(c, b, b.x, b.y + (b.r || 12) + 16);
+    }
+    c.restore();
+    return;
+  }
+
+  // ── Procedural sprite-cache path (fallback) ──
   const spriteCache = getSpriteCache();
   const useSprite = spriteCache && !hover;
 
@@ -280,23 +367,43 @@ export function drawPlayerActor(game, c, now) {
   const breathe = Math.sin(now / 520) * .8;
   const hpRatio = Math.max(0, Math.min(1, (game.player.hp ?? 0) / Math.max(1, game.player.maxHp || 10)));
   const lowHp = hpRatio <= 0.3;
+  const facingRight = (game.player.facingX ?? 1) >= 0;
 
-  // Try sprite path for body
-  const spriteCache = getSpriteCache();
-  const sprite = spriteCache ? spriteCache[playerSpriteKey(game.player)] : null;
-
-  if (sprite) {
-    c.drawImage(sprite, game.player.x - SPRITE_SIZE / 2, game.player.y - SPRITE_SIZE / 2 + breathe);
+  // ── Tiny Swords atlas path (Warrior/Knight sprite for player) ──
+  const atlas = getTinySwordsAtlas();
+  if (atlas && _tsKnightFrames) {
+    const drawSize = (game.player.r || 13) * 3.0; // knight is taller/bigger than pawn
+    // Animate walk cycle based on movement; slow idle bob when stationary
+    const moving = game.player.target || (Array.isArray(game.player.targetQueue) && game.player.targetQueue.length > 0);
+    const speed = moving ? 8 : 1; // fps: 8 when walking, ~1 for gentle idle
+    const frameIdx = Math.floor((now * speed) / 1000) % _tsKnightFrames.length;
+    const frame = _tsKnightFrames[frameIdx];
+    drawShadow(c, game.player.x, game.player.y + (game.player.r || 13) * .7, (game.player.r || 13) + 5, 5, .28);
+    if (!facingRight) {
+      c.translate(game.player.x + drawSize / 2, game.player.y + breathe);
+      c.scale(-1, 1);
+      drawAtlasCell(c, atlas.bitmap, frame, 0, 0, drawSize);
+    } else {
+      drawAtlasCell(c, atlas.bitmap, frame, game.player.x, game.player.y + breathe, drawSize);
+    }
   } else {
-    // Fallback: vector drawing
-    drawShadow(c, game.player.x, game.player.y + game.player.r + 5, game.player.r + 8, 5, .28);
-    const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
-    c.fillStyle = lowHp ? '#f5d8d4' : '#eef5ef';
-    c.strokeStyle = '#26322d';
-    c.lineWidth = 2;
-    c.beginPath(); c.arc(game.player.x, game.player.y + breathe, game.player.r + 1, 0, Math.PI * 2); c.fill(); c.stroke();
-    c.fillStyle = '#76b77f';
-    c.beginPath(); c.arc(game.player.x + look.x, game.player.y - 3 + breathe + look.y, 3, 0, Math.PI * 2); c.fill();
+    // Fallback: procedural sprite cache or vector drawing
+    const spriteCache = getSpriteCache();
+    const sprite = spriteCache ? spriteCache[playerSpriteKey(game.player)] : null;
+
+    if (sprite) {
+      c.drawImage(sprite, game.player.x - SPRITE_SIZE / 2, game.player.y - SPRITE_SIZE / 2 + breathe);
+    } else {
+      // Fallback: vector drawing
+      drawShadow(c, game.player.x, game.player.y + game.player.r + 5, game.player.r + 8, 5, .28);
+      const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
+      c.fillStyle = lowHp ? '#f5d8d4' : '#eef5ef';
+      c.strokeStyle = '#26322d';
+      c.lineWidth = 2;
+      c.beginPath(); c.arc(game.player.x, game.player.y + breathe, game.player.r + 1, 0, Math.PI * 2); c.fill(); c.stroke();
+      c.fillStyle = '#76b77f';
+      c.beginPath(); c.arc(game.player.x + look.x, game.player.y - 3 + breathe + look.y, 3, 0, Math.PI * 2); c.fill();
+    }
   }
 
   // Overlay pass (always for player since it's important)
