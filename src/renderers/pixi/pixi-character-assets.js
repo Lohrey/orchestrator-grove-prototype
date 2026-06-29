@@ -1,3 +1,5 @@
+import { loadTinySwordsAtlas, getTinySwordsAtlas, TROOP_CELL } from '../shared/tiny-swords-atlas.js?v=ts_fix2_0628';
+
 const CHARACTER_FRAME_SIZE = { width: 96, height: 80 };
 const CHARACTER_ANIMATION_NAMES = ['idle', 'run', 'attack1', 'attack2'];
 export const CHARACTER_PATHS = {
@@ -9,7 +11,142 @@ export const CHARACTER_PATHS = {
 const CHARACTER_SCALE = 1.38;
 const CHARACTER_GROUND_OFFSET = 11;
 
+// ── Bot (Pawn) sprite assets ──────────────────────────────────────
+// Loaded from the same Tiny Swords atlas as the player (Warrior_Blue).
+// Pawn_Blue is a 6×6 grid of 192×192 walk/idle cells.
+let _botPawnAssets = null;
+
+/**
+ * Load Pawn_Blue bot sprites from the Tiny Swords atlas.
+ * Returns null on failure; callers should use the vector fallback.
+ *
+ * @param {typeof import('../../../vendor/pixi/pixi.mjs')} PIXI
+ * @returns {Promise<{ready:true, textures:Array, scale:number, yOffset:number}|null>}
+ */
+export async function loadBotPawnAssets(PIXI) {
+  if (_botPawnAssets) return _botPawnAssets;
+  const atlas = await loadTinySwordsAtlas();
+  if (!atlas) return null;
+  const pawnFrames = atlas.getSheetFrames('Pawn_Blue', TROOP_CELL);
+  if (!pawnFrames || pawnFrames.length === 0) return null;
+  const baseTexture = PIXI.BaseTexture.from(atlas.bitmap);
+  const textures = pawnFrames.map(rect =>
+    new PIXI.Texture({ source: baseTexture, frame: new PIXI.Rectangle(rect.x, rect.y, rect.w, rect.h) })
+  );
+  // Canvas2D path: drawSize = (bot.r||12) * 2.6 ≈ 31px. scale 0.16 → 192*0.16 ≈ 31px.
+  // Pawn cells have empty space at the bottom; y-offset pushes sprite down to
+  // sit on the shadow. ~30px empty / 192 * 31 ≈ 4.8 → round to 5.
+  _botPawnAssets = {
+    ready: true,
+    textures,
+    scale: 0.16,
+    yOffset: 5
+  };
+  console.info(`[character-assets] Loaded ${textures.length} Pawn_Blue frames from Tiny Swords atlas`);
+  return _botPawnAssets;
+}
+
+/**
+ * Get the loaded bot pawn assets (or null if not loaded).
+ * @returns {{ready:true, textures:Array, scale:number, yOffset:number}|null}
+ */
+export function getBotPawnAssets() {
+  return _botPawnAssets;
+}
+
+/**
+ * Get the appropriate frame texture for a bot pawn at a given animation time.
+ *
+ * @param {object} sprite - The PIXI sprite with _botAnimState
+ * @param {object} assets - Loaded pawn assets
+ * @param {boolean} isMoving - Whether the bot is currently moving
+ * @param {number} now - performance.now()
+ * @returns {object|null} The texture for the current frame
+ */
+export function getBotPawnFrameTexture(sprite, assets, isMoving, now) {
+  if (!assets || !assets.textures || assets.textures.length === 0) return null;
+  const textures = assets.textures;
+  const frameCount = textures.length;
+  if (!sprite._botAnimState) {
+    sprite._botAnimState = { key: null, startedAt: 0, frameIndex: 0 };
+  }
+  const state = sprite._botAnimState;
+  const stateKey = isMoving ? 'walk' : 'idle';
+  if (state.key !== stateKey) {
+    state.key = stateKey;
+    state.startedAt = now;
+    state.frameIndex = 0;
+  }
+  if (isMoving) {
+    const frameDuration = Math.max(40, 1000 / 8); // 8fps walk cycle
+    state.frameIndex = Math.floor((now - state.startedAt) / frameDuration) % frameCount;
+  } else {
+    state.frameIndex = 0;
+  }
+  return textures[state.frameIndex] || textures[0];
+}
+
+/**
+ * Load character spritesheet assets for the Pixi renderer.
+ *
+ * Primary path: Tiny Swords atlas (Warrior_Blue sub-sheet sliced into 192×192
+ * cells).  This atlas is already loaded for the Canvas2D path and is guaranteed
+ * to exist.
+ *
+ * Fallback path: individual per-direction PNG sprites under
+ * /public/assets/character/Sprites/ (original design — currently no assets
+ * deployed at this path, so all loads fail and we fall through).
+ *
+ * Returns a structure shaped as { ready, idle:{dir:{textures,scale,yOffset}},
+ * run:{...}, attack1:{...}, attack2:{...} }.
+ */
 export async function loadCharacterAssets(PIXI) {
+  // ── Primary: Tiny Swords Warrior_Blue atlas ──────────────────────
+  const atlas = await loadTinySwordsAtlas();
+  if (atlas) {
+    const warriorFrames = atlas.getSheetFrames('Warrior_Blue', TROOP_CELL);
+    if (warriorFrames && warriorFrames.length > 0) {
+      // Create a PIXI BaseTexture from the atlas ImageBitmap
+      const baseTexture = PIXI.BaseTexture.from(atlas.bitmap);
+      const textures = warriorFrames.map(rect =>
+        new PIXI.Texture({ source: baseTexture, frame: new PIXI.Rectangle(rect.x, rect.y, rect.w, rect.h) })
+      );
+
+      // Tiny Swords Warrior_Blue is a 6-col × 8-row sheet (48 cells).
+      // We use the first few frames for idle, mid frames for walk, and
+      // later frames for attack.  All directions share the same texture set;
+      // left-facing is handled by flipping scale.x in the renderer.
+      const frameCount = textures.length;
+      const idleTextures = textures.slice(0, Math.min(6, frameCount));
+      const runTextures = textures.slice(0, Math.min(24, frameCount));
+      const attackTextures = textures.slice(Math.floor(frameCount * 0.5), frameCount);
+
+      const makeAnim = texs => ({
+        textures: texs.length > 0 ? texs : idleTextures,
+        // 192px cells. Canvas2D path draws knight at (player.r||13)*3.0 ≈ 39px.
+        // scale 0.22 → 192*0.22 ≈ 42px, matching the Canvas2D draw size.
+        scale: 0.22,  // 192px cells scaled to ~42px in-world
+        // Tiny Swords Warrior_Blue cells have ~40px of empty space at the
+        // bottom (feet are above the cell bottom). Anchor (0.5, 1) puts the
+        // anchor at the cell bottom, so the visual feet float above the
+        // shadow. This y-offset pushes the sprite down so the feet touch the
+        // ground/shadow.  In world units at scale 0.22: 40px/192 * 42 ≈ 8.75.
+        yOffset: 9
+      });
+
+      const result = {
+        ready: true,
+        idle: { up: makeAnim(idleTextures), down: makeAnim(idleTextures), left: makeAnim(idleTextures), right: makeAnim(idleTextures) },
+        run: { up: makeAnim(runTextures), down: makeAnim(runTextures), left: makeAnim(runTextures), right: makeAnim(runTextures) },
+        attack1: { up: makeAnim(attackTextures), down: makeAnim(attackTextures), left: makeAnim(attackTextures), right: makeAnim(attackTextures) },
+        attack2: { up: makeAnim(attackTextures), down: makeAnim(attackTextures), left: makeAnim(attackTextures), right: makeAnim(attackTextures) }
+      };
+      console.info(`[character-assets] Loaded ${frameCount} Warrior_Blue frames from Tiny Swords atlas`);
+      return result;
+    }
+  }
+
+  // ── Fallback: per-direction PNG sprites (original design) ────────
   const basePath = '/public/assets/character/Sprites';
   const entries = await Promise.all(CHARACTER_ANIMATION_NAMES.flatMap(name => ['up', 'down', 'left', 'right'].map(async direction => {
     const folder = CHARACTER_PATHS[name];
@@ -23,9 +160,15 @@ export async function loadCharacterAssets(PIXI) {
     }
   })));
   const byAction = {};
+  let anyLoaded = false;
   for (const [key, frameTextures] of entries) {
     const [name, direction] = key.split(':');
     (byAction[name] ||= {})[direction] = frameTextures;
+    if (frameTextures) anyLoaded = true;
+  }
+  if (!anyLoaded) {
+    console.warn('[character-assets] No character sprites loaded (atlas + PNG paths both failed); using vector fallback');
+    return { ready: false };
   }
   return {
     ready: true,

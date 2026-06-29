@@ -2,14 +2,14 @@ import { BUILDING_TYPES, PROGRAMS, PROGRAM_TEMPLATES, ALLOWED_OPS, DEFAULT_WORLD
 import { CAMPAIGN_MAP_FEATURES, CAMPAIGN_MAP_SIZE, CAMPAIGN_START, getCampaignArrivalScene } from './campaign-scenes.js?v=t_campaign_scenes_0623';
 import { createCanvas2dRenderer } from './renderers/canvas2d-renderer.js?v=t_building_kits_0618';
 import { createRenderState } from './render-state.js?v=t_building_kits_0618';
-import { installCombatSystem, IDLE_BOT_AUTO_ATTACK_RANGE } from './systems/combat/combat-system.js?v=t_combat_system_0627';
-import { BOW_ATTACK, DEFENSE_TOWER_ATTACK, MELEE_AUTO_ATTACK, MONSTER_MELEE_ATTACK } from './systems/combat/combat-config.js?v=t_combat_system_0627';
+import { installCombatSystem, IDLE_BOT_AUTO_ATTACK_RANGE, PLAYER_AUTO_ENGAGE_RANGE } from './systems/combat/combat-system.js?v=grove_pixi_fixes_0628';
+import { BOW_ATTACK, DEFENSE_TOWER_ATTACK, MELEE_AUTO_ATTACK, MONSTER_MELEE_ATTACK } from './systems/combat/combat-config.js?v=grove_pixi_fixes_0628';
 import { installTaughtLoopSystem } from './systems/dsl/taught-loop-system.js?v=hemp_repeat_search_0628_tl';
 import { installInventorySystem } from './systems/inventory/inventory-system.js?v=t_inventory_system_0627';
 import { assemblerRecipe as getAssemblerRecipe, DEFAULT_SMITHERY_RECIPE, DEFAULT_WORKBENCH_RECIPE, installProductionSystem, productionInputCount, productionInputNeeds as getProductionInputNeeds, SMITHERY_RECIPES, smitheryInputFor, smitheryRecipe, WORKBENCH_TOOL_RECIPES, workbenchRecipe } from './systems/production/production-system.js?v=t_production_system_0627';
 import { FOG_CELL_SIZE, createFogOfWar, fogRevealSources as createFogRevealSources, getFogStats, isLightEmittingStructure as isFogLightEmittingStructure, normalizeFogOfWar, revealFogCircle, serializeFogOfWar, structureLightRadius as fogStructureLightRadius, updateFogOfWarState } from './fog-of-war.js?v=t_building_kits_0618';
-import { clamp, rand, distXY, nearest, pointInRect, rectDistance, canvasPoint, escapeHtml } from './utils.js?v=20260613-player-tools';
-import { installCameraSystem } from './systems/camera-system.js?v=t_camera_system_0627';
+import { clamp, rand, distXY, nearest, pointInRect, rectDistance, canvasPoint, escapeHtml } from './utils.js?v=grove_pixi_fixes_0628';
+import { installCameraSystem } from './systems/camera-system.js?v=grove_pixi_fixes_0628';
 import { installPlayerSystem } from './systems/player-system.js?v=stone_deposit_interact_0628';
 import { installMonsterSystem } from './systems/monster-system.js?v=grove_fixes_0628';
 import { installStructureSystem } from './systems/structure-system.js?v=t_structure_system_0627';
@@ -237,7 +237,7 @@ export class Game {
     this.zones = clone(DEFAULT_WORLD_ZONES); this.nextZoneId = 1;
     this.idleDepot = { x: 115, y: 245, label: 'idle depot' };
     this.nextItemId = 1; this.nextRockId = 1; this.nextHoleId = 1; this.nextTreeId = 1; this.nextHempId = 1; this.nextMonsterId = 1; this.nextProjectileId = 1; this.nextBotId = 1; this.nextStructureId = 1;
-    this.maxBots = 24; this.targetFps = 30; this.dynamicShadowsEnabled = false; this.lightingEffectsEnabled = true; this.showFpsOverlay = true; this.fps = 0; this.frameCount = 0; this.fpsAcc = 0; this.lastFrame = 0; this.worldTime = 0; this._lastFogSignature = '';
+    this.maxBots = 24; this.targetFps = 60; this.dynamicShadowsEnabled = false; this.lightingEffectsEnabled = true; this.showFpsOverlay = true; this.fps = 0; this.frameCount = 0; this.fpsAcc = 0; this.lastFrame = 0; this.worldTime = 0; this._lastFogSignature = '';
     this.mouse = { x: 0, y: 0, screenX: 0, screenY: 0, clientX: 0, clientY: 0, hoverBot: null, hoverStructure: null, hoverMonster: null, hoverTree: null, hoverHole: null, hoverItem: null, hoverHemp: null, hoverZone: null };
     this.placementType = null; this.zoneDraft = null; this.zoneDrag = null; this.zoneResize = null; this.justDrewZone = false; this.justDraggedZone = false;
     this.renderer = { text: this.renderBackend?.text || 'Renderer pending', webgpu: false, reason: 'not probed', backend: this.renderBackend?.kind || 'canvas2d' };
@@ -298,7 +298,7 @@ export class Game {
       [1260,220],[1430,310],[1660,180],[1850,420],[2100,260],[2500,520],[2920,340],[3260,620],[1320,920],[1750,1120],[2260,980],[2820,1220],[3150,1580],[2480,1820],[1900,1700]
     ].forEach(([x,y]) => this.spawnTree(x, y));
     [[735,215],[780,255],[835,205],[1180,500],[1280,575],[1510,740],[2050,620],[2385,760],[2700,1040],[3100,1180],[3350,1680],[2220,1580],[1775,1450]].forEach(([x,y]) => this.spawnHemp(x, y));
-    this.addStructure('sawbench', 320, 330); this.addStructure('workbench', 455, 330); this.addStructure('smithery', 525, 245); this.addStructure('bowmaker', 665, 245); this.addStructure('defensetower', 795, 330); this.addStructure('factory', 595, 330);
+    this.addStructure('sawbench', 320, 330); this.addStructure('workbench', 455, 330); this.addStructure('smithery', 525, 245); this.addStructure('bowmaker', 665, 245); this.addStructure('defensetower', 795, 330); this.addStructure('factory', 595, 330); this.addStructure('assembler', 705, 410);
     [[1640,1120],[1785,1225],[1920,1145],[1840,990],[2040,1280]].forEach(([x,y]) => this.spawnMonster(x, y));
     [[470,500],[530,545],[720,565],[905,165],[1025,255],[660,705],[1320,650],[1600,850],[2100,700],[2500,940],[3060,880],[3350,1420],[2700,1760],[1500,1350]].forEach(([x,y]) => this.spawnStoneDeposit(x, y));
     this.createBot(175,250,'idle',true); this.createBot(205,265,'idle',true); this.createBot(235,250,'idle',true); this.createBot(185,290,'idle',true);
@@ -1774,7 +1774,10 @@ export class Game {
     const target = this.player.target;
     if (!target) {
       if (this.advancePlayerTargetQueue()) return;
-      this.updateActorAutoAttack(this.player, dt);
+      // ── Player auto-engage when idle (#3) ──
+      // When the player has no target/action, auto-detect nearby enemies and engage.
+      // Uses a generous search range so the player defends themselves when threatened.
+      this.updateActorAutoAttack(this.player, dt, { searchRange: PLAYER_AUTO_ENGAGE_RANGE });
       return;
     }
     if (target.started && ['search_tree', 'search_hemp', 'chop_hemp', 'chop_tree', 'mine_stone', 'structure_processing', 'deploy_loose_building_kit', 'deploy_building_kit', 'disassemble_building_to_kit'].includes(target.action)) {
@@ -1962,10 +1965,10 @@ export class Game {
     if (!this.moveBotTo(bot, tree, dt, tree.radius + 14)) return bot.message=`Walking to tree in ${this.zoneLabel(zone)} with ${itemLabel(toolType)}.`;
     bot.timer += dt; bot.message = `Chopping with ${itemLabel(toolType)} (${Math.min(RESOURCE_HIT_SECONDS, Math.ceil(bot.timer))}/${RESOURCE_HIT_SECONDS}).`;
     if (bot.timer >= RESOURCE_HIT_SECONDS) {
-      bot.timer=0; tree.hp--; bot.inventory.durability--; this.spawnItem('log', tree.x, tree.y, 1);
+      bot.timer=0; tree.hp--; bot.inventory.durability--;
       this.emitSound('chop', { cooldownKey: `bot:chop:${bot.id}`, minGapMs: 220 });
       if (bot.inventory.durability <= 0) { this.addFloat(`${itemLabel(toolType)} broke`, bot.x, bot.y - 24, '#c86b5f'); bot.inventory = null; }
-      if (tree.hp <= 0) { tree.stump = true; tree.regrow = 0; bot.target = null; this.spawnItem('stick', tree.x, tree.y, 2); this.spawnItem('tree_seed', tree.x, tree.y, 1); }
+      if (tree.hp <= 0) { tree.stump = true; tree.regrow = 0; bot.target = null; this.spawnItem('log', tree.x, tree.y, 1); this.spawnItem('stick', tree.x, tree.y, 2); this.spawnItem('tree_seed', tree.x, tree.y, 1); }
     }
   }
   ensureChopTool(bot, dt) {

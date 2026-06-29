@@ -2,7 +2,7 @@
 // Entity spawning: trees, items, hemp, monsters, stone deposits, holes, produced items, seeds.
 // Part of the Game class composition root — installed via installSpawnSystem(Game, deps).
 
-import { clamp, rand } from '../utils.js?v=20260613-player-tools';
+import { clamp, rand } from '../utils.js?v=grove_pixi_fixes_0628';
 
 export function installSpawnSystem(Game, deps) {
   const {

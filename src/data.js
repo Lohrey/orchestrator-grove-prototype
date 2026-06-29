@@ -3,8 +3,8 @@ import {
   ACTION_STEP_REGISTRY,
   actionStepChainRows,
   actionStepWikiActions
-} from './action-steps.js?v=t_building_kits_0618';
-import { ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT } from './assistant-pack-catalog.js?v=t_building_kits_0618';
+} from './action-steps.js?v=grove_assembler_map_0628';
+import { ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT } from './assistant-pack-catalog.js?v=grove_assembler_map_0628';
 
 export const PROGRAMS = ['chop_wood', 'mine_stone', 'dig_holes', 'pickup_item', 'plant_trees', 'haul_logs', 'make_planks', 'make_poles', 'haul_planks', 'craft_axes', 'build_bots', 'taught_loop', 'idle'];
 export const ACTION_STEPS = ACTION_STEP_REGISTRY;

@@ -1,12 +1,14 @@
-import { clamp, distXY, nearest, rectDistance } from '../../utils.js?v=20260613-player-tools';
+import { clamp, distXY, nearest, rectDistance } from '../../utils.js?v=grove_pixi_fixes_0628';
 import {
   BOW_ATTACK,
   DEFENSE_TOWER_ATTACK,
   IDLE_BOT_AUTO_ATTACK_RANGE,
   MELEE_ATTACK_RANGE,
   MELEE_AUTO_ATTACK,
-  MONSTER_MELEE_ATTACK
-} from './combat-config.js?v=t_combat_system_0627';
+  MONSTER_MELEE_ATTACK,
+  PLAYER_ATTACK_COOLDOWN,
+  PLAYER_AUTO_ENGAGE_RANGE
+} from './combat-config.js?v=grove_pixi_fixes_0628';
 
 function ensureAutoAttackState(actor, defaults = {}) {
   if (!actor) return null;
@@ -73,9 +75,16 @@ export function installCombatSystem(Game) {
       const owner = this.actorOwnerId(actor);
       const targets = [];
       if (actor?.ref?.startsWith('monster:')) {
+        // Player is always a valid target for hostile monsters (single & multiplayer)
+        if (!this.player?.dead && (this.player?.hp ?? 0) > 0) {
+          if (!this.multiplayer?.enabled || !owner || owner !== this.multiplayer.playerId) {
+            // Ensure player has a stable ref so findTargetByRef can resolve it
+            if (!this.player.ref) this.player.ref = 'player:local';
+            targets.push(this.player);
+          }
+        }
         if (this.multiplayer?.enabled && (!owner || owner !== this.multiplayer.playerId)) {
-          Object.assign(this.player, { ref: 'player:local', id: this.multiplayer.playerId || 'p1' });
-          targets.push(this.player);
+          Object.assign(this.player, { ref: this.player.ref || 'player:local', id: this.multiplayer.playerId || 'p1' });
         }
         targets.push(...this.bots.filter(bot => (bot.hp ?? 1) > 0 && (!owner || this.actorOwnerId(bot) !== owner)));
         targets.push(...this.structures.filter(s => (s.hp ?? 1) > 0 && s.ownerId && (!owner || s.ownerId !== owner) && ['throne', 'defensetower'].includes(s.type)));
@@ -148,6 +157,9 @@ export function installCombatSystem(Game) {
       if (ranged) return this.fireActorBow(actor, target, attack);
       this.damageAttackTarget(target, attack.damage || 1);
       attack.cooldownRemaining = attack.cooldown || MELEE_AUTO_ATTACK.cooldown;
+      // ── Sync player's manual attack cooldown with auto-attack ──
+      // Prevents the player from bypassing attack speed via auto-engage.
+      if (actor === this.player) actor.attackCooldown = Math.max(actor.attackCooldown || 0, attack.cooldownRemaining);
       this.emitSound('hit', { cooldownKey: `auto:${actor.ref || actor.id}`, minGapMs: 160 });
       return true;
     },
@@ -182,6 +194,11 @@ export function installCombatSystem(Game) {
       if (!this.isHostileTarget(target)) return false;
       equipmentFor(this, this.player);
       if (this.player.equipment?.weapon === 'bow') return this.firePlayerBow(target);
+      // ── Attack speed cooldown (melee/hand combat) ──
+      // Prevent spam-clicking: only queue a new melee attack if the player's
+      // attack cooldown has elapsed. This applies to both armed and unarmed.
+      if (!append && (this.player.attackCooldown || 0) > 0) return false;
+      if (append && (this.player.attackCooldown || 0) > 0) return false;
       const dx = this.player.x - target.x;
       const dy = this.player.y - target.y;
       const len = Math.hypot(dx, dy) || 1;
@@ -222,15 +239,23 @@ export function installCombatSystem(Game) {
       const target = this.findTargetByRef(ref);
       if (!this.isHostileTarget(target)) return false;
       if (distXY(this.player.x, this.player.y, target.x, target.y) > (target.radius || target.r || 16) + MELEE_ATTACK_RANGE + 8) return false;
+      // ── Set player attack cooldown on hit ──
+      this.player.attackCooldown = PLAYER_ATTACK_COOLDOWN;
       return this.damageAttackTarget(target, this.playerMeleeDamage());
     },
     damageAttackTarget(target, damage = 1) {
       if (!target || (target.hp ?? 1) <= 0) return false;
       if (target.type === 'throne') return this.damageThrone(target, damage);
+      // ── Symmetric combat: route player damage through damagePlayer() ──
+      // This ensures damage events for the local player go through the health system
+      // (triggers death, regen timer reset, hurt sound, multiplayer sync, etc.)
+      if (target.ref?.startsWith('player:')) {
+        this.damagePlayer(damage);
+        return true;
+      }
       target.hp = Math.max(0, (target.hp ?? target.maxHp ?? 1) - damage);
       this.addFloat(`${target.name || target.ref || 'target'} -${damage} HP`, target.x, target.y - 34, target.hp <= 0 ? '#c86b5f' : '#d3a95f');
       if (target.hp <= 0) this.addFloat(`${target.name || target.ref || 'target'} defeated`, target.x, target.y - 50, '#9abf8f');
-      if (target.ref?.startsWith('player:')) this.emitSound('player_hurt', { cooldownKey: 'player_hurt', minGapMs: 150 });
       if (target.ref?.startsWith('bot:') && target.hp <= 0) this.emitSound('bot_defeat', { cooldownKey: `bot_defeat:${target.id}`, minGapMs: 200 });
       if (target.ref?.startsWith('player:') && typeof this.onMultiplayerState === 'function') this.onMultiplayerState(this.getLocalPlayerNetState());
       return true;
@@ -314,6 +339,18 @@ export function installCombatSystem(Game) {
     updateMonster(monster, dt) {
       if (!monster || (monster.hp || 0) <= 0) return;
       if (monster.laneTargetRef) return this.updateLaneMonster(monster, dt);
+
+      // ── AGGRESSIVE BEHAVIOR (#4) ──
+      // Hostile monsters detect nearby player/bots in their aggroRange and actively
+      // pursue + attack. When no target is in range, they return to roaming.
+      // Monster attacks are now hit-based via updateActorAutoAttack (with cooldown),
+      // not contact-based proximity damage.
+      if (monster.hostile && (monster.hp ?? 0) > 0) {
+        const engaged = this.updateActorAutoAttack(monster, dt, { searchRange: monster.aggroRange || 130 });
+        if (engaged) return; // monster is closing on / attacking a target
+      }
+
+      // ── Passive roaming (no aggro target) ──
       const nearestStructure = this.nearestStructureToMonster(monster);
       const structureDistance = this.monsterStructureDistance(monster, nearestStructure);
       if (nearestStructure && structureDistance < monster.avoidRadius) {
@@ -444,4 +481,4 @@ export function installCombatSystem(Game) {
   });
 }
 
-export { IDLE_BOT_AUTO_ATTACK_RANGE };
+export { IDLE_BOT_AUTO_ATTACK_RANGE, PLAYER_AUTO_ENGAGE_RANGE };

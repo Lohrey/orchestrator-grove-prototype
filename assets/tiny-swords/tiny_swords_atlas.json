@@ -1,0 +1,3953 @@
+{
+  "frames": {
+    "Factions/Knights/Troops/Archer/Yellow/Archer_Yellow.png": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 1536,
+        "h": 1344
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1536,
+        "h": 1344
+      },
+      "sourceSize": {
+        "w": 1536,
+        "h": 1344
+      }
+    },
+    "Factions/Knights/Troops/Archer/Red/Archer_Red.png": {
+      "frame": {
+        "x": 1538,
+        "y": 0,
+        "w": 1536,
+        "h": 1344
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1536,
+        "h": 1344
+      },
+      "sourceSize": {
+        "w": 1536,
+        "h": 1344
+      }
+    },
+    "Factions/Knights/Troops/Archer/Purple/Archer_Purlple.png": {
+      "frame": {
+        "x": 3076,
+        "y": 0,
+        "w": 1536,
+        "h": 1344
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1536,
+        "h": 1344
+      },
+      "sourceSize": {
+        "w": 1536,
+        "h": 1344
+      }
+    },
+    "Factions/Knights/Troops/Archer/Blue/Archer_Blue.png": {
+      "frame": {
+        "x": 4614,
+        "y": 0,
+        "w": 1536,
+        "h": 1344
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1536,
+        "h": 1344
+      },
+      "sourceSize": {
+        "w": 1536,
+        "h": 1344
+      }
+    },
+    "Factions/Knights/Troops/Warrior/Yellow/Warrior_Yellow.png": {
+      "frame": {
+        "x": 6152,
+        "y": 0,
+        "w": 1152,
+        "h": 1536
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1152,
+        "h": 1536
+      },
+      "sourceSize": {
+        "w": 1152,
+        "h": 1536
+      }
+    },
+    "Factions/Knights/Troops/Warrior/Red/Warrior_Red.png": {
+      "frame": {
+        "x": 0,
+        "y": 1346,
+        "w": 1152,
+        "h": 1536
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1152,
+        "h": 1536
+      },
+      "sourceSize": {
+        "w": 1152,
+        "h": 1536
+      }
+    },
+    "Factions/Knights/Troops/Warrior/Purple/Warrior_Purple.png": {
+      "frame": {
+        "x": 0,
+        "y": 2884,
+        "w": 1152,
+        "h": 1536
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1152,
+        "h": 1536
+      },
+      "sourceSize": {
+        "w": 1152,
+        "h": 1536
+      }
+    },
+    "Factions/Knights/Troops/Warrior/Blue/Warrior_Blue.png": {
+      "frame": {
+        "x": 0,
+        "y": 4422,
+        "w": 1152,
+        "h": 1536
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1152,
+        "h": 1536
+      },
+      "sourceSize": {
+        "w": 1152,
+        "h": 1536
+      }
+    },
+    "Factions/Knights/Troops/Pawn/Yellow/Pawn_Yellow.png": {
+      "frame": {
+        "x": 0,
+        "y": 5960,
+        "w": 1152,
+        "h": 1152
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1152,
+        "h": 1152
+      },
+      "sourceSize": {
+        "w": 1152,
+        "h": 1152
+      }
+    },
+    "Factions/Knights/Troops/Pawn/Red/Pawn_Red.png": {
+      "frame": {
+        "x": 1154,
+        "y": 1346,
+        "w": 1152,
+        "h": 1152
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1152,
+        "h": 1152
+      },
+      "sourceSize": {
+        "w": 1152,
+        "h": 1152
+      }
+    },
+    "Factions/Knights/Troops/Pawn/Purple/Pawn_Purple.png": {
+      "frame": {
+        "x": 2308,
+        "y": 1346,
+        "w": 1152,
+        "h": 1152
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1152,
+        "h": 1152
+      },
+      "sourceSize": {
+        "w": 1152,
+        "h": 1152
+      }
+    },
+    "Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png": {
+      "frame": {
+        "x": 3462,
+        "y": 1346,
+        "w": 1152,
+        "h": 1152
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1152,
+        "h": 1152
+      },
+      "sourceSize": {
+        "w": 1152,
+        "h": 1152
+      }
+    },
+    "Factions/Goblins/Troops/Torch/Yellow/Torch_Yellow.png": {
+      "frame": {
+        "x": 0,
+        "y": 7114,
+        "w": 1344,
+        "h": 960
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1344,
+        "h": 960
+      },
+      "sourceSize": {
+        "w": 1344,
+        "h": 960
+      }
+    },
+    "Factions/Goblins/Troops/Torch/Red/Torch_Red.png": {
+      "frame": {
+        "x": 4616,
+        "y": 1346,
+        "w": 1344,
+        "h": 960
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1344,
+        "h": 960
+      },
+      "sourceSize": {
+        "w": 1344,
+        "h": 960
+      }
+    },
+    "Factions/Goblins/Troops/Torch/Purple/Torch_Purple.png": {
+      "frame": {
+        "x": 5962,
+        "y": 1538,
+        "w": 1344,
+        "h": 960
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1344,
+        "h": 960
+      },
+      "sourceSize": {
+        "w": 1344,
+        "h": 960
+      }
+    },
+    "Factions/Goblins/Troops/Torch/Blue/Torch_Blue.png": {
+      "frame": {
+        "x": 4616,
+        "y": 2308,
+        "w": 1344,
+        "h": 960
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1344,
+        "h": 960
+      },
+      "sourceSize": {
+        "w": 1344,
+        "h": 960
+      }
+    },
+    "Factions/Goblins/Troops/TNT/Yellow/TNT_Yellow.png": {
+      "frame": {
+        "x": 5962,
+        "y": 2500,
+        "w": 1344,
+        "h": 576
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1344,
+        "h": 576
+      },
+      "sourceSize": {
+        "w": 1344,
+        "h": 576
+      }
+    },
+    "Factions/Goblins/Troops/TNT/Red/TNT_Red.png": {
+      "frame": {
+        "x": 5962,
+        "y": 3078,
+        "w": 1344,
+        "h": 576
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1344,
+        "h": 576
+      },
+      "sourceSize": {
+        "w": 1344,
+        "h": 576
+      }
+    },
+    "Factions/Goblins/Troops/TNT/Purple/TNT_Purple.png": {
+      "frame": {
+        "x": 1346,
+        "y": 2500,
+        "w": 1344,
+        "h": 576
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1344,
+        "h": 576
+      },
+      "sourceSize": {
+        "w": 1344,
+        "h": 576
+      }
+    },
+    "Factions/Goblins/Troops/TNT/Blue/TNT_Blue.png": {
+      "frame": {
+        "x": 2692,
+        "y": 2500,
+        "w": 1344,
+        "h": 576
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1344,
+        "h": 576
+      },
+      "sourceSize": {
+        "w": 1344,
+        "h": 576
+      }
+    },
+    "Factions/Knights/Troops/Archer/Archer + Bow/Archer_Bow_Yellow.png": {
+      "frame": {
+        "x": 1346,
+        "y": 3078,
+        "w": 1536,
+        "h": 384
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1536,
+        "h": 384
+      },
+      "sourceSize": {
+        "w": 1536,
+        "h": 384
+      }
+    },
+    "Factions/Knights/Troops/Archer/Archer + Bow/Archer_Bow_Red.png": {
+      "frame": {
+        "x": 2884,
+        "y": 3078,
+        "w": 1536,
+        "h": 384
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1536,
+        "h": 384
+      },
+      "sourceSize": {
+        "w": 1536,
+        "h": 384
+      }
+    },
+    "Factions/Knights/Troops/Archer/Archer + Bow/Archer_Bow_Purple.png": {
+      "frame": {
+        "x": 4422,
+        "y": 3270,
+        "w": 1536,
+        "h": 384
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1536,
+        "h": 384
+      },
+      "sourceSize": {
+        "w": 1536,
+        "h": 384
+      }
+    },
+    "Factions/Knights/Troops/Archer/Archer + Bow/Archer_Bow_Blue.png": {
+      "frame": {
+        "x": 1346,
+        "y": 3464,
+        "w": 1536,
+        "h": 384
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1536,
+        "h": 384
+      },
+      "sourceSize": {
+        "w": 1536,
+        "h": 384
+      }
+    },
+    "Factions/Goblins/Troops/Barrel/Yellow/Barrel_Yellow.png": {
+      "frame": {
+        "x": 7308,
+        "y": 0,
+        "w": 768,
+        "h": 768
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 768,
+        "h": 768
+      },
+      "sourceSize": {
+        "w": 768,
+        "h": 768
+      }
+    },
+    "Factions/Goblins/Troops/Barrel/Red/Barrel_Red.png": {
+      "frame": {
+        "x": 7308,
+        "y": 770,
+        "w": 768,
+        "h": 768
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 768,
+        "h": 768
+      },
+      "sourceSize": {
+        "w": 768,
+        "h": 768
+      }
+    },
+    "Factions/Goblins/Troops/Barrel/Purple/Barrel_Purple.png": {
+      "frame": {
+        "x": 7308,
+        "y": 1540,
+        "w": 768,
+        "h": 768
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 768,
+        "h": 768
+      },
+      "sourceSize": {
+        "w": 768,
+        "h": 768
+      }
+    },
+    "Factions/Goblins/Troops/Barrel/Blue/Barrel_Blue.png": {
+      "frame": {
+        "x": 7308,
+        "y": 2310,
+        "w": 768,
+        "h": 768
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 768,
+        "h": 768
+      },
+      "sourceSize": {
+        "w": 768,
+        "h": 768
+      }
+    },
+    "Factions/Knights/Troops/Archer/Archer + Bow/Archer_Yellow_(NoArms).png": {
+      "frame": {
+        "x": 2884,
+        "y": 3464,
+        "w": 1152,
+        "h": 384
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1152,
+        "h": 384
+      },
+      "sourceSize": {
+        "w": 1152,
+        "h": 384
+      }
+    },
+    "Factions/Knights/Troops/Archer/Archer + Bow/Archer_Red_(NoArms).png": {
+      "frame": {
+        "x": 1154,
+        "y": 3850,
+        "w": 1152,
+        "h": 384
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1152,
+        "h": 384
+      },
+      "sourceSize": {
+        "w": 1152,
+        "h": 384
+      }
+    },
+    "Factions/Knights/Troops/Archer/Archer + Bow/Archer_Purple_(NoArms).png": {
+      "frame": {
+        "x": 1154,
+        "y": 4236,
+        "w": 1152,
+        "h": 384
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1152,
+        "h": 384
+      },
+      "sourceSize": {
+        "w": 1152,
+        "h": 384
+      }
+    },
+    "Factions/Knights/Troops/Archer/Archer + Bow/Archer_Blue_(NoArms).png": {
+      "frame": {
+        "x": 1154,
+        "y": 4622,
+        "w": 1152,
+        "h": 384
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1152,
+        "h": 384
+      },
+      "sourceSize": {
+        "w": 1152,
+        "h": 384
+      }
+    },
+    "Resources/Trees/Tree.png": {
+      "frame": {
+        "x": 7308,
+        "y": 3080,
+        "w": 768,
+        "h": 576
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 768,
+        "h": 576
+      },
+      "sourceSize": {
+        "w": 768,
+        "h": 576
+      }
+    },
+    "Effects/Explosion/Explosions.png": {
+      "frame": {
+        "x": 4038,
+        "y": 3656,
+        "w": 1728,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1728,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 1728,
+        "h": 192
+      }
+    },
+    "Terrain/Water/Foam/Foam.png": {
+      "frame": {
+        "x": 5768,
+        "y": 3656,
+        "w": 1536,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1536,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 1536,
+        "h": 192
+      }
+    },
+    "Resources/Sheep/HappySheep_All.png": {
+      "frame": {
+        "x": 1154,
+        "y": 5008,
+        "w": 1024,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1024,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 1024,
+        "h": 256
+      }
+    },
+    "Factions/Knights/Troops/Dead/Dead.png": {
+      "frame": {
+        "x": 1154,
+        "y": 5266,
+        "w": 896,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 896,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 896,
+        "h": 256
+      }
+    },
+    "Factions/Goblins/Buildings/Wood_Tower/Wood_Tower_Yellow.png": {
+      "frame": {
+        "x": 1154,
+        "y": 5524,
+        "w": 1024,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1024,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 1024,
+        "h": 192
+      }
+    },
+    "Factions/Goblins/Buildings/Wood_Tower/Wood_Tower_Red.png": {
+      "frame": {
+        "x": 2052,
+        "y": 5266,
+        "w": 1024,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1024,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 1024,
+        "h": 192
+      }
+    },
+    "Factions/Goblins/Buildings/Wood_Tower/Wood_Tower_Purple.png": {
+      "frame": {
+        "x": 2180,
+        "y": 5008,
+        "w": 1024,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1024,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 1024,
+        "h": 192
+      }
+    },
+    "Factions/Goblins/Buildings/Wood_Tower/Wood_Tower_Blue.png": {
+      "frame": {
+        "x": 2308,
+        "y": 3850,
+        "w": 1024,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1024,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 1024,
+        "h": 192
+      }
+    },
+    "Terrain/Ground/Tilemap_Flat.png": {
+      "frame": {
+        "x": 7306,
+        "y": 3658,
+        "w": 640,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 640,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 640,
+        "h": 256
+      }
+    },
+    "Terrain/Water/Rocks/Rocks_04.png": {
+      "frame": {
+        "x": 2308,
+        "y": 4044,
+        "w": 1024,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1024,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 1024,
+        "h": 128
+      }
+    },
+    "Terrain/Water/Rocks/Rocks_03.png": {
+      "frame": {
+        "x": 2308,
+        "y": 4174,
+        "w": 1024,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1024,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 1024,
+        "h": 128
+      }
+    },
+    "Terrain/Water/Rocks/Rocks_02.png": {
+      "frame": {
+        "x": 2308,
+        "y": 4304,
+        "w": 1024,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1024,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 1024,
+        "h": 128
+      }
+    },
+    "Terrain/Water/Rocks/Rocks_01.png": {
+      "frame": {
+        "x": 2308,
+        "y": 4434,
+        "w": 1024,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1024,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 1024,
+        "h": 128
+      }
+    },
+    "Resources/Sheep/HappySheep_Idle.png": {
+      "frame": {
+        "x": 2308,
+        "y": 4564,
+        "w": 1024,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1024,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 1024,
+        "h": 128
+      }
+    },
+    "Terrain/Ground/Tilemap_Elevation.png": {
+      "frame": {
+        "x": 4038,
+        "y": 2500,
+        "w": 256,
+        "h": 512
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 256,
+        "h": 512
+      },
+      "sourceSize": {
+        "w": 256,
+        "h": 512
+      }
+    },
+    "Resources/Resources/W_Spawn.png": {
+      "frame": {
+        "x": 2308,
+        "y": 4694,
+        "w": 896,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 896,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 896,
+        "h": 128
+      }
+    },
+    "Resources/Resources/M_Spawn.png": {
+      "frame": {
+        "x": 2308,
+        "y": 4824,
+        "w": 896,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 896,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 896,
+        "h": 128
+      }
+    },
+    "Resources/Resources/G_Spawn.png": {
+      "frame": {
+        "x": 1154,
+        "y": 5718,
+        "w": 896,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 896,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 896,
+        "h": 128
+      }
+    },
+    "Effects/Fire/Fire.png": {
+      "frame": {
+        "x": 1154,
+        "y": 5848,
+        "w": 896,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 896,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 896,
+        "h": 128
+      }
+    },
+    "Resources/Sheep/HappySheep_Bouncing.png": {
+      "frame": {
+        "x": 1154,
+        "y": 5978,
+        "w": 768,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 768,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 768,
+        "h": 128
+      }
+    },
+    "Factions/Knights/Buildings/Castle/Castle_Yellow.png": {
+      "frame": {
+        "x": 1154,
+        "y": 6108,
+        "w": 320,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 320,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 320,
+        "h": 256
+      }
+    },
+    "Factions/Knights/Buildings/Castle/Castle_Red.png": {
+      "frame": {
+        "x": 1154,
+        "y": 6366,
+        "w": 320,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 320,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 320,
+        "h": 256
+      }
+    },
+    "Factions/Knights/Buildings/Castle/Castle_Purple.png": {
+      "frame": {
+        "x": 1154,
+        "y": 6624,
+        "w": 320,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 320,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 320,
+        "h": 256
+      }
+    },
+    "Factions/Knights/Buildings/Castle/Castle_Destroyed.png": {
+      "frame": {
+        "x": 1346,
+        "y": 6882,
+        "w": 320,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 320,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 320,
+        "h": 256
+      }
+    },
+    "Factions/Knights/Buildings/Castle/Castle_Construction.png": {
+      "frame": {
+        "x": 1476,
+        "y": 6108,
+        "w": 320,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 320,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 320,
+        "h": 256
+      }
+    },
+    "Factions/Knights/Buildings/Castle/Castle_Blue.png": {
+      "frame": {
+        "x": 1476,
+        "y": 6366,
+        "w": 320,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 320,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 320,
+        "h": 256
+      }
+    },
+    "Factions/Goblins/Buildings/Wood_Tower/Wood_Tower_InConstruction.png": {
+      "frame": {
+        "x": 4296,
+        "y": 2500,
+        "w": 256,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 256,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 256,
+        "h": 192
+      }
+    },
+    "Factions/Goblins/Buildings/Wood_Tower/Wood_Tower_Destroyed.png": {
+      "frame": {
+        "x": 4296,
+        "y": 2694,
+        "w": 256,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 256,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 256,
+        "h": 192
+      }
+    },
+    "Terrain/Bridge/Bridge_All.png": {
+      "frame": {
+        "x": 4422,
+        "y": 2888,
+        "w": 192,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 256
+      }
+    },
+    "UI/Buttons/Button_Red_9Slides_Pressed.png": {
+      "frame": {
+        "x": 7948,
+        "y": 3658,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "UI/Buttons/Button_Red_9Slides.png": {
+      "frame": {
+        "x": 7948,
+        "y": 3852,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "UI/Buttons/Button_Hover_9Slides.png": {
+      "frame": {
+        "x": 1476,
+        "y": 6624,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "UI/Buttons/Button_Disable_9Slides.png": {
+      "frame": {
+        "x": 1346,
+        "y": 7140,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "UI/Buttons/Button_Blue_9Slides_Pressed.png": {
+      "frame": {
+        "x": 1346,
+        "y": 7334,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "UI/Buttons/Button_Blue_9Slides.png": {
+      "frame": {
+        "x": 1346,
+        "y": 7528,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "UI/Banners/Carved_9Slides.png": {
+      "frame": {
+        "x": 1346,
+        "y": 7722,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "UI/Banners/Banner_Vertical.png": {
+      "frame": {
+        "x": 1346,
+        "y": 7916,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "UI/Banners/Banner_Horizontal.png": {
+      "frame": {
+        "x": 1540,
+        "y": 7140,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "UI/Banners/Banner_Connection_Up.png": {
+      "frame": {
+        "x": 1668,
+        "y": 6818,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "UI/Banners/Banner_Connection_Right.png": {
+      "frame": {
+        "x": 1670,
+        "y": 6624,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "UI/Banners/Banner_Connection_Left.png": {
+      "frame": {
+        "x": 1798,
+        "y": 6108,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "UI/Banners/Banner_Connection_Down.png": {
+      "frame": {
+        "x": 1798,
+        "y": 6302,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "Terrain/Ground/Shadows.png": {
+      "frame": {
+        "x": 1540,
+        "y": 7334,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "Deco/18.png": {
+      "frame": {
+        "x": 1540,
+        "y": 7528,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "Factions/Knights/Buildings/Tower/Tower_Yellow.png": {
+      "frame": {
+        "x": 1154,
+        "y": 2500,
+        "w": 128,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 256
+      }
+    },
+    "Factions/Knights/Buildings/Tower/Tower_Red.png": {
+      "frame": {
+        "x": 1154,
+        "y": 2758,
+        "w": 128,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 256
+      }
+    },
+    "Factions/Knights/Buildings/Tower/Tower_Purple.png": {
+      "frame": {
+        "x": 1154,
+        "y": 3016,
+        "w": 128,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 256
+      }
+    },
+    "Factions/Knights/Buildings/Tower/Tower_Destroyed.png": {
+      "frame": {
+        "x": 1154,
+        "y": 3274,
+        "w": 128,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 256
+      }
+    },
+    "Factions/Knights/Buildings/Tower/Tower_Construction.png": {
+      "frame": {
+        "x": 1154,
+        "y": 3532,
+        "w": 128,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 256
+      }
+    },
+    "Factions/Knights/Buildings/Tower/Tower_Blue.png": {
+      "frame": {
+        "x": 1540,
+        "y": 7722,
+        "w": 128,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 256
+      }
+    },
+    "Factions/Goblins/Troops/TNT/Dynamite/Dynamite.png": {
+      "frame": {
+        "x": 0,
+        "y": 8110,
+        "w": 384,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 384,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 384,
+        "h": 64
+      }
+    },
+    "Resources/Gold Mine/GoldMine_Inactive.png": {
+      "frame": {
+        "x": 1924,
+        "y": 5978,
+        "w": 192,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 128
+      }
+    },
+    "Resources/Gold Mine/GoldMine_Destroyed.png": {
+      "frame": {
+        "x": 4038,
+        "y": 3464,
+        "w": 192,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 128
+      }
+    },
+    "Resources/Gold Mine/GoldMine_Active.png": {
+      "frame": {
+        "x": 1540,
+        "y": 7980,
+        "w": 192,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 128
+      }
+    },
+    "Factions/Knights/Buildings/House/House_Yellow.png": {
+      "frame": {
+        "x": 1154,
+        "y": 6882,
+        "w": 128,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 192
+      }
+    },
+    "Factions/Knights/Buildings/House/House_Red.png": {
+      "frame": {
+        "x": 1670,
+        "y": 7722,
+        "w": 128,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 192
+      }
+    },
+    "Factions/Knights/Buildings/House/House_Purple.png": {
+      "frame": {
+        "x": 2052,
+        "y": 5718,
+        "w": 128,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 192
+      }
+    },
+    "Factions/Knights/Buildings/House/House_Destroyed.png": {
+      "frame": {
+        "x": 2180,
+        "y": 5460,
+        "w": 128,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 192
+      }
+    },
+    "Factions/Knights/Buildings/House/House_Construction.png": {
+      "frame": {
+        "x": 1734,
+        "y": 7916,
+        "w": 128,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 192
+      }
+    },
+    "Factions/Knights/Buildings/House/House_Blue.png": {
+      "frame": {
+        "x": 1734,
+        "y": 7012,
+        "w": 128,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 192
+      }
+    },
+    "Factions/Goblins/Buildings/Wood_House/Goblin_House_Destroyed.png": {
+      "frame": {
+        "x": 1862,
+        "y": 6818,
+        "w": 128,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 192
+      }
+    },
+    "Factions/Goblins/Buildings/Wood_House/Goblin_House.png": {
+      "frame": {
+        "x": 1864,
+        "y": 6496,
+        "w": 128,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 192
+      }
+    },
+    "Resources/Resources/W_Idle_(NoShadow).png": {
+      "frame": {
+        "x": 5962,
+        "y": 1346,
+        "w": 128,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 128
+      }
+    },
+    "Resources/Resources/W_Idle.png": {
+      "frame": {
+        "x": 4232,
+        "y": 3464,
+        "w": 128,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 128
+      }
+    },
+    "Resources/Resources/M_Idle_(NoShadow).png": {
+      "frame": {
+        "x": 1992,
+        "y": 6108,
+        "w": 128,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 128
+      }
+    },
+    "Resources/Resources/M_Idle.png": {
+      "frame": {
+        "x": 2118,
+        "y": 5912,
+        "w": 128,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 128
+      }
+    },
+    "Resources/Resources/G_Idle_(NoShadow).png": {
+      "frame": {
+        "x": 2182,
+        "y": 5654,
+        "w": 128,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 128
+      }
+    },
+    "Resources/Resources/G_Idle.png": {
+      "frame": {
+        "x": 2310,
+        "y": 5460,
+        "w": 128,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 128
+      }
+    },
+    "UI/Ribbons/Ribbon_Yellow_3Slides.png": {
+      "frame": {
+        "x": 4422,
+        "y": 3146,
+        "w": 192,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Red_3Slides.png": {
+      "frame": {
+        "x": 2118,
+        "y": 6042,
+        "w": 192,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Blue_3Slides.png": {
+      "frame": {
+        "x": 386,
+        "y": 8110,
+        "w": 192,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 64
+      }
+    },
+    "UI/Buttons/Button_Red_3Slides_Pressed.png": {
+      "frame": {
+        "x": 580,
+        "y": 8110,
+        "w": 192,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 64
+      }
+    },
+    "UI/Buttons/Button_Red_3Slides.png": {
+      "frame": {
+        "x": 774,
+        "y": 8110,
+        "w": 192,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 64
+      }
+    },
+    "UI/Buttons/Button_Hover_3Slides.png": {
+      "frame": {
+        "x": 968,
+        "y": 8110,
+        "w": 192,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 64
+      }
+    },
+    "UI/Buttons/Button_Disable_3Slides.png": {
+      "frame": {
+        "x": 1162,
+        "y": 8110,
+        "w": 192,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 64
+      }
+    },
+    "UI/Buttons/Button_Blue_3Slides_Pressed.png": {
+      "frame": {
+        "x": 1356,
+        "y": 8110,
+        "w": 192,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 64
+      }
+    },
+    "UI/Buttons/Button_Blue_3Slides.png": {
+      "frame": {
+        "x": 1550,
+        "y": 8110,
+        "w": 192,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 64
+      }
+    },
+    "UI/Banners/Carved_3Slides.png": {
+      "frame": {
+        "x": 1744,
+        "y": 8110,
+        "w": 192,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 64
+      }
+    },
+    "Factions/Knights/Troops/Archer/Arrow/Arrow.png": {
+      "frame": {
+        "x": 8078,
+        "y": 0,
+        "w": 64,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 128
+      }
+    },
+    "Deco/17.png": {
+      "frame": {
+        "x": 8078,
+        "y": 130,
+        "w": 64,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 128
+      }
+    },
+    "Deco/16.png": {
+      "frame": {
+        "x": 8078,
+        "y": 260,
+        "w": 64,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 128
+      }
+    },
+    "UI/Ribbons/Ribbon_Yellow_Connection_Up_Pressed.png": {
+      "frame": {
+        "x": 2052,
+        "y": 5912,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Yellow_Connection_Up.png": {
+      "frame": {
+        "x": 1798,
+        "y": 6496,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Yellow_Connection_Right_Pressed.png": {
+      "frame": {
+        "x": 1668,
+        "y": 7012,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Yellow_Connection_Right.png": {
+      "frame": {
+        "x": 8078,
+        "y": 390,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Yellow_Connection_Left_Pressed.png": {
+      "frame": {
+        "x": 8078,
+        "y": 456,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Yellow_Connection_Left.png": {
+      "frame": {
+        "x": 8078,
+        "y": 522,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Yellow_Connection_Down_Pressed.png": {
+      "frame": {
+        "x": 8078,
+        "y": 588,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Yellow_Connection_Down.png": {
+      "frame": {
+        "x": 8078,
+        "y": 654,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Red_Connection_Up_Pressed.png": {
+      "frame": {
+        "x": 8078,
+        "y": 720,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Red_Connection_Up.png": {
+      "frame": {
+        "x": 8078,
+        "y": 786,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Red_Connection_Right_Pressed.png": {
+      "frame": {
+        "x": 8078,
+        "y": 852,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Red_Connection_Right.png": {
+      "frame": {
+        "x": 8078,
+        "y": 918,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Red_Connection_Left_Pressed.png": {
+      "frame": {
+        "x": 8078,
+        "y": 984,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Red_Connection_Left.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1050,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Red_Connection_Down_Pressed.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1116,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Red_Connection_Down.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1182,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Blue_Connection_Up_Pressed.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1248,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Blue_Connection_Up.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1314,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Blue_Connection_Right_Pressed.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1380,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Blue_Connection_Right.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1446,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Blue_Connection_Left_Pressed.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1512,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Blue_Connection_Left.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1578,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Blue_Connection_Down_Pressed.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1644,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Ribbons/Ribbon_Blue_Connection_Down.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1710,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Pointers/06.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1776,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Pointers/05.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1842,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Pointers/04.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1908,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Pointers/03.png": {
+      "frame": {
+        "x": 8078,
+        "y": 1974,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Pointers/02.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2040,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Pointers/01.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2106,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Regular_10.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2172,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Regular_09.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2238,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Regular_08.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2304,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Regular_07.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2370,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Regular_06.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2436,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Regular_05.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2502,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Regular_04.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2568,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Regular_03.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2634,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Regular_02.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2700,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Regular_01.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2766,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Pressed_10.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2832,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Pressed_09.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2898,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Pressed_08.png": {
+      "frame": {
+        "x": 8078,
+        "y": 2964,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Pressed_07.png": {
+      "frame": {
+        "x": 8078,
+        "y": 3030,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Pressed_06.png": {
+      "frame": {
+        "x": 8078,
+        "y": 3096,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Pressed_05.png": {
+      "frame": {
+        "x": 8078,
+        "y": 3162,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Pressed_04.png": {
+      "frame": {
+        "x": 8078,
+        "y": 3228,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Pressed_03.png": {
+      "frame": {
+        "x": 8078,
+        "y": 3294,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Pressed_02.png": {
+      "frame": {
+        "x": 8078,
+        "y": 3360,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Pressed_01.png": {
+      "frame": {
+        "x": 8078,
+        "y": 3426,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Disable_10.png": {
+      "frame": {
+        "x": 8078,
+        "y": 3492,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Disable_09.png": {
+      "frame": {
+        "x": 8078,
+        "y": 3558,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Disable_08.png": {
+      "frame": {
+        "x": 4296,
+        "y": 2888,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Disable_07.png": {
+      "frame": {
+        "x": 4296,
+        "y": 2954,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Disable_06.png": {
+      "frame": {
+        "x": 2182,
+        "y": 5784,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Disable_05.png": {
+      "frame": {
+        "x": 1864,
+        "y": 6690,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Disable_04.png": {
+      "frame": {
+        "x": 1930,
+        "y": 6690,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Disable_03.png": {
+      "frame": {
+        "x": 2248,
+        "y": 5784,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Disable_02.png": {
+      "frame": {
+        "x": 2248,
+        "y": 5850,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Icons/Disable_01.png": {
+      "frame": {
+        "x": 2248,
+        "y": 5916,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Buttons/Button_Red_Pressed.png": {
+      "frame": {
+        "x": 2312,
+        "y": 5590,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Buttons/Button_Red.png": {
+      "frame": {
+        "x": 2312,
+        "y": 5656,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Buttons/Button_Hover.png": {
+      "frame": {
+        "x": 1992,
+        "y": 6238,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Buttons/Button_Disable.png": {
+      "frame": {
+        "x": 1992,
+        "y": 6304,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Buttons/Button_Blue_Pressed.png": {
+      "frame": {
+        "x": 1992,
+        "y": 6370,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Buttons/Button_Blue.png": {
+      "frame": {
+        "x": 1994,
+        "y": 6436,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "UI/Banners/Carved_Regular.png": {
+      "frame": {
+        "x": 1994,
+        "y": 6502,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Terrain/Water/Water.png": {
+      "frame": {
+        "x": 1994,
+        "y": 6568,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/15.png": {
+      "frame": {
+        "x": 2058,
+        "y": 6238,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/14.png": {
+      "frame": {
+        "x": 2122,
+        "y": 6108,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/13.png": {
+      "frame": {
+        "x": 2058,
+        "y": 6304,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/12.png": {
+      "frame": {
+        "x": 2058,
+        "y": 6370,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/11.png": {
+      "frame": {
+        "x": 1734,
+        "y": 7206,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/10.png": {
+      "frame": {
+        "x": 1734,
+        "y": 7272,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/09.png": {
+      "frame": {
+        "x": 1734,
+        "y": 7338,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/08.png": {
+      "frame": {
+        "x": 1734,
+        "y": 7404,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/07.png": {
+      "frame": {
+        "x": 1734,
+        "y": 7470,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/06.png": {
+      "frame": {
+        "x": 1734,
+        "y": 7536,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/05.png": {
+      "frame": {
+        "x": 1734,
+        "y": 7602,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/04.png": {
+      "frame": {
+        "x": 1800,
+        "y": 7206,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/03.png": {
+      "frame": {
+        "x": 1864,
+        "y": 7012,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/02.png": {
+      "frame": {
+        "x": 1864,
+        "y": 7078,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "Deco/01.png": {
+      "frame": {
+        "x": 1800,
+        "y": 7272,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    }
+  },
+  "meta": {
+    "image": "tiny_swords_atlas.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 8192,
+      "h": 8192
+    },
+    "scale": 1
+  }
+}

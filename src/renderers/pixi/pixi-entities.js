@@ -16,12 +16,24 @@ import { itemLabel } from '../../visual-assets.js?v=t_building_kits_0618';
 import {
   getCharacterAnimationFrame,
   getCharacterFrameTexture
-} from './pixi-character-assets.js?v=t_renderer_split_0627';
+} from './pixi-character-assets.js?v=grove_pixi_fixes_0628';
+import {
+  getBotPawnAssets,
+  getBotPawnFrameTexture
+} from './pixi-character-assets.js?v=grove_pixi_fixes_0628';
 import {
   isDogSpriteReady,
   getDogSpriteAssets,
   getDogFrameTexture
 } from './pixi-dog-spritesheet.js?v=t_dog_spritesheet_0627';
+
+// ── Tiny Swords atlas (shared loader — Canvas2D + Pixi ready) ──────────
+// Import wired so the Pixi path can access the same atlas. Not yet used for
+// PIXI.Sprite creation — see TODO below in the entity view functions.
+// TODO: When wiring Pixi sprites, use loadTinySwordsAtlas() to get the bitmap
+//   and atlas.getFrame('Pawn_Blue') / getSheetFrames('Pawn_Blue') to slice
+//   PIXI.Rectangle frame regions from the ImageBitmap-backed base texture.
+import { loadTinySwordsAtlas, getTinySwordsAtlas } from '../shared/tiny-swords-atlas.js?v=ts_fix2_0628';
 
 // ── Tree views ─────────────────────────────────────────────────────
 export function createTreeView(PIXI, tree, getNameTagTexture) {
@@ -38,10 +50,11 @@ export function createTreeView(PIXI, tree, getNameTagTexture) {
   return container;
 }
 
-export function updateTreeView(container, tree, hover, getNameTagTexture) {
+export function updateTreeView(container, tree, hover, getNameTagTexture, opacity = 1) {
   const radius = tree.radius || (tree.stump ? 14 : (tree.growthStage === 'sapling' ? 14 : 22));
   container.position.set(tree.x || 0, tree.y || 0);
   container.zIndex = getDepthAnchorY('tree', tree);
+  container.alpha = opacity;
   container.hoverRing.clear();
   if (hover) {
     fillAndStrokePath(container.hoverRing, { fill: 0xfff4d0, fillAlpha: 0.15, stroke: 0xfff4d0, strokeWidth: 2 }, path => path.circle(0, 0, radius + 12));
@@ -117,10 +130,11 @@ export function createRockView(PIXI, rock, getNameTagTexture) {
   return container;
 }
 
-export function updateRockView(container, rock, hover, getNameTagTexture) {
+export function updateRockView(container, rock, hover, getNameTagTexture, opacity = 1) {
   const radius = rock.radius || 18;
   container.position.set(rock.x || 0, rock.y || 0);
   container.zIndex = getDepthAnchorY('rock', rock);
+  container.alpha = opacity;
   container.hoverRing.clear();
   if (hover) {
     fillAndStrokePath(container.hoverRing, { fill: 0xfff4d0, fillAlpha: 0.08, stroke: 0xfff4d0, strokeWidth: 2 }, path => {
@@ -306,6 +320,10 @@ function createWorkerBotView(PIXI, bot, getItemTexture, getToolTexture) {
   const container = new PIXI.Container();
   container.shadow = new PIXI.Graphics();
   container.body = new PIXI.Graphics();
+  // Pawn sprite (hidden until assets are ready)
+  container.sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
+  container.sprite.anchor.set(0.5, 1.0);
+  container.sprite.visible = false;
   container.inventory = new PIXI.Sprite();
   container.inventory.anchor.set(0.5);
   container.toolRight = new PIXI.Sprite();
@@ -314,7 +332,7 @@ function createWorkerBotView(PIXI, bot, getItemTexture, getToolTexture) {
   container.toolLeft.anchor.set(0.5);
   container.label = createText(PIXI, bot.name || `Bot ${bot.id}`, { fontSize: 11, fontWeight: '700' });
   container.label.anchor.set(0.5, 1);
-  container.addChild(container.shadow, container.body, container.inventory, container.toolRight, container.toolLeft, container.label);
+  container.addChild(container.shadow, container.sprite, container.body, container.inventory, container.toolRight, container.toolLeft, container.label);
   updateBotView(container, bot, false, getItemTexture, getToolTexture);
   return container;
 }
@@ -325,7 +343,7 @@ function createDogView(PIXI, bot, getItemTexture) {
   container.body = new PIXI.Graphics();
   // Spritesheet sprite (hidden until assets are ready)
   container.sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
-  container.sprite.anchor.set(0.5, 0.85);
+  container.sprite.anchor.set(0.5, 1.0);
   container.sprite.visible = false;
   container.inventory = new PIXI.Sprite();
   container.inventory.anchor.set(0.5);
@@ -350,13 +368,40 @@ export function updateBotView(container, bot, hover, getItemTexture, getToolText
   container.zIndex = getDepthAnchorY('bot', bot);
   container.shadow.clear();
   fillPath(container.shadow, 0x000000, 0.26, path => path.ellipse(0, radius + 5, radius + 8, 5));
-  container.body.clear();
-  fillAndStrokePath(container.body, { fill: bodyColor, fillAlpha: 1, stroke: hover ? 0xfff4d0 : 0x0e1512, strokeWidth: hover ? 4 : 2 }, path => {
-    path.roundRect(-radius - 2, -radius - 2, (radius + 2) * 2, (radius + 2) * 2, 8);
-  });
-  fillPath(container.body, 0xffffff, 0.22, path => {
-    path.roundRect(-radius + 2, -radius + 2, radius * 1.4, radius * 0.58, 5);
-  });
+
+  // ── Pawn sprite path (Tiny Swords atlas) ──
+  const pawnAssets = getBotPawnAssets();
+  if (pawnAssets && pawnAssets.ready && pawnAssets.textures.length > 0 && !hover) {
+    // Show sprite, hide vector body
+    container.sprite.visible = true;
+    container.body.visible = false;
+
+    const isMoving = !!(bot.target || bot.vx || bot.vy);
+    const now = performance.now();
+    const frameTexture = getBotPawnFrameTexture(container.sprite, pawnAssets, isMoving, now);
+    if (frameTexture) {
+      container.sprite.texture = frameTexture;
+    }
+
+    // Scale relative to bot radius
+    const spriteScale = (radius / 12) * pawnAssets.scale;
+    container.sprite.scale.set(spriteScale);
+    // Flip sprite if facing left
+    container.sprite.scale.x = facingRight ? spriteScale : -spriteScale;
+    // Y-offset to sit feet on the shadow (pawn cells have empty space at bottom)
+    container.sprite.position.set(0, pawnAssets.yOffset);
+  } else {
+    // Vector fallback rendering
+    container.sprite.visible = false;
+    container.body.visible = true;
+    container.body.clear();
+    fillAndStrokePath(container.body, { fill: bodyColor, fillAlpha: 1, stroke: hover ? 0xfff4d0 : 0x0e1512, strokeWidth: hover ? 4 : 2 }, path => {
+      path.roundRect(-radius - 2, -radius - 2, (radius + 2) * 2, (radius + 2) * 2, 8);
+    });
+    fillPath(container.body, 0xffffff, 0.22, path => {
+      path.roundRect(-radius + 2, -radius + 2, radius * 1.4, radius * 0.58, 5);
+    });
+  }
   container.inventory.visible = !!(bot.inventory?.type) && !inventoryIsHandTool;
   if (bot.inventory?.type && !inventoryIsHandTool) {
     container.inventory.texture = getItemTexture(bot.inventory.type);
@@ -415,8 +460,11 @@ function updateDogView(container, bot, hover, getItemTexture) {
     const facingRight = (bot.facingX ?? 1) >= 0;
     container.sprite.scale.x = facingRight ? spriteScale : -spriteScale;
 
-    // Position sprite centered on the dog
-    container.sprite.position.set(0, 0);
+    // The golden retriever sprite cells (128×128) have empty space at the
+    // bottom. Anchor (0.5, 0.85) anchors near the lower portion but the
+    // visible feet still float above the shadow. Push the sprite down so its
+    // feet touch the shadow/ground.
+    container.sprite.position.set(0, radius * 0.5);
   } else {
     // Vector fallback rendering
     container.sprite.visible = false;

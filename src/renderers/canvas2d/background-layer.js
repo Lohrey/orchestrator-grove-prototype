@@ -7,8 +7,13 @@ import {
   polylineFeatureInView,
   rectInView,
   terrainNoise
-} from '../shared/renderer-utils.js?v=t_renderer_split_0627';
-import { clamp as clampUtil } from '../../utils.js?v=20260613-player-tools';
+} from '../shared/renderer-utils.js?v=grove_tileset_0628';
+import { clamp as clampUtil } from '../../utils.js?v=grove_tileset_0628';
+import {
+  loadLpcTerrain,
+  getLpcTerrain,
+  LPC_TILE_SIZE
+} from '../shared/lpc-terrain-loader.js?v=grove_tileset_0628';
 import { getCampaignArrivalScene } from '../../campaign-scenes.js?v=t_campaign_scenes_0627';
 
 const staticMapBaseCache = new Map();
@@ -71,6 +76,28 @@ function renderStaticMapBase(game, c, { renderDecorativeDetails = true } = {}) {
   base.addColorStop(1, '#14251b');
   c.fillStyle = base;
   c.fillRect(0, 0, width, height);
+
+  // ── LPC grass tile texture overlay ────────────────────────────
+  // Tiles the 32px LPC grass sprites across the map base at ~40% opacity,
+  // blending with the gradient underneath for a textured-but-painterly look.
+  const lpcBitmap = getLpcTerrain();
+  if (lpcBitmap) {
+    c.save();
+    c.globalAlpha = 0.40;
+    const ts = LPC_TILE_SIZE;
+    for (let y = 0; y < height; y += ts) {
+      for (let x = 0; x < width; x += ts) {
+        // Use noise-based variation to pick a grass frame (0-15 in a 4x4 sheet)
+        const noise = terrainNoise(x * 0.3, y * 0.3);
+        const frame = Math.floor(noise * 15.99);
+        const sx = (frame % 4) * ts;
+        const sy = Math.floor(frame / 4) * ts;
+        c.drawImage(lpcBitmap, sx, sy, ts, ts, x, y, ts, ts);
+      }
+    }
+    c.globalAlpha = 1;
+    c.restore();
+  }
 
   const sunlight = c.createRadialGradient(width * .18, height * .15, 0, width * .18, height * .15, width * .64);
   sunlight.addColorStop(0, 'rgba(177, 211, 104, .28)');

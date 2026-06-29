@@ -6,7 +6,7 @@
 //   PLAYER_MAX_HP, PLAYER_REGEN_DELAY_MS, PLAYER_REGEN_INTERVAL_MS, PLAYER_REGEN_AMOUNT,
 //   CAMPAIGN_START (for respawn safe point), MONSTER_MELEE_ATTACK (monster damage).
 
-import { distXY, clamp } from '../utils.js?v=20260613-player-tools';
+import { clamp } from '../utils.js?v=grove_pixi_fixes_0628';
 
 const MS_PER_SECOND = 1000;
 const PLAYER_RESPAWN_INVULN_SECONDS = 3;
@@ -101,24 +101,12 @@ export function installHealthSystem(Game, deps) {
       // is gated so it won't move a dead player (see world.js wiring).
       if (p.dead) return;
 
-      // ── Hostile monster contact damage ────────────────────────────
-      // Each hostile monster adjacent to the player attacks on its melee cooldown,
-      // dealing MONSTER_MELEE_ATTACK.damage. This mirrors the existing
-      // updateActorAutoAttack flow but targets the local player directly.
-      const monsterDamage = (MONSTER_MELEE_ATTACK?.damage) || 1;
-      const monsterRange = (MONSTER_MELEE_ATTACK?.range) || 36;
-      for (const m of this.monsters) {
-        if (!m.hostile || (m.hp ?? 0) <= 0) continue;
-        const dist = distXY(p.x, p.y, m.x, m.y);
-        if (dist > (m.radius || 18) + monsterRange) continue;
-        // monster attack cooldown
-        if (!m.autoAttack) m.autoAttack = { cooldownRemaining: 0, targetRef: null };
-        m.autoAttack.cooldownRemaining = Math.max(0, (m.autoAttack.cooldownRemaining || 0) - dt);
-        if (m.autoAttack.cooldownRemaining > 0) continue;
-        this.damagePlayer(monsterDamage);
-        m.autoAttack.cooldownRemaining = (MONSTER_MELEE_ATTACK?.cooldown) || 1.1;
-        break; // one hit per tick is enough; avoids multi-monster instakill
-      }
+      // ── Hit-based damage (#5) ─────────────────────────────────────
+      // Monsters now deal damage through the combat system: updateActorAutoAttack
+      // (called from updateMonster) finds hostile targets, checks attack range,
+      // waits for cooldown, and calls damageAttackTarget which routes player
+      // damage through this.damagePlayer(). No more contact/proximity damage —
+      // a monster must be in attack range AND its cooldown must be ready.
 
       // ── Passive HP regeneration ───────────────────────────────────
       if ((p.hp ?? 0) >= (p.maxHp || PLAYER_MAX_HP)) {

@@ -285,10 +285,9 @@ export function installTaughtLoopSystem(Game, deps) {
         if (bot.timer >= RESOURCE_HIT_SECONDS) {
           bot.timer = 0;
           tree.hp--;
-          this.spawnItem('log', tree.x, tree.y, 1);
           bot.inventory.durability--;
           if (bot.inventory.durability <= 0) { this.addFloat(`${itemLabel(bot.inventory.type)} broke`, bot.x, bot.y - 24, '#c86b5f'); bot.inventory = null; }
-          if (tree.hp <= 0) { tree.stump = true; tree.regrow = 0; this.spawnItem('stick', tree.x, tree.y, 2); this.spawnItem('tree_seed', tree.x, tree.y, 1); advance(); }
+          if (tree.hp <= 0) { tree.stump = true; tree.regrow = 0; this.spawnItem('log', tree.x, tree.y, 1); this.spawnItem('stick', tree.x, tree.y, 2); this.spawnItem('tree_seed', tree.x, tree.y, 1); advance(); }
         }
         return;
       }

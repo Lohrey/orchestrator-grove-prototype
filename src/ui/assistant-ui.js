@@ -18,7 +18,7 @@ import {
 } from '../assistant.js?v=t_building_kits_0618';
 import { createAssistantSemanticRouter } from '../assistant-router.js?v=t_building_kits_0618';
 import { formatSemanticRouteSummary } from '../semantic-router.js?v=t_building_kits_0618';
-import { escapeHtml } from '../utils.js?v=20260613-player-tools';
+import { escapeHtml } from '../utils.js?v=grove_pixi_fixes_0628';
 
 export function createAssistantUi({ dom, formatTokenCount }) {
   const ASSISTANT_LOADOUT_KEY = 'orchestratorGrove.assistantLoadout.v1';

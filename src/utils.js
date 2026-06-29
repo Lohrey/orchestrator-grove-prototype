@@ -19,7 +19,11 @@ export function nearest(list, x, y, predicate = () => true) {
 }
 export function canvasPoint(canvas, event) {
   const rect = canvas.getBoundingClientRect();
-  const sx = canvas.width / rect.width;
-  const sy = canvas.height / rect.height;
-  return { x: (event.clientX - rect.left) * sx, y: (event.clientY - rect.top) * sy, clientX: event.clientX, clientY: event.clientY };
+  // Return CSS-pixel coordinates relative to the canvas.
+  // We must NOT scale by canvas.width / rect.width because the Pixi renderer
+  // uses autoDensity (canvas backing store = CSS_size × devicePixelRatio),
+  // which would produce device-pixel coordinates instead of CSS-pixel
+  // coordinates that screenToWorld() expects. For the Canvas2D path the
+  // backing store equals the CSS size so the ratio is 1 anyway.
+  return { x: event.clientX - rect.left, y: event.clientY - rect.top, clientX: event.clientX, clientY: event.clientY };
 }

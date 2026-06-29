@@ -9,7 +9,7 @@ import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f'
 import { createRenderBackend } from './renderers/index.js?v=grove_pixi_fixes_0628';
 import { createSimWorkerClient } from './sim/sim-worker-client.js?v=t_building_kits_0618';
 import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js?v=t_campaign_scenes_0623';
-import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=grove_cinematic_rewire_0628';
+import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=grove_cinematic_overlay_0629';
 import { LOCAL_AI_PROVIDERS, defaultOllamaEndpoint, getDefaultProviderConfig, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_building_kits_0618';
 import { escapeHtml } from './utils.js?v=grove_pixi_fixes_0628';
 // UI module imports — extracted from the monolithic startGame() closure
@@ -717,16 +717,41 @@ export async function startGame() {
     const useCinematic = rendererMode === 'pixi' && !renderBackend?.isWorker;
 
     if (useCinematic) {
-      // Hide the HTML overlay — the cinematic draws directly on the game canvas
+      // Hide the HTML overlay — the cinematic draws on its own overlay canvas
       dom.campaignIntroOverlay.hidden = true;
       dom.campaignIntroOverlay.classList.add('is-hidden');
       if (campaignCinematic) { campaignCinematic.destroy(); campaignCinematic = null; }
+
+      // Create a dedicated 2D overlay canvas for the cinematic.
+      // The game canvas already has a WebGL context from Pixi, so
+      // getContext('2d') on it returns null. The cinematic needs its
+      // own canvas layered on top of the game canvas.
+      const cineCanvas = document.createElement('canvas');
+      cineCanvas.width = dom.canvas.width || dom.canvas.clientWidth || 960;
+      cineCanvas.height = dom.canvas.height || dom.canvas.clientHeight || 640;
+      cineCanvas.style.position = 'absolute';
+      cineCanvas.style.inset = '0';
+      cineCanvas.style.width = '100%';
+      cineCanvas.style.height = '100%';
+      cineCanvas.style.pointerEvents = 'auto';
+      cineCanvas.style.zIndex = '50';
+      cineCanvas.dataset.cinematicOverlay = 'true';
+      dom.canvas.parentElement.appendChild(cineCanvas);
+
       campaignCinematic = createCampaignIntroCinematic({
-        canvas: game.canvas,
+        canvas: cineCanvas,
         audio: audio,
         scenes: CAMPAIGN_INTRO_SCENES,
-        onComplete: (reason) => { campaignCinematic = null; finishCampaignIntro(reason === 'skip' ? 'skip' : 'finished'); },
-        onSkip: () => { campaignCinematic = null; finishCampaignIntro('skip'); }
+        onComplete: (reason) => {
+          if (cineCanvas.parentNode) cineCanvas.parentNode.removeChild(cineCanvas);
+          campaignCinematic = null;
+          finishCampaignIntro(reason === 'skip' ? 'skip' : 'finished');
+        },
+        onSkip: () => {
+          if (cineCanvas.parentNode) cineCanvas.parentNode.removeChild(cineCanvas);
+          campaignCinematic = null;
+          finishCampaignIntro('skip');
+        }
       });
       campaignCinematic.start();
       syncSaveUi('Campaign intro cinematic playing. Press Esc to skip.');

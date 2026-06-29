@@ -1,4 +1,4 @@
-import { distXY, nearest, rectDistance } from '../../utils.js?v=20260613-player-tools';
+import { distXY, nearest, rectDistance } from '../../utils.js?v=grove_pixi_fixes_0628';
 
 export function installInventorySystem(Game, deps) {
   const {

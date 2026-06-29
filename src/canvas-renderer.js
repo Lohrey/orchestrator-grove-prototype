@@ -10,6 +10,7 @@ import {
   fogRevealSources,
   fogStaticVisible,
   getNightAmount,
+  getRockOpacity,
   getTreeDrawRadius,
   getTreeOpacity,
   getWorldViewBounds,
@@ -20,7 +21,7 @@ import {
   shouldRenderDecorativeDetails,
   shouldRenderLooseGroundItems,
   structureFogPoint
-} from './renderers/shared/renderer-utils.js?v=t_renderer_split_0627';
+} from './renderers/shared/renderer-utils.js?v=grove_stone_transparency_0628';
 
 import {
   drawCampaignArrival,
@@ -39,7 +40,7 @@ import {
   drawStructure,
   drawTree,
   drawZones
-} from './renderers/canvas2d/world-layer.js?v=stone_deposit_interact_0628';
+} from './renderers/canvas2d/world-layer.js?v=grove_sprite_fix_0629';
 
 import {
   drawAssistant,
@@ -48,7 +49,7 @@ import {
   drawPlayerActor,
   drawPlayerTarget,
   pushRemotePlayersToDepth
-} from './renderers/canvas2d/entities-layer.js?v=t_health_system_0628';
+} from './renderers/canvas2d/entities-layer.js?v=grove_sprite_fix_0629';
 
 import {
   drawFloaters,
@@ -131,15 +132,13 @@ export function drawWorld(renderState, ctx) {
   const pushDepth = (kind, entity, draw, options = {}) => {
     depthDrawables.push(createDepthDrawable(kind, entity, draw, { ...options, order: depthDrawables.length }));
   };
+
+  // Pre-pass: collect all visible occludable entities (items, bots, monsters,
+  // structures, projectiles) so we can compute transparency for trees and rocks.
   for (const hole of game.holes || []) if (circleInView(hole.x, hole.y, 24, view) && fogStaticVisible(game, hole.x, hole.y)) drawHole(game, c, hole);
-  for (const rock of game.rocks || []) {
-    if (!circleInView(rock.x, rock.y, (rock.radius || 18) + 16, view) || !fogStaticVisible(game, rock.x, rock.y)) continue;
-    pushDepth('rock', rock, () => drawRock(game, c, rock));
-  }
-  for (const hemp of game.hempPlants || []) {
-    if (!circleInView(hemp.x, hemp.y, (hemp.radius || 14) + 18, view) || !fogStaticVisible(game, hemp.x, hemp.y)) continue;
-    pushDepth('hemp', hemp, () => drawHempPlant(game, c, hemp, now));
-  }
+
+  // First pass: collect structures, projectiles, items, monsters, bots into
+  // visibility arrays and push them to depth sort.
   for (const structure of game.structures || []) {
     const fogPoint = structureFogPoint(structure);
     if (!rectInView(structure.x, structure.y, structure.w || 48, structure.h || 48, view) || !fogStaticVisible(game, fogPoint.x, fogPoint.y)) continue;
@@ -182,10 +181,21 @@ export function drawWorld(renderState, ctx) {
     }
   }
   pushRemotePlayersToDepth(game, c, view, depthDrawables, now);
-  const treeOccluders = { items: visibleItems, bots: visibleBots, monsters: visibleMonsters, structures: visibleStructures, projectiles: visibleProjectiles };
+
+  // Shared occluder set for transparency on trees and rocks (stone deposits).
+  const occluders = { items: visibleItems, bots: visibleBots, monsters: visibleMonsters, structures: visibleStructures, projectiles: visibleProjectiles };
+
+  for (const rock of game.rocks || []) {
+    if (!circleInView(rock.x, rock.y, (rock.radius || 18) + 16, view) || !fogStaticVisible(game, rock.x, rock.y)) continue;
+    pushDepth('rock', rock, () => drawRock(game, c, rock, getRockOpacity(game, rock, now, occluders)));
+  }
+  for (const hemp of game.hempPlants || []) {
+    if (!circleInView(hemp.x, hemp.y, (hemp.radius || 14) + 18, view) || !fogStaticVisible(game, hemp.x, hemp.y)) continue;
+    pushDepth('hemp', hemp, () => drawHempPlant(game, c, hemp, now));
+  }
   for (const tree of game.trees || []) {
     if (!circleInView(tree.x, tree.y, getTreeDrawRadius(tree) + 18, view) || !fogStaticVisible(game, tree.x, tree.y)) continue;
-    pushDepth('tree', tree, () => drawTree(game, c, tree, now, getTreeOpacity(game, tree, now, treeOccluders)));
+    pushDepth('tree', tree, () => drawTree(game, c, tree, now, getTreeOpacity(game, tree, now, occluders)));
   }
   for (const drawable of sortDepthDrawables(depthDrawables)) drawable.draw();
   if (game.player.target && (!view || circleInView(game.player.target.x, game.player.target.y, 64, view))) drawPlayerTarget(game, c);

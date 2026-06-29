@@ -10,6 +10,7 @@
 
 import { drawWorld } from '../../canvas-renderer.js?v=t_health_system_0628';
 import { initSpriteCache } from '../shared/sprite-cache.js?v=t_sprite_cache_0628';
+import { initTinySwordsSprites } from './entities-layer.js?v=t_health_system_0628';
 
 let offscreenCanvas = null;
 let ctx = null;
@@ -22,10 +23,11 @@ self.onmessage = async function(e) {
   switch (msg.type) {
     case 'ping': {
       // Worker loaded successfully — respond so main thread knows it's safe to transfer canvas
-      // Init sprite cache in background (non-blocking)
+      // Init sprite cache + Tiny Swords atlas in background (non-blocking)
       if (!spriteCacheInitDone) {
         spriteCacheInitDone = true;
         initSpriteCache().catch(() => {});
+        initTinySwordsSprites().catch(() => {});
       }
       self.postMessage({ type: 'ready' });
       break;

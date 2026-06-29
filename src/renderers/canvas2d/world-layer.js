@@ -12,14 +12,16 @@ import {
   isBotHandTool,
   rectInView,
   roundedRect
-} from '../shared/renderer-utils.js?v=t_renderer_split_0627';
-import { clamp as clampUtil } from '../../utils.js?v=20260613-player-tools';
+} from '../shared/renderer-utils.js?v=grove_stone_transparency_0628';
+import { clamp as clampUtil } from '../../utils.js?v=grove_pixi_fixes_0628';
 import { BUILDING_TYPES } from '../../data.js?v=t_building_kits_0618';
 import {
   drawBuildingAsset,
   drawItemAsset,
   itemLabel
 } from '../../visual-assets.js?v=t_building_kits_0618';
+import { getTinySwordsAtlas } from '../shared/tiny-swords-atlas.js?v=ts_fix2_0628';
+import { getWorldObjectSprite, treeSpriteKey, rockSpriteKey } from '../shared/sprite-cache.js?v=t_sprite_cache_0628';
 
 export function drawZones(game, c, view) {
   c.save();
@@ -85,10 +87,24 @@ export function drawHole(game, c, h) {
   c.restore();
 }
 
-export function drawRock(game, c, r) {
+export function drawRock(game, c, r, opacity = 1) {
   c.save();
   const hover = game.mouse.hoverRock === r;
-  c.globalAlpha = r.depleted ? .38 : 1;
+
+  // ── Sprite cache path: blit pre-rendered rock when not hovered and fully opaque ──
+  if (!hover && opacity >= 0.99) {
+    const key = rockSpriteKey(r);
+    if (key) {
+      const cached = getWorldObjectSprite(key);
+      if (cached) {
+        c.drawImage(cached.sprite, r.x - cached.meta.cx, r.y - cached.meta.cy);
+        c.restore();
+        return;
+      }
+    }
+  }
+
+  c.globalAlpha = (r.depleted ? .38 : 1) * opacity;
   drawShadow(c, r.x, r.y + r.radius * .72, r.radius * 1.15, r.radius * .34, .26);
   if (hover) {
     c.fillStyle = 'rgba(255,244,208,.08)';
@@ -157,7 +173,30 @@ export function drawStructure(game, c, s, now) {
     c.restore();
   }
   drawShadow(c, s.x, s.y + s.h * .42, s.w * .56, s.h * .18, .28);
-  drawBuildingAsset(c, s, def, { hover, now });
+
+  // ── Tiny Swords atlas path for towers / defensive structures ──
+  // When the atlas is loaded, defensive towers and similar structures render
+  // as Tiny Swords Tower sprites. Falls back to drawBuildingAsset otherwise.
+  const atlas = getTinySwordsAtlas();
+  let usedAtlasSprite = false;
+  if (atlas && (s.type === 'defensetower' || s.rangedAttack)) {
+    const towerFrame = atlas.getFrame('Tower_Blue') || atlas.getFrame('Castle_Blue');
+    if (towerFrame) {
+      // Tower is 128×256 in atlas; scale to match structure footprint
+      const targetH = Math.max(s.h || 48, 64);
+      const targetW = targetH * (towerFrame.w / towerFrame.h);
+      c.drawImage(
+        atlas.bitmap,
+        towerFrame.x, towerFrame.y, towerFrame.w, towerFrame.h,
+        s.x - targetW / 2, s.y - targetH / 2,
+        targetW, targetH
+      );
+      usedAtlasSprite = true;
+    }
+  }
+  if (!usedAtlasSprite) {
+    drawBuildingAsset(c, s, def, { hover, now });
+  }
 
   if (hover) {
     c.font = '700 12px system-ui';
@@ -226,9 +265,30 @@ export function drawItem(game, c, i, now) {
 }
 
 export function drawTree(game, c, t, now, opacity = 1) {
+  const hover = game.mouse.hoverTree === t;
+
+  // ── Sprite cache path: blit pre-rendered tree when not hovered/stump ──
+  // The sprite cache has base foliage without sway animation. Sway is
+  // a subtle effect; skipping it for the blit path is a major perf win.
+  if (!hover && !t.stump && opacity >= 0.99) {
+    const key = treeSpriteKey(t);
+    if (key) {
+      const cached = getWorldObjectSprite(key);
+      if (cached) {
+        c.drawImage(cached.sprite, t.x - cached.meta.cx, t.y - cached.meta.cy);
+        // Still draw health bar on top if tree has been damaged
+        if (t.hp < t.maxHp) {
+          c.save();
+          drawBar(c, t.x - 18, t.y - (t.radius || 22) - 16, 36, 5, t.hp / t.maxHp, '#9abf8f');
+          c.restore();
+        }
+        return;
+      }
+    }
+  }
+
   c.save();
   c.globalAlpha = opacity;
-  const hover = game.mouse.hoverTree === t;
   drawShadow(c, t.x, t.y + (t.radius || 20) * .8, (t.radius || 20) * 1.15, (t.radius || 20) * .34, .24);
   if (t.stump) {
     c.globalAlpha = opacity * .7;
@@ -294,4 +354,4 @@ function leafBlob(c, x, y, r, color) {
   c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
 }
 
-import { lighten, darken } from '../shared/renderer-utils.js?v=t_renderer_split_0627';
+import { lighten, darken } from '../shared/renderer-utils.js?v=grove_stone_transparency_0628';

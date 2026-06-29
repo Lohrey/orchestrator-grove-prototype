@@ -2,7 +2,7 @@
 // Monster spawning, damage, night spawns, and monster behavior helpers.
 // Part of the Game class composition root — installed via installMonsterSystem(Game, deps).
 
-import { clamp, distXY, nearest, rand, rectDistance } from '../utils.js?v=20260613-player-tools';
+import { clamp, distXY, nearest, rand, rectDistance } from '../utils.js?v=grove_pixi_fixes_0628';
 
 /** Center point of an axis-aligned rect (structure), matching world.js's local helper. */
 const rectCenter = z => ({ x: z.x + z.w / 2, y: z.y + z.h / 2 });
@@ -42,6 +42,10 @@ export function installMonsterSystem(Game, deps) {
     },
     spawnNightMonster() {
       const point = this.findNightMonsterSpawnPoint();
+      // TODO(sprites): Night enemies should use a goblin spritesheet for rendering.
+      // The sprite wiring subagent is handling this in pixi-entities.js (createMonsterView/updateMonsterView)
+      // and sprite-cache.js. When wired, set monster.spriteKey = 'goblin' and pass it through
+      // the renderer. Currently these monsters render as procedural vectors.
       const monster = this.spawnMonster(point.x, point.y, {
         kind: 'night_monster', type: 'night_monster', name: 'night monster', passive: false, hostile: true, ownerId: 'wild', ownerLabel: 'Night', hp: 12, maxHp: 12,
         speed: rand(42, 58), roamRadius: NIGHT_MONSTER_CONFIG.roamRadius, avoidRadius: NIGHT_MONSTER_CONFIG.avoidRadius, aggroRange: 130

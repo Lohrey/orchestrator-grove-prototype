@@ -8,14 +8,40 @@ import {
   fillAndStrokePath,
   drawRoundedRect,
   samplePolyline
-} from './pixi-layers.js?v=t_renderer_split_0627';
+} from './pixi-layers.js?v=grove_tileset_0628';
 import { getCampaignArrivalScene } from '../../campaign-scenes.js?v=t_campaign_scenes_0623';
-import { clamp } from '../../utils.js?v=20260613-player-tools';
+import { loadLpcTerrain, getLpcTerrain, LPC_TILE_SIZE } from '../shared/lpc-terrain-loader.js?v=grove_tileset_0628';
+import { clamp } from '../../utils.js?v=grove_pixi_fixes_0628';
 
 export function buildTerrainBaseTexture(PIXI, renderState, { buildStaticTexture, createGraphicsLayer }) {
   const width = renderState.map.width;
   const height = renderState.map.height;
   return buildStaticTexture(width, height, layer => {
+    // ── LPC grass tile overlay (canvas-backed) ────────────────────
+    // Draw tiled LPC grass sprites via a temporary canvas, then add as texture.
+    const lpcBitmap = getLpcTerrain();
+    if (lpcBitmap) {
+      const tileCanvas = document.createElement('canvas');
+      tileCanvas.width = width;
+      tileCanvas.height = height;
+      const tc = tileCanvas.getContext('2d');
+      tc.globalAlpha = 0.40;
+      const ts = LPC_TILE_SIZE;
+      for (let y = 0; y < height; y += ts) {
+        for (let x = 0; x < width; x += ts) {
+          const noise = terrainNoise(x * 0.3, y * 0.3);
+          const frame = Math.floor(noise * 15.99);
+          const sx = (frame % 4) * ts;
+          const sy = Math.floor(frame / 4) * ts;
+          tc.drawImage(lpcBitmap, sx, sy, ts, ts, x, y, ts, ts);
+        }
+      }
+      const tileTex = PIXI.Texture.from(tileCanvas);
+      const tileSprite = new PIXI.Sprite(tileTex);
+      tileSprite.alpha = 1;
+      layer.addChild(tileSprite);
+    }
+
     const base = createGraphicsLayer(layer, graphics => {
       fillPath(graphics, 0x15281d, 1, path => path.rect(0, 0, width, height));
       fillPath(graphics, 0x25482d, 0.95, path => path.rect(0, 0, width, height));

@@ -2,7 +2,7 @@
 // Player target queue, movement, resource actions, deploy/demolish actions.
 // Part of the Game class composition root — installed via installPlayerSystem(Game, deps).
 
-import { clamp } from '../utils.js?v=20260613-player-tools';
+import { clamp } from '../utils.js?v=grove_tree_chop_0628';
 
 export function installPlayerSystem(Game, deps) {
   const {
@@ -220,12 +220,11 @@ export function installPlayerSystem(Game, deps) {
       const tree = this.trees.find(t => t.id === target.resourceId && this.isChoppableTree(t));
       if (!tree || this.player.inventory?.type !== 'crude_axe') return false;
       tree.hp--;
-      this.spawnItem('log', tree.x, tree.y, 1);
-      this.addFloat('Chopped log', tree.x, tree.y - 34, '#d3a95f');
+      this.addFloat('Chopped', tree.x, tree.y - 34, '#d3a95f');
       this.emitSound('chop', { cooldownKey: 'player:chop', minGapMs: 160 });
       this.recordTeachStep(this.resourceRadiusStep('chop_tree', tree, this.treeDisplayName(tree)));
       this.syncTeachUi();
-      if (tree.hp <= 0) { tree.stump = true; tree.regrow = 0; this.spawnItem('stick', tree.x, tree.y, 2); this.spawnItem('tree_seed', tree.x, tree.y, 1); }
+      if (tree.hp <= 0) { tree.stump = true; tree.regrow = 0; this.spawnItem('log', tree.x, tree.y, 1); this.spawnItem('stick', tree.x, tree.y, 2); this.spawnItem('tree_seed', tree.x, tree.y, 1); this.addFloat('Tree felled', tree.x, tree.y - 50, '#9abf8f'); }
       return true;
     },
     finishPlayerMineStone(target) {

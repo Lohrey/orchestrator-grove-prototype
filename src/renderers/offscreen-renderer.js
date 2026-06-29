@@ -140,9 +140,12 @@ export async function createOffscreenRenderer({ canvas }) {
     webgpu: false,
     ctx: null,
     isWorker: true,
-    resize() {
-      if (canvas.width && canvas.height) {
-        worker.postMessage({ type: 'resize', width: canvas.width, height: canvas.height });
+    resize({ width, height } = {}) {
+      // After transferControlToOffscreen, canvas.width is frozen — use passed dims.
+      const w = width || canvas.width;
+      const h = height || canvas.height;
+      if (w && h) {
+        worker.postMessage({ type: 'resize', width: w, height: h });
       }
     },
     draw(renderState) {

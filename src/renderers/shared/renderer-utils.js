@@ -1,4 +1,4 @@
-import { clamp as _clamp } from '../../utils.js?v=20260613-player-tools';
+import { clamp as _clamp } from '../../utils.js?v=grove_pixi_fixes_0628';
 export const clamp = _clamp;
 import {
   fogRevealSources as buildFogRevealSources,
@@ -137,6 +137,54 @@ export function treeOcclusionChecks(tree) {
 
 export function getTreeOpacity(game, tree, now, occluders = null) {
   return treeWouldOccludeItems(game, tree, now, occluders) ? .68 : (treeWouldOccludeDrawnObject(game, tree, now, occluders) ? .82 : 1);
+}
+
+// ── Rock (stone deposit) occlusion helpers ─────────────────────────
+// Mirrors the tree transparency system: when a player, bot, monster, item,
+// structure, or projectile is behind a rock, the rock becomes semi-transparent
+// so the occluded object stays visible.
+export function rockOcclusionChecks(rock) {
+  const rockRadius = rock.radius || 18;
+  const rockCenterY = rock.y - rockRadius * .08;
+  return {
+    checkCircle: (x, y, radius) => circlesOverlap(rock.x, rockCenterY, rockRadius, x, y, radius),
+    checkRect: (x, y, w, h) => circleIntersectsRect(rock.x, rockCenterY, rockRadius, x - w / 2, y - h / 2, w, h)
+  };
+}
+
+export function getRockOpacity(game, rock, now, occluders = null) {
+  return rockWouldOccludeItems(game, rock, now, occluders) ? .68 : (rockWouldOccludeDrawnObject(game, rock, now, occluders) ? .82 : 1);
+}
+
+function rockWouldOccludeItems(game, rock, now, occluders = null) {
+  const { checkCircle } = rockOcclusionChecks(rock);
+  for (const item of occluders?.items || game.items || []) {
+    const bob = item._bob ?? Math.sin(now / 400 + item.bob) * 2;
+    if (checkCircle(item.x, item.y + bob, 11)) return true;
+  }
+  return false;
+}
+
+function rockWouldOccludeDrawnObject(game, rock, now, occluders = null) {
+  const { checkCircle, checkRect } = rockOcclusionChecks(rock);
+  for (const bot of occluders?.bots || game.bots || []) {
+    if (checkCircle(bot.x, bot.y, (bot.r || 13) + 6)) return true;
+  }
+  for (const monster of occluders?.monsters || game.monsters || []) {
+    if ((monster.hp || 0) > 0 && checkCircle(monster.x, monster.y, (monster.r || 14) + 6)) return true;
+  }
+  if (game.player && checkCircle(game.player.x, game.player.y, (game.player.r || 16) + 6)) return true;
+  for (const player of Object.values(game.multiplayer?.players || {})) {
+    if (!player || player.id === game.multiplayer?.playerId || player.disconnected) continue;
+    if (checkCircle(player.x, player.y, 21)) return true;
+  }
+  for (const structure of occluders?.structures || game.structures || []) {
+    if (checkRect(structure.x, structure.y, structure.w || 48, structure.h || 48)) return true;
+  }
+  for (const projectile of occluders?.projectiles || game.projectiles || []) {
+    if (checkCircle(projectile.x, projectile.y, 8)) return true;
+  }
+  return false;
 }
 
 function treeWouldOccludeItems(game, tree, now, occluders = null) {

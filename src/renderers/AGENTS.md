@@ -25,6 +25,13 @@ Orchestrator Grove prototype maintainers.
   frame from the current world-clipped view bounds (`fogView.left/top`), not only when a texture
   redraw signature changes — otherwise the sprite drifts relative to the world during pan/zoom.
   The signature gates only the expensive canvas redraw, not the cheap position update.
+- **Entity occlusion transparency**: Trees and rocks (stone deposits) become semi-transparent
+  (alpha .68 for items, .82 for other actors) when a player, bot, monster, item, structure, or
+  projectile overlaps them. The occlusion-check helpers (`getTreeOpacity`, `getRockOpacity`) live
+  in `shared/renderer-utils.js`. The canvas2d path computes a shared `occluders` object in
+  `canvas-renderer.js` before pushing trees/rocks to depth sort. The Pixi path computes
+  `pixiOccluders(renderState)` per-update in `pixi-renderer.js` and sets `container.alpha`.
+  Sprite-cache blits are bypassed when opacity < 1 (see `drawRock`/`drawTree` in `world-layer.js`).
 
 ## Verification
 - Render behavior is covered by smoke tests under `tests/` (e.g. render-viewport-culling,

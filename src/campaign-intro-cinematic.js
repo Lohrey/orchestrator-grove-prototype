@@ -710,6 +710,13 @@ const SCENE_DEFS = [
  */
 export function createCampaignIntroCinematic({ canvas, audio, scenes, onComplete, onSkip }) {
   const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    console.error('[campaign-intro-cinematic] canvas.getContext("2d") returned null. ' +
+      'This canvas may already have a WebGL context. ' +
+      'Pass a dedicated 2D canvas to the cinematic.');
+    if (typeof onComplete === 'function') onComplete('skip');
+    return { start() {}, destroy() {} };
+  }
   const totalScenes = scenes.length;
 
   // State
@@ -777,9 +784,19 @@ export function createCampaignIntroCinematic({ canvas, audio, scenes, onComplete
   // ── Helpers ──
 
   function getCanvasSize() {
-    // Use the canvas's display size for DPR-aware rendering
-    const dpr = window.devicePixelRatio || 1;
-    return { W: canvas.clientWidth || canvas.width, H: canvas.clientHeight || canvas.height };
+    // Use the canvas's display size for DPR-aware rendering.
+    // Also sync the backing buffer to match the CSS display size for crisp output.
+    const cssW = canvas.clientWidth || canvas.width;
+    const cssH = canvas.clientHeight || canvas.height;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const needW = Math.round(cssW * dpr);
+    const needH = Math.round(cssH * dpr);
+    if (canvas.width !== needW || canvas.height !== needH) {
+      canvas.width = needW;
+      canvas.height = needH;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { W: cssW, H: cssH };
   }
 
   function drawText(scene, sceneData, W, H, alpha) {

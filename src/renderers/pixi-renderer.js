@@ -1,7 +1,7 @@
 import { BUILDING_TYPES } from '../data.js?v=t_building_kits_0618';
 import { getCampaignArrivalScene } from '../campaign-scenes.js?v=t_campaign_scenes_0623';
 import { getDepthAnchorY } from '../depth-sort.js?v=t_da28d8dd';
-import { clamp } from '../utils.js?v=20260613-player-tools';
+import { clamp } from '../utils.js?v=grove_lighting_0628';
 import {
   drawBuildingAsset,
   drawBuildingPreviewAsset,
@@ -21,13 +21,18 @@ import {
   drawRoundedRect,
   createText,
   makeCanvas,
-  isCampaignArrivalActive
-} from './pixi/pixi-layers.js?v=t_renderer_split_0627';
+  isCampaignArrivalActive,
+  getWorldViewBounds,
+  getClippedMapView
+} from './pixi/pixi-layers.js?v=grove_lighting_0628';
+import { getRockOpacity, getTreeOpacity } from './shared/renderer-utils.js?v=grove_stone_transparency_0628';
 import {
   loadCharacterAssets,
-  inferPlayerAction
-} from './pixi/pixi-character-assets.js?v=t_renderer_split_0627';
+  inferPlayerAction,
+  loadBotPawnAssets
+} from './pixi/pixi-character-assets.js?v=grove_lighting_0628';
 import { loadDogSpriteSheet } from './pixi/pixi-dog-spritesheet.js?v=t_dog_spritesheet_0627';
+import { loadLpcTerrain } from './shared/lpc-terrain-loader.js?v=grove_tileset_0628';
 import {
   buildTerrainBaseTexture,
   buildTerrainDetailTexture,
@@ -60,14 +65,18 @@ import {
   createFloaterView,
   updateFloaterView,
   drawProjectile
-} from './pixi/pixi-entities.js?v=stone_deposit_interact_0628';
+} from './pixi/pixi-entities.js?v=grove_stone_transparency_0628';
 import {
   updateOverlay,
   updatePlacementPreview,
   updatePlayerTarget,
   updateZoneDraft,
   updateHud
-} from './pixi/pixi-effects.js?v=stone_deposit_interact_0628';
+} from './pixi/pixi-effects.js?v=grove_lighting_0628';
+import {
+  createLightmapResources,
+  updateLightmap
+} from './pixi/pixi-lighting.js?v=grove_lighting_0628';
 
 export async function createPixiRenderer({ canvas, capture = false, settings = null }) {
   const PIXI = await import('../../vendor/pixi/pixi.mjs');
@@ -97,9 +106,20 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
     console.warn('Character sprites failed to load; using fallback actor rendering.', error);
   });
 
+  // Load Pawn_Blue bot sprites from the Tiny Swords atlas (non-blocking; bots
+  // use vector fallback until ready).
+  loadBotPawnAssets(PIXI).catch(error => {
+    console.warn('Bot pawn sprites failed to load; using vector fallback for bots.', error);
+  });
+
   // Load golden retriever spritesheet for dog entities (non-blocking, vector fallback used on failure)
   loadDogSpriteSheet(PIXI).catch(error => {
     console.warn('Dog spritesheet failed to load; using vector fallback for dogs.', error);
+  });
+
+  // Load LPC terrain tiles for ground texturing (non-blocking; gradient fallback if unavailable)
+  loadLpcTerrain().catch(error => {
+    console.warn('LPC terrain tiles failed to load; using gradient ground fallback.', error);
   });
 
   const textureCache = new Map();
@@ -182,6 +202,14 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
   const fogOverlayTexture = PIXI.Texture.from(fogOverlayCanvas);
   const fogOverlaySprite = new PIXI.Sprite(fogOverlayTexture);
   worldOverlayLayer.addChild(overlaySprite, fogOverlaySprite);
+
+  // ── Screen-space lightmap lighting ──────────────────────────────
+  // The lightmap sprite is added FIRST (lowest zIndex) in worldOverlayLayer
+  // so it applies the multiply-blend darkness beneath fog and other overlays.
+  // The sprite lives in worldViewport space — Pixi's camera transform handles
+  // pan/zoom automatically. We only need to reposition/scale its canvas each frame.
+  const lightingResources = createLightmapResources(PIXI, makeCanvas, 256, 256);
+  worldOverlayLayer.addChildAt(lightingResources.lightmapSprite, 0);
 
   let lastViewportWidth = 0;
   let lastViewportHeight = 0;
@@ -421,13 +449,25 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
     );
   }
 
+  // Build the occluder set used for transparency on trees and rocks.
+  function pixiOccluders(renderState) {
+    const zoom = renderState.camera?.zoom || 1;
+    return {
+      items: zoom >= LOOSE_ITEM_RENDER_MIN_ZOOM ? (renderState.items || []) : [],
+      bots: zoom >= BOT_RENDER_MIN_ZOOM ? (renderState.bots || []) : [],
+      monsters: renderState.monsters || [],
+      structures: renderState.structures || [],
+      projectiles: renderState.projectiles || []
+    };
+  }
+
   function updateTrees(renderState) {
     reconcileMap(
       objectMaps.trees,
       renderState.trees || [],
       tree => tree.id || tree.ref,
       tree => ({ container: createTreeView(PIXI, tree, getNameTagTexture) }),
-      (view, tree) => updateTreeView(view.container, tree, renderState.mouse.hoverTree === tree, getNameTagTexture),
+      (view, tree) => updateTreeView(view.container, tree, renderState.mouse.hoverTree === tree, getNameTagTexture, getTreeOpacity(renderState, tree, Date.now(), pixiOccluders(renderState))),
       depthLayer
     );
   }
@@ -449,7 +489,7 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
       renderState.rocks || [],
       rock => rock.id || rock.ref,
       rock => ({ container: createRockView(PIXI, rock, getNameTagTexture) }),
-      (view, rock) => updateRockView(view.container, rock, renderState.mouse.hoverRock === rock, getNameTagTexture),
+      (view, rock) => updateRockView(view.container, rock, renderState.mouse.hoverRock === rock, getNameTagTexture, getRockOpacity(renderState, rock, Date.now(), pixiOccluders(renderState))),
       depthLayer
     );
   }
@@ -617,6 +657,24 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
       updatePlayer(renderState);
       updateFloaters(renderState);
       updateEffects(renderState);
+
+      // ── Screen-space lightmap lighting pass ─────────────────────
+      // Render all light sources to the lightmap and apply as multiply blend.
+      // This runs before the fog/overlay pass so fog is drawn on top.
+      if (renderState.lightingEffectsEnabled !== false) {
+        const lightView = getClippedMapView(renderState, getWorldViewBounds(renderState));
+        if (lightView) {
+          updateLightmap(renderState, lightView, {
+            ...lightingResources,
+            resizeOverlayCanvas
+          });
+        } else {
+          lightingResources.lightmapSprite.visible = false;
+        }
+      } else {
+        lightingResources.lightmapSprite.visible = false;
+      }
+
       updateOverlay(renderState, {
         overlayCanvas, overlayContext, overlaySprite, overlayTexture,
         fogOverlayCanvas, fogOverlayContext, fogOverlaySprite, fogOverlayTexture,
@@ -628,6 +686,10 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
       app.renderer.render(app.stage);
     },
     destroy() {
+      lightingResources.lightmapSprite.destroy({ children: true });
+      if (lightingResources.lightmapTexture && lightingResources.lightmapTexture !== PIXI.Texture.EMPTY) {
+        lightingResources.lightmapTexture.destroy(true);
+      }
       destroyTerrainTextures();
       for (const viewMap of Object.values(objectMaps)) {
         for (const view of viewMap.values()) destroyDisplayObject(view.container || view);

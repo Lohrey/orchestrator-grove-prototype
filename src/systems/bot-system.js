@@ -2,7 +2,7 @@
 // Bot creation, teams, display names, bot menu methods, bot drawer rendering.
 // Part of the Game class composition root — installed via installBotSystem(Game, deps).
 
-import { distXY, nearest } from '../utils.js?v=20260613-player-tools';
+import { distXY, nearest } from '../utils.js?v=grove_pixi_fixes_0628';
 
 export function installBotSystem(Game, deps) {
   const {

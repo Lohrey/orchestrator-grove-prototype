@@ -2,7 +2,7 @@
 // Canvas event binding, tap/context handling, hover detection, and context menus.
 // Part of the Game class composition root — installed via installInteractionSystem(Game, deps).
 
-import { distXY, escapeHtml, canvasPoint } from '../utils.js?v=20260613-player-tools';
+import { distXY, escapeHtml, canvasPoint } from '../utils.js?v=grove_pixi_fixes_0628';
 
 export function installInteractionSystem(Game, deps) {
   const {

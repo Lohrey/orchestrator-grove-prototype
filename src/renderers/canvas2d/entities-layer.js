@@ -217,16 +217,28 @@ export function drawBot(game, c, b, now) {
   // When the atlas is loaded, bots render as Tiny Swords Pawn sprites with a
   // walk-cycle animation driven by bot movement state. Falls back to the
   // procedural sprite cache (or vector) if the atlas isn't ready.
+  // Bug 1 fix: hover now draws the sprite WITH a highlight glow/outline
+  // instead of falling back to the old vector bot.
   const atlas = getTinySwordsAtlas();
-  if (atlas && _tsPawnFrames && !hover) {
+  if (atlas && _tsPawnFrames) {
     // Advance walk-cycle frame based on movement (use bot id + time for variety)
     const moving = b._moving || b.vx || b.vy;
     const speed = moving ? 8 : 0; // frames per second of animation
     const frameIdx = Math.floor((now * speed) / 1000 + (b.id ? String(b.id).charCodeAt(0) : 0)) % _tsPawnFrames.length;
     const frame = _tsPawnFrames[frameIdx];
-    const drawSize = (b.r || 12) * 2.6; // scale pawn to roughly match bot footprint
+    const drawSize = (b.r || 12) * 4.0; // Bug 2 fix: increased from 2.6 → 4.0 (~48px on screen)
     c.save();
     drawShadow(c, b.x, b.y + (b.r || 12) * .7, (b.r || 12) + 4, 4, .26);
+
+    // Bug 1 fix: draw highlight glow around sprite bounds when hovering
+    if (hover) {
+      const halfSize = drawSize / 2;
+      c.fillStyle = 'rgba(255,244,208,.18)';
+      c.beginPath();
+      c.arc(b.x, b.y, halfSize + 6, 0, Math.PI * 2);
+      c.fill();
+    }
+
     if (!facingRight) {
       // Flip horizontally for leftward movement
       c.translate(b.x + drawSize / 2, b.y);
@@ -235,6 +247,17 @@ export function drawBot(game, c, b, now) {
     } else {
       drawAtlasCell(c, atlas.bitmap, frame, b.x, b.y, drawSize);
     }
+
+    // Bug 1 fix: draw highlight outline around the sprite bounds when hovering
+    if (hover) {
+      const halfSize = drawSize / 2;
+      c.strokeStyle = '#fff4d0';
+      c.lineWidth = 3;
+      c.beginPath();
+      c.arc(b.x, b.y, halfSize + 2, 0, Math.PI * 2);
+      c.stroke();
+    }
+
     // Overlay: id label + items (only when zoomed in)
     const zoom = game.camera?.zoom || 1;
     if (zoom >= 0.5) {
@@ -251,20 +274,37 @@ export function drawBot(game, c, b, now) {
       if (b.equipment?.shield) drawHeldToolAsset(c, b.x - 17, b.y - 7, b.equipment.shield);
       drawAmmoBadge(c, b, b.x, b.y + (b.r || 12) + 16);
     }
+    if (hover) drawNameTag(c, b.name || `Bot ${b.id}`, b.x, b.y - drawSize / 2 - 12);
     c.restore();
     return;
   }
 
   // ── Procedural sprite-cache path (fallback) ──
   const spriteCache = getSpriteCache();
-  const useSprite = spriteCache && !hover;
+  // Bug 1 fix: allow sprite path even when hovering (overlay highlight)
+  const useSprite = spriteCache;
 
   if (useSprite) {
     const key = botSpriteKey(b);
     const sprite = spriteCache[key];
     if (sprite) {
+      // Bug 1 fix: draw highlight glow around sprite bounds when hovering
+      if (hover) {
+        c.fillStyle = 'rgba(255,244,208,.18)';
+        c.beginPath();
+        c.arc(b.x, b.y, SPRITE_SIZE / 2 + 4, 0, Math.PI * 2);
+        c.fill();
+      }
       // Single drawImage blit for the body
       c.drawImage(sprite, b.x - SPRITE_SIZE / 2, b.y - SPRITE_SIZE / 2);
+      // Bug 1 fix: highlight outline
+      if (hover) {
+        c.strokeStyle = '#fff4d0';
+        c.lineWidth = 3;
+        c.beginPath();
+        c.arc(b.x, b.y, SPRITE_SIZE / 2 + 2, 0, Math.PI * 2);
+        c.stroke();
+      }
 
       // Overlay pass: name badge, items, tools (only when zoomed in enough to see them)
       const zoom = game.camera?.zoom || 1;
@@ -284,6 +324,7 @@ export function drawBot(game, c, b, now) {
         drawAmmoBadge(c, b, b.x, b.y + b.r + 16);
         c.restore();
       }
+      if (hover) drawNameTag(c, b.name || `Bot ${b.id}`, b.x, b.y - SPRITE_SIZE / 2 - 12);
       return;
     }
   }
@@ -296,7 +337,7 @@ export function drawBot(game, c, b, now) {
 function drawDogBotSprite(game, c, b, now) {
   const hover = game.mouse.hoverBot === b;
   const spriteCache = getSpriteCache();
-  const useSprite = spriteCache && !hover;
+  const useSprite = spriteCache;
 
   if (useSprite) {
     const key = botSpriteKey(b);
@@ -369,10 +410,13 @@ export function drawPlayerActor(game, c, now) {
   const lowHp = hpRatio <= 0.3;
   const facingRight = (game.player.facingX ?? 1) >= 0;
 
+  // Bug 3 fix: increased from 3.0 → 4.2 (~55px on screen, matching sprite base of 192px)
+  const playerDrawSize = (game.player.r || 13) * 4.2;
+
   // ── Tiny Swords atlas path (Warrior/Knight sprite for player) ──
   const atlas = getTinySwordsAtlas();
   if (atlas && _tsKnightFrames) {
-    const drawSize = (game.player.r || 13) * 3.0; // knight is taller/bigger than pawn
+    const drawSize = playerDrawSize;
     // Animate walk cycle based on movement; slow idle bob when stationary
     const moving = game.player.target || (Array.isArray(game.player.targetQueue) && game.player.targetQueue.length > 0);
     const speed = moving ? 8 : 1; // fps: 8 when walking, ~1 for gentle idle
@@ -408,9 +452,16 @@ export function drawPlayerActor(game, c, now) {
 
   // Overlay pass (always for player since it's important)
   const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
+
+  // Bug 4 fix: Carried item must show above the player's head for ALL facing
+  // directions (up, down, left, right). The old code used a fixed y-25 offset
+  // which worked at small scale but was hidden inside the larger sprite body.
+  // Now we compute a dynamic offset based on the actual sprite draw size so
+  // the item always sits above the head regardless of facing or sprite scale.
   if (game.player.inventory) {
-    drawMiniItem(c, game.player.x, game.player.y - 25, game.player.inventory.type);
-    drawNameTag(c, game.player.inventory.type, game.player.x, game.player.y - 34);
+    const itemY = game.player.y - playerDrawSize / 2 - 12;
+    drawMiniItem(c, game.player.x, itemY, game.player.inventory.type);
+    drawNameTag(c, game.player.inventory.type, game.player.x, itemY - 9);
   }
   if (game.player.equipment?.weapon) drawHeldToolAsset(c, game.player.x + 19, game.player.y - 5, game.player.equipment.weapon);
   if (game.player.equipment?.shield) drawHeldToolAsset(c, game.player.x - 18, game.player.y - 5, game.player.equipment.shield);

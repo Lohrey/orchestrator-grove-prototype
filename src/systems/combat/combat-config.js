@@ -3,4 +3,6 @@ export const BOW_ATTACK = { range: 320, damage: 1, cooldown: 0.55, projectileSpe
 export const MELEE_ATTACK_RANGE = 34;
 export const MELEE_AUTO_ATTACK = { range: MELEE_ATTACK_RANGE + 18, damage: 1, cooldown: 0.8 };
 export const IDLE_BOT_AUTO_ATTACK_RANGE = 500;
-export const MONSTER_MELEE_ATTACK = { range: 36, damage: 1, cooldown: 1.1 };
+export const MONSTER_MELEE_ATTACK = { range: 36, damage: 1, cooldown: 1.0 };
+export const PLAYER_ATTACK_COOLDOWN = 1.0; // 1 attack/second for player basic attack
+export const PLAYER_AUTO_ENGAGE_RANGE = 140; // auto-engage enemies within this range when idle
