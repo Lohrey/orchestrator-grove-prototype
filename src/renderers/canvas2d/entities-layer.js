@@ -6,7 +6,7 @@ import {
   getLookOffset,
   isBotHandTool,
   roundedRect
-} from '../shared/renderer-utils.js?v=t_renderer_split_0627';
+} from '../shared/renderer-utils.js?v=grove_proc_cache_0705';
 import { createDepthDrawable } from '../../depth-sort.js?v=t_da28d8dd';
 import {
   drawHeldToolAsset,
@@ -18,52 +18,19 @@ import {
   botSpriteKey,
   playerSpriteKey,
   SPRITE_SIZE
-} from '../shared/sprite-cache.js?v=t_sprite_cache_0628';
-import {
-  loadTinySwordsAtlas,
-  getTinySwordsAtlas
-} from '../shared/tiny-swords-atlas.js?v=ts_fix2_0628';
+} from '../shared/sprite-cache.js?v=grove_proc_cache_0705';
 
-// ── Tiny Swords sprite atlas integration ──────────────────────────────
-// Loaded once at module init; getTinySwordsAtlas() returns null until ready,
-// at which point bots/pawns switch from procedural circles to atlas sprites.
-// See shared/tiny-swords-atlas.js for the loader contract.
-let _tsReady = false;
-let _tsPawnFrames = null;   // Pawn_Blue walk-cycle cells (192×192 sub-sheet)
-let _tsKnightFrames = null; // Warrior (Knight) walk-cycle cells (192×192 sub-sheet)
-let _tsTowerFrame = null;   // Tower frame rect
+// ── Procedural offscreen-cached player & bot rendering ─────────────────
+// The buggy Tiny Swords spritesheet atlas path has been disabled for the
+// player and bot. Instead, the procedural vector model (drawBotVector /
+// drawPlayerActor vector fallback) is pre-rendered once at init time to
+// offscreen canvases by sprite-cache.js (buildCache()), and the cached
+// canvases are blitted here via ctx.drawImage(). Trees, rocks, items, and
+// structures keep their current rendering path — only player and bot
+// changed. See src/renderers/AGENTS.md.
 
-export async function initTinySwordsSprites() {
-  if (_tsReady) return;
-  const atlas = await loadTinySwordsAtlas();
-  if (!atlas) { _tsReady = true; return; } // load failed — procedural fallback
-  // Pawn_Blue: 1152×1152 → 6×6 grid of 192px cells (walk/idle cycle)
-  _tsPawnFrames = atlas.getSheetFrames('Pawn_Blue');
-  // Warrior_Blue: 1152×1536 → 6×8 grid of 192px cells (walk/idle/attack cycle)
-  _tsKnightFrames = atlas.getSheetFrames('Warrior_Blue');
-  // Tower_Blue for defensive towers / buildings
-  _tsTowerFrame = atlas.getFrame('Tower_Blue') || atlas.getFrame('Castle_Blue');
-  _tsReady = true;
-  if (_tsPawnFrames) console.info(`[tiny-swords] Pawn walk cycle: ${_tsPawnFrames.length} frames`);
-  else console.warn('[tiny-swords] Pawn_Blue sub-sheet not found — using single frame');
-  if (_tsKnightFrames) console.info(`[tiny-swords] Warrior/Knight walk cycle: ${_tsKnightFrames.length} frames`);
-  else console.warn('[tiny-swords] Warrior_Blue sub-sheet not found — using procedural fallback for player');
-}
-
-/**
- * Draw a Tiny Swords atlas cell (or full frame) centered at (cx, cy),
- * scaled to fit drawSize×drawSize. Optionally flip horizontally.
- */
-function drawAtlasCell(c, bitmap, frame, cx, cy, drawSize, flipX) {
-  if (!frame) return false;
-  c.drawImage(
-    bitmap,
-    frame.x, frame.y, frame.w, frame.h,   // source
-    cx - drawSize / 2, cy - drawSize / 2, // dest (centered)
-    drawSize, drawSize
-  );
-  return true;
-}
+/** No-op init kept for backwards compat with canvas2d-renderer.js callers. */
+export async function initTinySwordsSprites() { /* sprites disabled for player/bot */ }
 
 function drawMiniItem(c, x, y, type) {
   c.save();
@@ -205,7 +172,10 @@ export function drawBotVector(game, c, b, now) {
   c.restore();
 }
 
-// Fast sprite-based bot drawing — single drawImage call for the body, then overlay details
+// Procedural offscreen-cached bot drawing — blits the pre-rendered procedural
+// bot body (drawBotVector model) via a single ctx.drawImage() call, then
+// overlays per-frame details (id label, items, tools, hover highlight).
+// The buggy Tiny Swords spritesheet atlas path is disabled for the bot.
 export function drawBot(game, c, b, now) {
   if (b.kind === 'dog') return drawDogBotSprite(game, c, b, now);
   const hover = game.mouse.hoverBot === b;
@@ -213,91 +183,22 @@ export function drawBot(game, c, b, now) {
   const facingRight = (b.facingX ?? 1) >= 0;
   const handToolTypes = inventoryIsHandTool ? [b.inventory.type] : [];
 
-  // ── Tiny Swords atlas path (Pawn sprite) ──
-  // When the atlas is loaded, bots render as Tiny Swords Pawn sprites with a
-  // walk-cycle animation driven by bot movement state. Falls back to the
-  // procedural sprite cache (or vector) if the atlas isn't ready.
-  // Bug 1 fix: hover now draws the sprite WITH a highlight glow/outline
-  // instead of falling back to the old vector bot.
-  const atlas = getTinySwordsAtlas();
-  if (atlas && _tsPawnFrames) {
-    // Advance walk-cycle frame based on movement (use bot id + time for variety)
-    const moving = b._moving || b.vx || b.vy;
-    const speed = moving ? 8 : 0; // frames per second of animation
-    const frameIdx = Math.floor((now * speed) / 1000 + (b.id ? String(b.id).charCodeAt(0) : 0)) % _tsPawnFrames.length;
-    const frame = _tsPawnFrames[frameIdx];
-    const drawSize = (b.r || 12) * 4.0; // Bug 2 fix: increased from 2.6 → 4.0 (~48px on screen)
-    c.save();
-    drawShadow(c, b.x, b.y + (b.r || 12) * .7, (b.r || 12) + 4, 4, .26);
-
-    // Bug 1 fix: draw highlight glow around sprite bounds when hovering
-    if (hover) {
-      const halfSize = drawSize / 2;
-      c.fillStyle = 'rgba(255,244,208,.18)';
-      c.beginPath();
-      c.arc(b.x, b.y, halfSize + 6, 0, Math.PI * 2);
-      c.fill();
-    }
-
-    if (!facingRight) {
-      // Flip horizontally for leftward movement
-      c.translate(b.x + drawSize / 2, b.y);
-      c.scale(-1, 1);
-      drawAtlasCell(c, atlas.bitmap, frame, 0, 0, drawSize);
-    } else {
-      drawAtlasCell(c, atlas.bitmap, frame, b.x, b.y, drawSize);
-    }
-
-    // Bug 1 fix: draw highlight outline around the sprite bounds when hovering
-    if (hover) {
-      const halfSize = drawSize / 2;
-      c.strokeStyle = '#fff4d0';
-      c.lineWidth = 3;
-      c.beginPath();
-      c.arc(b.x, b.y, halfSize + 2, 0, Math.PI * 2);
-      c.stroke();
-    }
-
-    // Overlay: id label + items (only when zoomed in)
-    const zoom = game.camera?.zoom || 1;
-    if (zoom >= 0.5) {
-      c.fillStyle = '#06100d';
-      c.font = '800 10px system-ui';
-      c.textAlign = 'center';
-      c.fillText(b.id, b.x, b.y + 3);
-      if (b.inventory && !inventoryIsHandTool) drawMiniItem(c, b.x - 1, b.y - 24, b.inventory.type);
-      handToolTypes.slice(0, 2).forEach((type, index) => {
-        const side = (index === 0 ? 1 : -1) * (facingRight ? 1 : -1);
-        drawHeldToolAsset(c, b.x + side * (b.r + 8), b.y + 5 + index * 2, type);
-      });
-      if (b.equipment?.weapon) drawHeldToolAsset(c, b.x + 17, b.y - 5, b.equipment.weapon);
-      if (b.equipment?.shield) drawHeldToolAsset(c, b.x - 17, b.y - 7, b.equipment.shield);
-      drawAmmoBadge(c, b, b.x, b.y + (b.r || 12) + 16);
-    }
-    if (hover) drawNameTag(c, b.name || `Bot ${b.id}`, b.x, b.y - drawSize / 2 - 12);
-    c.restore();
-    return;
-  }
-
-  // ── Procedural sprite-cache path (fallback) ──
+  // ── Procedural sprite-cache path (offscreen pre-rendered vector body) ──
   const spriteCache = getSpriteCache();
-  // Bug 1 fix: allow sprite path even when hovering (overlay highlight)
-  const useSprite = spriteCache;
-
-  if (useSprite) {
+  if (spriteCache) {
     const key = botSpriteKey(b);
     const sprite = spriteCache[key];
     if (sprite) {
-      // Bug 1 fix: draw highlight glow around sprite bounds when hovering
+      // Hover highlight glow behind the sprite
       if (hover) {
         c.fillStyle = 'rgba(255,244,208,.18)';
         c.beginPath();
         c.arc(b.x, b.y, SPRITE_SIZE / 2 + 4, 0, Math.PI * 2);
         c.fill();
       }
-      // Single drawImage blit for the body
+      // Single drawImage blit for the body (reuses pre-rendered canvas)
       c.drawImage(sprite, b.x - SPRITE_SIZE / 2, b.y - SPRITE_SIZE / 2);
-      // Bug 1 fix: highlight outline
+      // Hover outline
       if (hover) {
         c.strokeStyle = '#fff4d0';
         c.lineWidth = 3;
@@ -329,7 +230,7 @@ export function drawBot(game, c, b, now) {
     }
   }
 
-  // Fallback: full vector drawing
+  // Fallback: full vector drawing (drawBotVector is the procedural source of truth)
   drawBotVector(game, c, b, now);
 }
 
@@ -408,56 +309,33 @@ export function drawPlayerActor(game, c, now) {
   const breathe = Math.sin(now / 520) * .8;
   const hpRatio = Math.max(0, Math.min(1, (game.player.hp ?? 0) / Math.max(1, game.player.maxHp || 10)));
   const lowHp = hpRatio <= 0.3;
-  const facingRight = (game.player.facingX ?? 1) >= 0;
 
-  // Bug 3 fix: increased from 3.0 → 4.2 (~55px on screen, matching sprite base of 192px)
-  const playerDrawSize = (game.player.r || 13) * 4.2;
+  // ── Procedural offscreen-cached path ──
+  // The buggy Tiny Swords Warrior/Knight atlas path is disabled. The procedural
+  // player body is pre-rendered to offscreen canvases at init (sprite-cache.js),
+  // one per cardinal facing direction + HP state, then blitted here via
+  // ctx.drawImage(). Falls back to per-frame vector drawing only if the cache
+  // is not yet ready.
+  const spriteCache = getSpriteCache();
+  const sprite = spriteCache ? spriteCache[playerSpriteKey(game.player)] : null;
 
-  // ── Tiny Swords atlas path (Warrior/Knight sprite for player) ──
-  const atlas = getTinySwordsAtlas();
-  if (atlas && _tsKnightFrames) {
-    const drawSize = playerDrawSize;
-    // Animate walk cycle based on movement; slow idle bob when stationary
-    const moving = game.player.target || (Array.isArray(game.player.targetQueue) && game.player.targetQueue.length > 0);
-    const speed = moving ? 8 : 1; // fps: 8 when walking, ~1 for gentle idle
-    const frameIdx = Math.floor((now * speed) / 1000) % _tsKnightFrames.length;
-    const frame = _tsKnightFrames[frameIdx];
-    drawShadow(c, game.player.x, game.player.y + (game.player.r || 13) * .7, (game.player.r || 13) + 5, 5, .28);
-    if (!facingRight) {
-      c.translate(game.player.x + drawSize / 2, game.player.y + breathe);
-      c.scale(-1, 1);
-      drawAtlasCell(c, atlas.bitmap, frame, 0, 0, drawSize);
-    } else {
-      drawAtlasCell(c, atlas.bitmap, frame, game.player.x, game.player.y + breathe, drawSize);
-    }
+  if (sprite) {
+    c.drawImage(sprite, game.player.x - SPRITE_SIZE / 2, game.player.y - SPRITE_SIZE / 2 + breathe);
   } else {
-    // Fallback: procedural sprite cache or vector drawing
-    const spriteCache = getSpriteCache();
-    const sprite = spriteCache ? spriteCache[playerSpriteKey(game.player)] : null;
-
-    if (sprite) {
-      c.drawImage(sprite, game.player.x - SPRITE_SIZE / 2, game.player.y - SPRITE_SIZE / 2 + breathe);
-    } else {
-      // Fallback: vector drawing
-      drawShadow(c, game.player.x, game.player.y + game.player.r + 5, game.player.r + 8, 5, .28);
-      const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
-      c.fillStyle = lowHp ? '#f5d8d4' : '#eef5ef';
-      c.strokeStyle = '#26322d';
-      c.lineWidth = 2;
-      c.beginPath(); c.arc(game.player.x, game.player.y + breathe, game.player.r + 1, 0, Math.PI * 2); c.fill(); c.stroke();
-      c.fillStyle = '#76b77f';
-      c.beginPath(); c.arc(game.player.x + look.x, game.player.y - 3 + breathe + look.y, 3, 0, Math.PI * 2); c.fill();
-    }
+    // Fallback: vector drawing (source of truth for the procedural model)
+    drawShadow(c, game.player.x, game.player.y + game.player.r + 5, game.player.r + 8, 5, .28);
+    const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
+    c.fillStyle = lowHp ? '#f5d8d4' : '#eef5ef';
+    c.strokeStyle = '#26322d';
+    c.lineWidth = 2;
+    c.beginPath(); c.arc(game.player.x, game.player.y + breathe, game.player.r + 1, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.fillStyle = '#76b77f';
+    c.beginPath(); c.arc(game.player.x + look.x, game.player.y - 3 + breathe + look.y, 3, 0, Math.PI * 2); c.fill();
   }
 
   // Overlay pass (always for player since it's important)
-  const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
-
-  // Bug 4 fix: Carried item must show above the player's head for ALL facing
-  // directions (up, down, left, right). The old code used a fixed y-25 offset
-  // which worked at small scale but was hidden inside the larger sprite body.
-  // Now we compute a dynamic offset based on the actual sprite draw size so
-  // the item always sits above the head regardless of facing or sprite scale.
+  const playerDrawSize = SPRITE_SIZE; // matches pre-rendered canvas size
+  // Carried item must show above the player's head regardless of facing direction
   if (game.player.inventory) {
     const itemY = game.player.y - playerDrawSize / 2 - 12;
     drawMiniItem(c, game.player.x, itemY, game.player.inventory.type);

@@ -135,7 +135,9 @@ function drawDogBodyToCtx(ctx, radius, facingRight) {
 }
 
 // ── Draw player character body onto a ctx ──
-function drawPlayerBodyToCtx(ctx, radius, lowHp) {
+// facing is one of 'e'|'w'|'n'|'s' and controls the eye position so each
+// cardinal direction gets its own pre-rendered canvas (no per-frame eye math).
+function drawPlayerBodyToCtx(ctx, radius, lowHp, facing = 'e') {
   const cx = SPRITE_HALF;
   const cy = SPRITE_HALF;
   // Shadow
@@ -150,11 +152,30 @@ function drawPlayerBodyToCtx(ctx, radius, lowHp) {
   ctx.beginPath();
   ctx.arc(cx, cy, radius + 1, 0, Math.PI * 2);
   ctx.fill(); ctx.stroke();
-  // Eye
+  // Eye — offset depends on cardinal facing direction
+  // Mirrors getLookOffset(facingX, facingY, 4) math from renderer-utils.js
+  const eyeOffsets = {
+    e: { x: 4, y: -3 },
+    w: { x: -4, y: -3 },
+    n: { x: 0, y: -5.4 },
+    s: { x: 0, y: -0.6 }
+  };
+  const off = eyeOffsets[facing] || eyeOffsets.e;
   ctx.fillStyle = '#76b77f';
   ctx.beginPath();
-  ctx.arc(cx + 2, cy - 3, 3, 0, Math.PI * 2);
+  ctx.arc(cx + off.x, cy + off.y, 3, 0, Math.PI * 2);
   ctx.fill();
+}
+
+/**
+ * Compute cardinal facing direction from facingX/facingY vectors.
+ * Returns 'e', 'w', 'n', or 's'.
+ */
+export function cardinalFacing(facingX = 1, facingY = 0) {
+  if (Math.abs(facingX ?? 0) >= Math.abs(facingY ?? 0)) {
+    return (facingX ?? 1) >= 0 ? 'e' : 'w';
+  }
+  return (facingY ?? 0) >= 0 ? 's' : 'n';
 }
 
 // ── Rounded rect path helper (inline to avoid import cycle in worker context) ──
@@ -285,13 +306,18 @@ async function buildCache() {
     out[key] = await toBitmap(canvas);
   }
 
-  // Player character sprites: normal + low-hp
-  for (const [label, lowHp] of [['normal', false], ['lowhp', true]]) {
-    const key = `player_${label}`;
-    const { canvas } = preRender(ctx => {
-      drawPlayerBodyToCtx(ctx, 13, lowHp);
-    }, SPRITE_SIZE, SPRITE_SIZE);
-    out[key] = await toBitmap(canvas);
+  // Player character sprites: normal + low-hp, one per cardinal facing direction.
+  // This pre-renders the procedural vector player body (drawPlayerBodyToCtx)
+  // to an offscreen canvas once at init, then drawPlayerActor blits the cached
+  // canvas via ctx.drawImage() instead of re-running vector paths every frame.
+  for (const facing of ['e', 'w', 'n', 's']) {
+    for (const [label, lowHp] of [['normal', false], ['lowhp', true]]) {
+      const key = `player_${label}_${facing}`;
+      const { canvas } = preRender(ctx => {
+        drawPlayerBodyToCtx(ctx, 13, lowHp, facing);
+      }, SPRITE_SIZE, SPRITE_SIZE);
+      out[key] = await toBitmap(canvas);
+    }
   }
 
   // ── World object sprites: trees and rocks ────────────────────────
@@ -369,11 +395,14 @@ export function botSpriteKey(bot) {
 }
 
 /**
- * Player sprite key.
+ * Player sprite key. Includes cardinal facing direction so each
+ * pre-rendered facing canvas (player_<label>_<facing>) is reused.
  */
 export function playerSpriteKey(player) {
   const hpRatio = Math.max(0, Math.min(1, (player.hp ?? 10) / Math.max(1, player.maxHp || 10)));
-  return hpRatio <= 0.3 ? 'player_lowhp' : 'player_normal';
+  const label = hpRatio <= 0.3 ? 'lowhp' : 'normal';
+  const facing = cardinalFacing(player.facingX, player.facingY);
+  return `player_${label}_${facing}`;
 }
 
 /**
