@@ -278,6 +278,8 @@ export function installTeachSystem(Game, deps) {
       this.recorder.status = `Assigned recorded loop to Bot ${bot.id}.`;
       this.addFloat(`Bot ${bot.id}: taught loop`, bot.x, bot.y - 22, '#d3a95f');
       this.syncTeachUi();
+      // Campaign quest 4: bot taught
+      this.onBotProgramAssigned?.(bot);
       return { ok: true, bot, steps: clone(bot.taughtLoop) };
     },
   });

@@ -42,6 +42,11 @@ export function installInteractionSystem(Game, deps) {
       if (this.placementType) { this.cancelPlacement(); return true; }
       if (this.teachLocationEdit) { if (this.applyTeachLocationSelection(p.x, p.y)) return true; }
       this.hideMenus();
+      // Campaign van unpack: right-click near the camper van to unpack it
+      if (this.campaignQuest?.active && this.isNearVan?.(p.x, p.y, 90)) {
+        this.unpackVan?.();
+        return true;
+      }
       const append = this.keys.has('shift');
       const friendlyBot = this.botAt(p.x, p.y);
       if (friendlyBot && !this.isHostileTarget(friendlyBot)) {
@@ -326,8 +331,10 @@ export function installInteractionSystem(Game, deps) {
       this.mouse.hoverHole = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverRock && !this.mouse.hoverItem ? this.holeAt(this.mouse.x, this.mouse.y) : null;
       this.mouse.hoverHemp = !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverRock && !this.mouse.hoverHole && !this.mouse.hoverItem ? this.hempAt(this.mouse.x, this.mouse.y) : null;
       this.mouse.hoverZone = !this.mouse.hoverStructure && !this.mouse.hoverBot && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverRock && !this.mouse.hoverHole && !this.mouse.hoverItem && !this.mouse.hoverHemp ? this.zoneAt(this.mouse.x, this.mouse.y) : null;
+      // Van hover: only in campaign mode with active quest
+      this.mouse.hoverVan = (this.gameMode === 'campaign' || this.multiplayer?.mapMode === 'campaign') && this.campaignQuest?.active && !this.mouse.hoverBot && !this.mouse.hoverStructure && !this.mouse.hoverMonster && !this.mouse.hoverTree && !this.mouse.hoverRock && !this.mouse.hoverHole && !this.mouse.hoverItem && !this.mouse.hoverHemp && !this.mouse.hoverZone ? this.isNearVan(this.mouse.x, this.mouse.y) : false;
       const resizeHit = !this.zoneDraft?.active && !this.placementType ? this.zoneResizeHandleAt(this.mouse.x, this.mouse.y) : null;
-      this.canvas.style.cursor = this.zoneDraft?.active || this.placementType ? 'crosshair' : (this.zoneResize?.active ? 'nwse-resize' : (this.zoneDrag?.active ? 'grabbing' : (resizeHit ? (resizeHit.handle === 'e' ? 'ew-resize' : 'nwse-resize') : (this.mouse.hoverBot || this.mouse.hoverStructure || this.mouse.hoverMonster || this.mouse.hoverTree || this.mouse.hoverRock || this.mouse.hoverHole || this.mouse.hoverItem || this.mouse.hoverHemp || this.mouse.hoverZone ? 'pointer' : 'default'))));
+      this.canvas.style.cursor = this.zoneDraft?.active || this.placementType ? 'crosshair' : (this.zoneResize?.active ? 'nwse-resize' : (this.zoneDrag?.active ? 'grabbing' : (resizeHit ? (resizeHit.handle === 'e' ? 'ew-resize' : 'nwse-resize') : (this.mouse.hoverBot || this.mouse.hoverStructure || this.mouse.hoverMonster || this.mouse.hoverTree || this.mouse.hoverRock || this.mouse.hoverHole || this.mouse.hoverItem || this.mouse.hoverHemp || this.mouse.hoverZone || this.mouse.hoverVan ? 'pointer' : 'default'))));
     },
     placeMenu(el,x,y) { this.hideMenus(); el.style.left=`${Math.min(x, window.innerWidth-310)}px`; el.style.top=`${Math.min(y, window.innerHeight-260)}px`; el.hidden=false; },
   });

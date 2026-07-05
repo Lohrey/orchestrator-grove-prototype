@@ -1,23 +1,25 @@
 import { BUILDING_TYPES, PROGRAMS, PROGRAM_TEMPLATES, ALLOWED_OPS, DEFAULT_WORLD_ZONES } from './data.js?v=t_building_kits_0618';
-import { CAMPAIGN_MAP_FEATURES, CAMPAIGN_MAP_SIZE, CAMPAIGN_START, getCampaignArrivalScene } from './campaign-scenes.js?v=t_campaign_scenes_0623';
+import { CAMPAIGN_MAP_FEATURES, CAMPAIGN_MAP_SIZE, CAMPAIGN_START, CAMPAIGN_DIALOGUES, getCampaignArrivalScene } from './campaign-scenes.js?v=grove_quests_0705';
 import { createCanvas2dRenderer } from './renderers/canvas2d-renderer.js?v=t_building_kits_0618';
 import { createRenderState } from './render-state.js?v=t_building_kits_0618';
 import { installCombatSystem, IDLE_BOT_AUTO_ATTACK_RANGE, PLAYER_AUTO_ENGAGE_RANGE } from './systems/combat/combat-system.js?v=grove_pixi_fixes_0628';
 import { BOW_ATTACK, DEFENSE_TOWER_ATTACK, MELEE_AUTO_ATTACK, MONSTER_MELEE_ATTACK } from './systems/combat/combat-config.js?v=grove_pixi_fixes_0628';
 import { installTaughtLoopSystem } from './systems/dsl/taught-loop-system.js?v=hemp_repeat_search_0628_tl';
-import { installInventorySystem } from './systems/inventory/inventory-system.js?v=t_inventory_system_0627';
+import { installCodeLoopSystem } from './systems/code-loop/code-loop-system.js?v=code_loop_0630';
+import { installInventorySystem } from './systems/inventory/inventory-system.js?v=grove_quests_0705';
 import { assemblerRecipe as getAssemblerRecipe, DEFAULT_SMITHERY_RECIPE, DEFAULT_WORKBENCH_RECIPE, installProductionSystem, productionInputCount, productionInputNeeds as getProductionInputNeeds, SMITHERY_RECIPES, smitheryInputFor, smitheryRecipe, WORKBENCH_TOOL_RECIPES, workbenchRecipe } from './systems/production/production-system.js?v=t_production_system_0627';
 import { FOG_CELL_SIZE, createFogOfWar, fogRevealSources as createFogRevealSources, getFogStats, isLightEmittingStructure as isFogLightEmittingStructure, normalizeFogOfWar, revealFogCircle, serializeFogOfWar, structureLightRadius as fogStructureLightRadius, updateFogOfWarState } from './fog-of-war.js?v=t_building_kits_0618';
 import { clamp, rand, distXY, nearest, pointInRect, rectDistance, canvasPoint, escapeHtml } from './utils.js?v=grove_pixi_fixes_0628';
 import { installCameraSystem } from './systems/camera-system.js?v=grove_pixi_fixes_0628';
-import { installPlayerSystem } from './systems/player-system.js?v=stone_deposit_interact_0628';
+import { installPlayerSystem } from './systems/player-system.js?v=grove_repeat_chop_0705';
 import { installMonsterSystem } from './systems/monster-system.js?v=grove_fixes_0628';
 import { installStructureSystem } from './systems/structure-system.js?v=t_structure_system_0627';
 import { installBotSystem } from './systems/bot-system.js?v=t_bot_system_0627';
-import { installTeachSystem } from './systems/teach-system.js?v=hemp_repeat_search_0628_ts';
+import { installTeachSystem } from './systems/teach-system.js?v=grove_quests_0705';
 import { installSpawnSystem } from './systems/spawn-system.js?v=t_spawn_system_0627';
-import { installInteractionSystem } from './systems/interaction-system.js?v=stone_deposit_interact_0628';
+import { installInteractionSystem } from './systems/interaction-system.js?v=grove_quests_0705';
 import { installHealthSystem } from './systems/health-system.js?v=hemp_repeat_search_0628_hs';
+import { installDialogueSystem } from './systems/dialogue-system.js?v=grove_quests_0705';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 const rectCenter = z => ({ x: z.x + z.w / 2, y: z.y + z.h / 2 });
@@ -701,6 +703,8 @@ export class Game {
     this.addFloat(`Bot ${bot.id}: ${template.name}`, bot.x, bot.y - 22, '#d3a95f');
     if (!actorBot || actorBot.id !== bot.id) this.syncBotDrawerUi?.();
     this.syncTemplateDrawerUi();
+    // Campaign quest 4: bot taught via template
+    this.onBotProgramAssigned?.(bot);
     return { ok: true, bot, template: clone(template), steps: clone(bot.taughtLoop) };
   }
   renderTemplateSteps(steps = []) {
@@ -1281,6 +1285,8 @@ export class Game {
     bot.target = null; bot.targetItemId = null; bot.targetItemPurpose = null; bot.targetHoleId = null; bot.timer = 0; bot.runtime = { pc: 0, memory: {}, wait: 0 };
     this.addFloat(`Bot ${bot.id}: generated DSL`, bot.x, bot.y - 22, '#d3a95f');
     this.syncTeachUi?.();
+    // Campaign quest 4: bot taught via DSL
+    this.onBotProgramAssigned?.(bot);
     return { ok: true, bot, program: checked.program, steps: clone(bot.taughtLoop) };
   }
 
@@ -1315,6 +1321,8 @@ export class Game {
     const sourceLabel = sawSource && sawSource !== sawTarget ? this.structures.find(s => s.id === sawSource)?.name : '';
     const zoneLabel = this.zoneLabel(this.getBotZone(bot));
     this.addFloat(`Bot ${bot.id}: ${program}`, bot.x, bot.y - 22, '#d3a95f');
+    // Campaign quest 4: bot taught via built-in program
+    this.onBotProgramAssigned?.(bot);
     return { ok: true, bot, targetLabel, sourceLabel, zoneLabel };
   }
 
@@ -1409,6 +1417,20 @@ export class Game {
       const viewH = this.H / zoom;
       this.camera.x = clamp(CAMPAIGN_START.x - viewW / 2, -Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2), Math.max(0, this.map.width - viewW) + Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2));
       this.camera.y = clamp(CAMPAIGN_START.y - viewH / 2, -Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2), Math.max(0, this.map.height - viewH) + Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2));
+      // Van arrival: no longer drops the assembler automatically.
+      // The van is now the interactable "unpack" progression gate.
+      // Quest 1 begins on arrival — prompt the player to unpack the van.
+      if (!this.campaignArrival.arrivalDialogueShown) {
+        this.campaignArrival.arrivalDialogueShown = true;
+        this.triggerDialogue('arrival_1');
+        // Start quest 1 after a short delay (let arrival dialogue show first)
+        const self = this;
+        setTimeout(() => {
+          if (self.campaignQuest?.active && self.campaignQuest.currentQuest === 1 && !self.campaignQuest.completedQuests.includes(1)) {
+            self.triggerDialogue('quest1_van_prompt');
+          }
+        }, 3500);
+      }
       this.setPaused(false);
     }
     return this.campaignArrival;
@@ -1511,28 +1533,30 @@ export class Game {
     [[910, 2790], [1220, 2830], [1500, 3000], [1730, 2540], [2080, 2760], [2460, 2440], [2920, 2720], [3400, 2380], [3920, 2820], [4580, 2500], [5100, 3060], [760, 2250], [1360, 2140], [2240, 1960], [3200, 1840], [4300, 1720]].forEach(([x, y]) => this.spawnTree(x, y));
     [[1340, 3060], [1660, 3180], [2420, 2920], [3050, 2620], [3800, 2920], [4800, 2750], [1850, 2320], [4200, 2120]].forEach(([x, y]) => this.spawnHemp(x, y));
     [[1480, 3240], [2080, 3120], [2700, 2860], [3480, 3060], [4320, 2860], [5000, 3220], [2380, 2180], [3760, 2060]].forEach(([x, y]) => this.spawnStoneDeposit(x, y));
-    this.addStructure('sawbench', CAMPAIGN_START.x + 95, CAMPAIGN_START.y - 130);
-    this.addStructure('workbench', CAMPAIGN_START.x + 225, CAMPAIGN_START.y - 130);
-    this.addStructure('hammock_camp', CAMPAIGN_START.x - 120, CAMPAIGN_START.y - 205);
-    this.addStructure('ultrabook_desk', CAMPAIGN_START.x + 18, CAMPAIGN_START.y - 230);
-    this.addStructure('solar_array', CAMPAIGN_START.x + 300, CAMPAIGN_START.y - 245);
-    this.addStructure('power_station', CAMPAIGN_START.x + 240, CAMPAIGN_START.y - 55);
-    this.addStructure('portable_3d_printer', CAMPAIGN_START.x + 375, CAMPAIGN_START.y - 122);
-    this.addStructure('assembler', CAMPAIGN_START.x + 500, CAMPAIGN_START.y - 122);
-    this.addStructure('robotics_parts_bin', CAMPAIGN_START.x + 435, CAMPAIGN_START.y - 38);
-    this.createBot(CAMPAIGN_START.x - 45, CAMPAIGN_START.y + 56, 'idle', true);
-    this.createBot(CAMPAIGN_START.x - 10, CAMPAIGN_START.y + 86, 'idle', true);
+    // Natural resources stay (trees, hemp, stone) — part of the landscape.
+    // All buildings and loose items removed: Paul arrives with only the camper van.
+    // The van is now an interactable "unpack" progression gate (see unpackVan / campaignQuest).
+    // Bots come from the van at quest 3, not from the start. Keep the starter dog.
     this.spawnStarterDog(CAMPAIGN_START.x + 28, CAMPAIGN_START.y + 70);
-    this.spawnItem('crude_axe', CAMPAIGN_START.x + 80, CAMPAIGN_START.y + 95, 2);
-    this.spawnItem('stick', CAMPAIGN_START.x + 126, CAMPAIGN_START.y + 102, 4);
-    this.spawnItem('stone', CAMPAIGN_START.x + 170, CAMPAIGN_START.y + 92, 2);
-    this.spawnItem('hammock', CAMPAIGN_START.x - 135, CAMPAIGN_START.y - 95, 1);
-    this.spawnItem('ultrabook', CAMPAIGN_START.x + 4, CAMPAIGN_START.y - 94, 1);
-    this.spawnItem('solar_panel', CAMPAIGN_START.x + 322, CAMPAIGN_START.y - 110, 2);
-    this.spawnItem('power_station', CAMPAIGN_START.x + 245, CAMPAIGN_START.y + 42, 1);
-    this.spawnItem('portable_3d_printer', CAMPAIGN_START.x + 380, CAMPAIGN_START.y - 4, 1);
-    this.spawnItem('assembler', CAMPAIGN_START.x + 482, CAMPAIGN_START.y - 6, 1);
-    this.spawnItem('robotics_parts', CAMPAIGN_START.x + 438, CAMPAIGN_START.y + 56, 3);
+
+    // === Quest state machine ===
+    this.campaignQuest = {
+      active: true,
+      currentQuest: 1,
+      vanUnpackCount: 0,
+      treesChopped: 0,
+      logsStored: 0,
+      holesDug: 0,
+      seedsPlanted: 0,
+      completedQuests: [],
+      quest2AxePickedUp: false,
+      quest2TreeChopped: false,
+      quest2AxeDropped: false,
+      quest4BotTaught: false,
+      quest5StoragePlaced: false,
+      quest8ShovelPickedUp: false,
+    };
+
     this.clampCamera();
     this.syncBuildUi(); this.syncTeachUi?.(); this.syncZonesUi?.(); this.syncTemplateDrawerUi?.(); this.syncBotDrawerUi?.(); this.updateHover();
     return this.exportSave();
@@ -1751,11 +1775,12 @@ export class Game {
   exportMultiplayerSave() { return { schema: 'orchestrator-grove-multiplayer-session-v1', exportedAt: new Date().toISOString(), session: this.getMultiplayerSnapshot(), state: this.getState() }; }
 
   update(dt) {
-    if (this.paused) { this.updateCampaignArrivalState(); this.updateFogOfWar(); this.updateUI(dt); return; }
+    if (this.paused) { this.updateCampaignArrivalState(); this.updateFogOfWar(); this.updateUI(dt); this.updateDialogue(); return; }
     this.worldTime = (this.worldTime || 0) + dt;
     this.updateFogOfWar();
     this.updatePlayerHealth(dt);
     this.updatePlayer(dt); this.updateProductionStructures(dt); this.updateRangedAttackStructures(dt); this.updateProjectiles(dt); this.updateAssistant(dt); for (const bot of this.bots) this.updateBot(bot, dt);
+    this.advanceCodeLoopSessions(dt);
     this.updateAiWaves(dt);
     this.updateNightMonsterSpawns(dt);
     for (const monster of this.monsters) this.updateMonster(monster, dt);
@@ -1764,6 +1789,7 @@ export class Game {
     for (const r of this.rocks) if (r.depleted) { r.respawn -= dt; if (r.respawn <= 0) Object.assign(r, { depleted: false, hp: r.maxHp }); }
     for (const f of this.floaters) { f.y -= 18 * dt; f.life -= dt; } this.floaters = this.floaters.filter(f => f.life > 0);
     this.updateUI(dt);
+    this.updateDialogue();
   }
   updatePlayer(dt) {
     if (this.player.dead) { this.updateCamera(dt); return; }
@@ -1803,15 +1829,36 @@ export class Game {
       if (target.remaining <= 0) {
         this.releasePlayerTargetReservation();
         this.player.target = null;
-        if (target.action === 'search_tree') this.finishTreeSearch(tree);
+        if (target.action === 'search_tree') this.finishTreeSearch(tree, { recordTeach: !target.repeat });
         if (target.action === 'search_hemp') this.finishHempSearch(hemp);
         if (target.action === 'chop_hemp') this.finishHempChop(hemp);
-        if (target.action === 'chop_tree') this.finishPlayerChopTree(target);
-        if (target.action === 'mine_stone') this.finishPlayerMineStone(target);
+        if (target.action === 'chop_tree') this.finishPlayerChopTree(target, { recordTeach: !target.repeat });
+        if (target.action === 'mine_stone') this.finishPlayerMineStone(target, { recordTeach: !target.repeat });
         if (target.action === 'deploy_loose_building_kit') this.finishPlayerDeployLooseKit(target);
         if (target.action === 'deploy_building_kit') this.finishPlayerDeployHeldKit(target);
         if (target.action === 'disassemble_building_to_kit') this.finishPlayerDisassembleStructure(target);
-        if (!this.player.target) this.advancePlayerTargetQueue();
+        // ── Auto-repeat resource gathering (#player-repeat) ──
+        // When right-click started a repeat action (chop/mine/search), re-arm the
+        // next cycle automatically as long as the resource is still valid.
+        // Tree chop stops when felled (stump); stone mine repeats forever (depot never breaks);
+        // tree/hemp search repeats until inventory fills or resource removed.
+        if (target.repeat && !this.player.target) {
+          const stillValid =
+            (target.action === 'chop_tree' && this.canFinishPlayerChopTree(target)) ||
+            (target.action === 'mine_stone' && this.canFinishPlayerMineStone(target)) ||
+            (target.action === 'search_tree' && (() => {
+              const t2 = this.trees.find(t => t.id === target.resourceId && !t.stump);
+              return t2 && !this.player.inventory && this.treeSearchAvailable(t2, 'player');
+            })());
+          if (stillValid) {
+            this.startPlayerResourceWork(target, this._resourceForRepeat(target), target.processLabel || (target.action === 'chop_tree' ? 'chopping tree' : target.action === 'mine_stone' ? 'mining stone' : 'searching'));
+            this.player.target.repeat = true;
+          } else {
+            this.advancePlayerTargetQueue();
+          }
+        } else if (!this.player.target) {
+          this.advancePlayerTargetQueue();
+        }
       }
       return;
       }
@@ -2205,6 +2252,12 @@ export class Game {
     this.emitSound('dig', { cooldownKey: 'player:dig', minGapMs: 120 });
     this.recordTeachStep(this.digRadiusStep(x, y));
     this.syncTeachUi();
+    // Quest 8: track holes dug
+    if (this.campaignQuest?.active && this.campaignQuest.currentQuest === 8) {
+      this.campaignQuest.holesDug++;
+      this.addFloat(`Holes: ${this.campaignQuest.holesDug}/5`, this.player.x, this.player.y - 48, '#9abf8f');
+      this.checkCampaignQuest();
+    }
     return true;
   }
   manualPlantSeed() {
@@ -2220,8 +2273,203 @@ export class Game {
     this.addFloat('Planted tree seed', this.player.x, this.player.y - 30, '#9abf8f');
     this.recordTeachStep({ op: 'plant_seed', holeId: hole.id, holeRef: hole.ref, holeName: hole.ref, zoneSpec: { kind: 'radius', x: Math.round(hole.x), y: Math.round(hole.y), radius: 64, name: `planting radius around ${hole.ref}` }, zoneLabel: `planting radius around ${hole.ref}` });
     this.syncTeachUi();
+    // Quest 9: track seeds planted
+    if (this.campaignQuest?.active && this.campaignQuest.currentQuest === 9) {
+      this.campaignQuest.seedsPlanted++;
+      this.addFloat(`Seeds planted: ${this.campaignQuest.seedsPlanted}/5`, this.player.x, this.player.y - 48, '#9abf8f');
+      this.checkCampaignQuest();
+    }
     return true;
   }
+
+  // ===========================================================================
+  // CAMPAIGN QUEST SYSTEM (9-quest tutorial)
+  // ===========================================================================
+
+  /**
+   * Check if a world point is near the camper van (unpack interaction zone).
+   * The van is at this.idleDepot.
+   */
+  isNearVan(x, y, radius = 80) {
+    // Use actual van feature bounds (126×62) for tighter interaction area.
+    // Find the camper_van map feature near idleDepot for precise rect hit-testing.
+    const feature = (this.mapFeatures || []).find(f => f.type === 'camper_van');
+    if (feature) {
+      const hw = (feature.w || 126) / 2 + 16; // small padding for easy clicking
+      const hh = (feature.h || 62) / 2 + 16;
+      return Math.abs(x - feature.x) <= hw && Math.abs(y - feature.y) <= hh;
+    }
+    // Fallback to radius-based if feature not found
+    const van = this.idleDepot;
+    if (!van) return false;
+    return distXY(x, y, van.x, van.y) <= radius;
+  }
+
+  /**
+   * Unpack the camper van. Each unpack advances the quest progression gate
+   * and drops the next quest item. Only callable once per quest milestone.
+   * Returns true if unpack succeeded, false if nothing to unpack.
+   */
+  unpackVan() {
+    if (!this.campaignQuest?.active) return false;
+    const q = this.campaignQuest;
+    const van = this.idleDepot;
+    if (!van) return false;
+    const unpackIndex = q.vanUnpackCount; // 0-based: 0=first, 1=second, etc.
+
+    // Map unpack index → which quest this unpack serves and what it drops
+    // Unpack 0 → Quest 1: crude_axe
+    // Unpack 1 → Quest 3: bot
+    // Unpack 2 → Quest 5: item_palette_kit (storage building kit)
+    // Unpack 3 → Quest 7: crude_shovel
+    const unpackMapping = [
+      { quest: 1, type: 'item', item: 'crude_axe', dialogue: 'quest1_axe_dropped' },
+      { quest: 3, type: 'bot', dialogue: 'quest3_bot_dropped' },
+      { quest: 5, type: 'item', item: 'item_palette_kit', dialogue: 'quest5_storage_dropped' },
+      { quest: 7, type: 'item', item: 'crude_shovel', dialogue: 'quest7_shovel_dropped' },
+    ];
+
+    if (unpackIndex >= unpackMapping.length) {
+      this.addFloat('The van is empty — nothing left to unpack.', van.x, van.y - 30, '#c7b683');
+      return false;
+    }
+
+    const entry = unpackMapping[unpackIndex];
+    // Only allow unpack if the player is on (or past) the expected quest
+    if (q.currentQuest < entry.quest) {
+      this.addFloat(`Nothing to unpack yet — complete the current task first.`, van.x, van.y - 30, '#c7b683');
+      return false;
+    }
+
+    const dropX = van.x + 60 + rand(-10, 10);
+    const dropY = van.y + 30 + rand(-8, 8);
+
+    q.vanUnpackCount++;
+
+    if (entry.type === 'item') {
+      this.spawnItem(entry.item, dropX, dropY, 1);
+      this.addFloat(`Unpacked: ${itemLabel(entry.item)}`, van.x, van.y - 45, '#9abf8f');
+    } else if (entry.type === 'bot') {
+      const bot = this.createBot(dropX, dropY, 'idle', true);
+      if (bot) this.addFloat('Unpacked: helper bot', van.x, van.y - 45, '#9abf8f');
+    }
+
+    this.emitSound('drop', { cooldownKey: 'van:unpack', minGapMs: 200 });
+    this.triggerDialogue(entry.dialogue);
+    this.checkCampaignQuest();
+    return true;
+  }
+
+  /**
+   * Central quest completion checker. Called after relevant game actions.
+   * Checks the current quest's conditions and advances when met.
+   */
+  checkCampaignQuest() {
+    if (!this.campaignQuest?.active) return;
+    const q = this.campaignQuest;
+
+    const completeQuest = (n, nextDialogueId) => {
+      if (q.completedQuests.includes(n)) return;
+      q.completedQuests.push(n);
+      q.currentQuest = n + 1;
+      if (nextDialogueId) {
+        // Slight delay so the completion dialogue doesn't overlap with action floats
+        const self = this;
+        setTimeout(() => self.triggerDialogue(nextDialogueId), 800);
+      }
+      if (q.currentQuest > 9) {
+        q.active = false;
+      }
+    };
+
+    switch (q.currentQuest) {
+      case 1:
+        // Quest 1: unpack the van (axe drops). Completed by unpacking.
+        if (q.vanUnpackCount >= 1) {
+          completeQuest(1, 'quest2_start');
+        }
+        break;
+      case 2:
+        // Quest 2: pick up axe, chop a tree, drop axe
+        if (q.quest2AxePickedUp && q.quest2TreeChopped && q.quest2AxeDropped) {
+          completeQuest(2, 'quest2_complete');
+        }
+        break;
+      case 3:
+        // Quest 3: unpack van again (bot drops). Completed by unpacking.
+        if (q.vanUnpackCount >= 2) {
+          completeQuest(3, 'quest4_teach_prompt');
+        }
+        break;
+      case 4:
+        // Quest 4: teach bot to chop (teach-by-doing). When a bot finishes
+        // a chop action on its own, we consider it taught. Simplified:
+        // when player opens a bot teach menu and assigns a program.
+        // We auto-complete when any bot has a non-idle program assigned
+        // and has chopped at least one tree (tracked via treesChopped by bots).
+        // For simplicity, complete when the player has taught any bot a program.
+        if (q.quest4BotTaught) {
+          completeQuest(4, null); // quest5_storage triggers on unpack
+        }
+        break;
+      case 5:
+        // Quest 5: unpack van (storage kit), player places it
+        if (q.vanUnpackCount >= 3 && q.quest5StoragePlaced) {
+          completeQuest(5, 'quest6_start');
+        }
+        break;
+      case 6:
+        // Quest 6: store 10 logs in the storage building
+        if (q.logsStored >= 10) {
+          completeQuest(6, 'quest6_complete');
+        }
+        break;
+      case 7:
+        // Quest 7: unpack van (shovel drops). Completed by unpacking.
+        if (q.vanUnpackCount >= 4) {
+          completeQuest(7, 'quest8_start');
+        }
+        break;
+      case 8:
+        // Quest 8: dig 5 holes and drop the shovel
+        if (q.holesDug >= 5 && !this.player.inventory) {
+          completeQuest(8, 'quest8_complete');
+        }
+        break;
+      case 9:
+        // Quest 9: plant 5 seeds (or at least as many holes as were dug)
+        if (q.seedsPlanted >= 5) {
+          completeQuest(9, 'quest9_complete');
+        }
+        break;
+    }
+  }
+
+  /**
+   * Called when a bot program is assigned (teach-by-doing). Hook from teach system.
+   */
+  onBotProgramAssigned(bot) {
+    if (!this.campaignQuest?.active) return;
+    const q = this.campaignQuest;
+    if (q.currentQuest === 4 && bot && bot.program && bot.program !== 'idle') {
+      q.quest4BotTaught = true;
+      this.checkCampaignQuest();
+    }
+  }
+
+  /**
+   * Called when a storage structure is deployed/placed.
+   */
+  onStoragePlaced() {
+    if (!this.campaignQuest?.active) return;
+    const q = this.campaignQuest;
+    if (q.currentQuest === 5) {
+      q.quest5StoragePlaced = true;
+      if (!q.completedQuests.includes(5)) this.triggerDialogue('quest5_storage_placed');
+      this.checkCampaignQuest();
+    }
+  }
+
   interact() {
     const s = this.structures.find(st => rectDistance(this.player.x,this.player.y,st)<45);
     if (this.player.inventory?.type === 'crude_hammer' && this.manualDemolishStructure(s)) return;
@@ -2795,7 +3043,7 @@ export class Game {
     ...this.rocks.map(r=>({ id:r.ref, numericId:r.id, kind:'resource', type:'stone_deposit', name:'stone deposit', x:Math.round(r.x), y:Math.round(r.y), hp:r.hp, maxHp:r.maxHp, depleted:!!r.depleted })),
     ...this.bots.map(b=>({ id:b.ref, numericId:b.id, kind:b.kind || 'bot', name:this.botDisplayName(b), status:b.status||'worker', managerKnowledgePacks:b.managerKnowledgePacks||[], knowledgePacks:b.knowledgePacks||b.managerKnowledgePacks||[], dogFetchMemory:b.dogFetchMemory ? clone(b.dogFetchMemory) : null, dogFetchState:b.dogFetchState ? clone(b.dogFetchState) : null, x:Math.round(b.x), y:Math.round(b.y), hp:b.hp, maxHp:b.maxHp, hostile:!!b.hostile, equipment:this.equipmentSummary(b), program:b.program, teamId:b.teamId||null, teamName:this.botTeam(b)?.name||null }))
   ]; }
-  getState(){ return { gameMode:this.gameMode||this.multiplayer?.mapMode||'test', map:{...this.map}, mapFeatures:clone(this.mapFeatures || []), campaignArrival:clone(this.campaignArrival || null), paused:!!this.paused, fps:Math.round(this.fps||0), targetFps:this.targetFps, dynamicShadowsEnabled:!!this.dynamicShadowsEnabled, lightingEffectsEnabled:this.lightingEffectsEnabled!==false, showFpsOverlay:this.showFpsOverlay!==false, dayNight:this.getDayNightState(), fogOfWar:getFogStats(this.fogOfWar), nightSpawns:clone(this.nightSpawns||{}), multiplayer:this.getMultiplayerSnapshot(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,dead:!!this.player.dead,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),ammunition:Number(this.player.ammunition||0),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null,targetQueue:(this.player.targetQueue||[]).map(target=>({...target,x:Math.round(target.x),y:Math.round(target.y)}))}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), customTemplates:clone(this.customTemplates || []), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),kind:b.kind||'bot',status:b.status||'worker',managerKnowledgePacks:b.managerKnowledgePacks||[],knowledgePacks:b.knowledgePacks||b.managerKnowledgePacks||[],dogFetchMemory:b.dogFetchMemory?clone(b.dogFetchMemory):null,dogFetchState:b.dogFetchState?clone(b.dogFetchState):null,teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,customTemplateName:b.customTemplateName||'',paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),ammunition:Number(b.ammunition||0),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,label:s.label,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,hammers:s.hammers||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,arrow_packs:s.arrow_packs||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:z.kind==='rect'?Math.round(z.w):undefined,h:z.kind==='rect'?Math.round(z.h):undefined,radius:z.kind==='radius'?Math.round(z.radius||DEFAULT_RESOURCE_RADIUS):undefined})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, rendererBackend:this.renderer.backend || this.renderBackend?.kind || null, webgpuAvailable:this.renderer.webgpu, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
+  getState(){ return { gameMode:this.gameMode||this.multiplayer?.mapMode||'test', map:{...this.map}, mapFeatures:clone(this.mapFeatures || []), campaignArrival:clone(this.campaignArrival || null), campaignQuest:this.campaignQuest?clone(this.campaignQuest):null, paused:!!this.paused, fps:Math.round(this.fps||0), targetFps:this.targetFps, dynamicShadowsEnabled:!!this.dynamicShadowsEnabled, lightingEffectsEnabled:this.lightingEffectsEnabled!==false, showFpsOverlay:this.showFpsOverlay!==false, dayNight:this.getDayNightState(), fogOfWar:getFogStats(this.fogOfWar), nightSpawns:clone(this.nightSpawns||{}), multiplayer:this.getMultiplayerSnapshot(), dialogue:this.getDialogueState(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,dead:!!this.player.dead,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),ammunition:Number(this.player.ammunition||0),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null,targetQueue:(this.player.targetQueue||[]).map(target=>({...target,x:Math.round(target.x),y:Math.round(target.y)}))}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), customTemplates:clone(this.customTemplates || []), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),kind:b.kind||'bot',status:b.status||'worker',managerKnowledgePacks:b.managerKnowledgePacks||[],knowledgePacks:b.knowledgePacks||b.managerKnowledgePacks||[],dogFetchMemory:b.dogFetchMemory?clone(b.dogFetchMemory):null,dogFetchState:b.dogFetchState?clone(b.dogFetchState):null,teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,customTemplateName:b.customTemplateName||'',paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),ammunition:Number(b.ammunition||0),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,label:s.label,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,hammers:s.hammers||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,arrow_packs:s.arrow_packs||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:z.kind==='rect'?Math.round(z.w):undefined,h:z.kind==='rect'?Math.round(z.h):undefined,radius:z.kind==='radius'?Math.round(z.radius||DEFAULT_RESOURCE_RADIUS):undefined})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, rendererBackend:this.renderer.backend || this.renderBackend?.kind || null, webgpuAvailable:this.renderer.webgpu, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
 }
 
 installProductionSystem(Game, {
@@ -2821,6 +3069,8 @@ installTaughtLoopSystem(Game, {
   itemLabel,
   nearest
 });
+
+installCodeLoopSystem(Game);
 
 installInventorySystem(Game, {
   BOT_STORAGE_RETRY_SECONDS,
@@ -2925,6 +3175,10 @@ installHealthSystem(Game, {
   PLAYER_REGEN_AMOUNT,
   CAMPAIGN_START,
   MONSTER_MELEE_ATTACK
+});
+
+installDialogueSystem(Game, {
+  dialogues: CAMPAIGN_DIALOGUES
 });
 
 

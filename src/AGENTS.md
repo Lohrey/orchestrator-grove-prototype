@@ -54,4 +54,5 @@ source of truth for what action steps are actually possible.
 ## Child DOX Index
 - [renderers/AGENTS.md](renderers/AGENTS.md) — pluggable renderers (canvas2d, pixi)
 - [sim/AGENTS.md](sim/AGENTS.md) — simulation worker layer
+- [systems/code-loop/AGENTS.md](systems/code-loop/AGENTS.md) — isolated Code Loop WebWorker sandbox for player/AI bot scripts
 - [ui/AGENTS.md](ui/AGENTS.md) — Svelte architecture overlay

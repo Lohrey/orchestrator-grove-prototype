@@ -334,7 +334,8 @@
 .template-drawer,
 .build-drawer,
 .zones-drawer,
-.multiplayer-drawer {
+.multiplayer-drawer,
+.quest-drawer {
   --drawer-width: min(330px, calc(100vw - 58px));
   --drawer-toggle-top: 0;
   position: absolute;
@@ -348,54 +349,63 @@
   transition: transform 180ms ease;
 }
 .bot-drawer { --drawer-toggle-top: 0; z-index: 39; }
-.template-drawer { --drawer-toggle-top: 116px; z-index: 38; }
-.build-drawer { --drawer-toggle-top: 232px; z-index: 37; }
-.zones-drawer { --drawer-toggle-top: 348px; z-index: 36; }
-.multiplayer-drawer { --drawer-toggle-top: 464px; z-index: 35; }
+.template-drawer { --drawer-toggle-top: 76px; z-index: 38; }
+.build-drawer { --drawer-toggle-top: 152px; z-index: 37; }
+.zones-drawer { --drawer-toggle-top: 228px; z-index: 36; }
+.multiplayer-drawer { --drawer-toggle-top: 304px; z-index: 35; }
+.quest-drawer { --drawer-toggle-top: 380px; z-index: 34; }
 .bot-drawer.is-collapsed,
 .template-drawer.is-collapsed,
 .build-drawer.is-collapsed,
 .zones-drawer.is-collapsed,
-.multiplayer-drawer.is-collapsed { transform: translateX(100%); }
+.multiplayer-drawer.is-collapsed,
+.quest-drawer.is-collapsed { transform: translateX(100%); }
 .game-stage.has-open-drawer .bot-drawer.is-collapsed,
 .game-stage.has-open-drawer .template-drawer.is-collapsed,
 .game-stage.has-open-drawer .build-drawer.is-collapsed,
 .game-stage.has-open-drawer .zones-drawer.is-collapsed,
-.game-stage.has-open-drawer .multiplayer-drawer.is-collapsed { transform: translateX(0); }
+.game-stage.has-open-drawer .multiplayer-drawer.is-collapsed,
+.game-stage.has-open-drawer .quest-drawer.is-collapsed { transform: translateX(0); }
 .bot-drawer-toggle,
 .template-drawer-toggle,
 .build-drawer-toggle,
 .zones-drawer-toggle,
-.multiplayer-drawer-toggle {
+.multiplayer-drawer-toggle,
+.quest-drawer-toggle {
   position: absolute;
-  left: -43px;
+  left: -38px;
   top: var(--drawer-toggle-top);
-  width: 43px;
-  height: 106px;
-  border-radius: 14px 0 0 14px;
+  width: 38px;
+  height: 68px;
+  border-radius: 12px 0 0 12px;
   border-right: 0;
   background: #121816;
   color: #dce7e1;
   writing-mode: vertical-rl;
   text-orientation: mixed;
-  letter-spacing: .08em;
+  font-size: 11px;
+  letter-spacing: .06em;
   text-transform: uppercase;
-  box-shadow: -8px 12px 26px rgba(0,0,0,.26);
+  box-shadow: -8px 10px 22px rgba(0,0,0,.24);
   pointer-events: auto;
+  overflow: hidden;
 }
 .template-drawer-toggle,
 .build-drawer-toggle,
 .zones-drawer-toggle,
-.multiplayer-drawer-toggle { color: #fff2cf; }
+.multiplayer-drawer-toggle,
+.quest-drawer-toggle { color: #fff2cf; }
 .bot-drawer-panel,
 .template-drawer-panel,
 .build-drawer-panel,
 .zones-drawer-panel,
-.multiplayer-panel {
+.multiplayer-panel,
+.quest-drawer-panel {
   width: 100%;
   height: 100%;
   padding: 14px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   border: 1px solid var(--line);
   border-right: 0;
   border-radius: 14px 0 0 14px;
@@ -408,17 +418,20 @@
 .template-drawer.is-collapsed .template-drawer-panel,
 .build-drawer.is-collapsed .build-drawer-panel,
 .zones-drawer.is-collapsed .zones-drawer-panel,
-.multiplayer-drawer.is-collapsed .multiplayer-panel { pointer-events: none; }
+.multiplayer-drawer.is-collapsed .multiplayer-panel,
+.quest-drawer.is-collapsed .quest-drawer-panel { pointer-events: none; }
 .game-stage.has-open-drawer .bot-drawer.is-collapsed .bot-drawer-panel,
 .game-stage.has-open-drawer .template-drawer.is-collapsed .template-drawer-panel,
 .game-stage.has-open-drawer .build-drawer.is-collapsed .build-drawer-panel,
 .game-stage.has-open-drawer .zones-drawer.is-collapsed .zones-drawer-panel,
-.game-stage.has-open-drawer .multiplayer-drawer.is-collapsed .multiplayer-panel { visibility: hidden; opacity: 0; }
+.game-stage.has-open-drawer .multiplayer-drawer.is-collapsed .multiplayer-panel,
+.game-stage.has-open-drawer .quest-drawer.is-collapsed .quest-drawer-panel { visibility: hidden; opacity: 0; }
 .bot-drawer-panel h2,
 .template-drawer-panel h2,
 .build-drawer-panel h2,
 .zones-drawer-panel h2,
-.multiplayer-panel h2 { margin-bottom: 10px; }
+.multiplayer-panel h2,
+.quest-drawer-panel h2 { margin-bottom: 10px; }
 .bot-drawer-panel .bot-list {
   max-height: calc(100% - 166px);
   padding-right: 4px;

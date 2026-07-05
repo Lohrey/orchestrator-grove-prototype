@@ -14,7 +14,7 @@
       }
     }
   </script>
-  <link rel="stylesheet" href="styles.css?v=t_8ab80257" />
+  <link rel="stylesheet" href="styles.css?v=grove_repeat_chop_0705" />
   <link rel="stylesheet" href="styles-interactions.css?v=t_building_kits_0618" />
   <link rel="stylesheet" href="ui-overlays/orchestrator-grove-prototype.css?v=t_building_kits_0618" />
 </head>
@@ -302,6 +302,13 @@
             <button id="drawZoneDrawerButton" type="button">Draw zone</button>
           </section>
         </aside>
+        <aside id="questDrawer" class="quest-drawer is-collapsed" aria-label="Quest log drawer">
+          <button id="questDrawerToggle" class="quest-drawer-toggle" type="button" aria-controls="questPanel" aria-expanded="false">Quests</button>
+          <section id="questPanel" class="quest-drawer-panel" aria-label="Quest log">
+            <h2>Quest Log</h2>
+            <div id="questLogContent" class="quest-log-content"><p class="empty">No active quest.</p></div>
+          </section>
+        </aside>
         <button id="chatToggle" class="chat-toggle" type="button" aria-controls="chatOverlay" aria-expanded="true">Chat</button>
         <section id="chatOverlay" class="canvas-chat" aria-label="Assistant chat overlay">
           <div class="canvas-chat-head">
@@ -381,6 +388,7 @@
         <button type="button" data-settings-tab="knowledge" aria-selected="false">Knowledge Packs</button>
         <button type="button" data-settings-tab="log" aria-selected="false">log (chat)</button>
         <button type="button" data-settings-tab="programs" aria-selected="false">DSL</button>
+        <button type="button" data-settings-tab="code-loop" aria-selected="false">Code Loop</button>
         <button type="button" data-settings-tab="dsl-wiki" aria-selected="false">DSL Wiki</button>
         <button type="button" data-settings-tab="step-chain" aria-selected="false">Step Chains</button>
       </nav>
@@ -732,6 +740,40 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
         <pre id="programView" class="program-view"></pre>
       </section>
 
+      <section class="settings-section settings-tab-panel" data-settings-panel="code-loop">
+        <h3>Code Loop — Advanced Bot Scripting</h3>
+        <p class="small">Write JavaScript-like bot code that runs in an isolated WebWorker sandbox. The bot API is whitelisted; every call is validated through the same action-step chain as the DSL Safe Mode. A crash or infinite loop cannot freeze the game.</p>
+        <div class="code-loop-toolbar">
+          <label>Bot
+            <input id="codeLoopBotId" type="number" min="1" value="1" />
+          </label>
+          <button id="codeLoopStartBtn" type="button">▶ Start</button>
+          <button id="codeLoopStopBtn" type="button" disabled>■ Stop</button>
+          <span id="codeLoopStatus" class="code-loop-status small">idle</span>
+        </div>
+        <details class="prompt-foldout">
+          <summary>bot API reference</summary>
+          <ul class="small">
+            <li><code>await bot.pickUp("log"|"plank"|"pole"|"stone"|"tree_seed"|...)</code> — find and pick up a nearby item by type.</li>
+            <li><code>await bot.deposit("sawbench"|"workbench"|"sawbench 2"|&lt;structure name&gt;)</code> — deliver the held item to a structure.</li>
+            <li><code>await bot.moveTo("sawbench"|"smithery 1"|...)</code> — walk to a structure.</li>
+            <li><code>await bot.wait(seconds)</code> — pause (0.1–30s).</li>
+            <li><code>const item = await bot.findNearest("log")</code> — read-only query, returns {type,x,y,ref} or null.</li>
+            <li><code>bot.say("text")</code> — print to the console below.</li>
+          </ul>
+          <p class="small">Code runs inside <code>async</code> scope. Use <code>while (true) { ... }</code> for infinite loops — Stop terminates the worker cleanly. Top-level <code>return</code> ends the script.</p>
+        </details>
+        <label for="codeLoopEditor" class="block-label">Bot code</label>
+        <textarea id="codeLoopEditor" class="code-loop-editor" rows="10" spellcheck="false" placeholder="// Example: gather logs and feed the first sawbench
+bot.say("Starting log haul loop");
+while (true) {
+  await bot.pickUp("log");
+  await bot.deposit("sawbench 1");
+}"></textarea>
+        <label for="codeLoopConsole" class="block-label">Console / log</label>
+        <pre id="codeLoopConsole" class="program-view code-loop-console" aria-live="polite">No output yet.</pre>
+      </section>
+
       <section class="settings-section settings-tab-panel" data-settings-panel="dsl-wiki">
         <h3>DSL Action Wiki</h3>
         <p class="small">Same action context injected into Local AI prompts, so JSON answers know which loop-step ops exist.</p>
@@ -751,6 +793,6 @@ setx OLLAMA_ORIGINS "https://docs.pau1.cloud"</pre>
   <div id="structureMenu" class="entity-menu" hidden></div>
 
   <script type="module" src="ui-overlays/ui-overlays.js?v=fog_fullmap_0628"></script>
-  <script src="game.js?v=grove_sprite_cine_0629"></script>
+  <script src="game.js?v=grove_repeat_chop_0705"></script>
 </body>
 </html>

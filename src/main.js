@@ -2,13 +2,13 @@ import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS
 import { createChatController } from './chat.js?v=20260613-player-tools';
 import { createAudioController } from './audio.js?v=t_3ef6c5ab_menu_polish';
 import { createBrowserSttController, DEFAULT_BROWSER_STT_MODEL } from './browser-stt.js';
-import { Game } from './world.js?v=grove_pixi_fixes_0628';
+import { Game } from './world.js?v=grove_repeat_chop_0705';
 import { createSaveGameManager, GAME_MODE_LABELS, normalizeGameMode } from './savegames.js?v=t_777178b3';
 import { createMultiplayerController } from './multiplayer.js?v=t_f62dde4d_modes';
 import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f';
 import { createRenderBackend } from './renderers/index.js?v=grove_pixi_fixes_0628';
 import { createSimWorkerClient } from './sim/sim-worker-client.js?v=t_building_kits_0618';
-import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js?v=t_campaign_scenes_0623';
+import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js?v=grove_repeat_chop_0705';
 import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=grove_cinematic_overlay_0629';
 import { LOCAL_AI_PROVIDERS, defaultOllamaEndpoint, getDefaultProviderConfig, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_building_kits_0618';
 import { escapeHtml } from './utils.js?v=grove_pixi_fixes_0628';
@@ -28,6 +28,7 @@ export async function startGame() {
     botList: $('botList'), statline: $('statline'), rendererStatus: $('rendererStatus'), targetFps: $('targetFps'), targetFpsValue: $('targetFpsValue'), maxBots: $('maxBots'), maxBotsValue: $('maxBotsValue'), performanceProfile: $('performanceProfile'), applyAutoPerformance: $('applyAutoPerformance'), fogOfWarToggle: $('fogOfWarToggle'), lightingEffects: $('lightingEffects'), dynamicShadows: $('dynamicShadows'), showFpsOverlay: $('showFpsOverlay'), useCanvas2dRenderer: $('useCanvas2dRenderer'), pixiHighResolution: $('pixiHighResolution'), pixiAntialias: $('pixiAntialias'), detectedGpu: $('detectedGpu'), detectedVram: $('detectedVram'), detectedProfile: $('detectedProfile'), recommendedBots: $('recommendedBots'), recommendedFps: $('recommendedFps'), performanceNotes: $('performanceNotes'),
     teachPanel: $('teachPanel'), teachCloseBtn: $('teachCloseBtn'), teachRecordBtn: $('teachRecordBtn'), teachAssignBtn: $('teachAssignBtn'), teachBotId: $('teachBotId'), teachStatus: $('teachStatus'), teachSteps: $('teachSteps'),
     sawLogs: $('sawLogs'), sawPlanks: $('sawPlanks'), sawPoles: $('sawPoles'), factoryPlanks: $('factoryPlanks'), factoryRecipe: $('factoryRecipe'), looseLogs: $('looseLogs'), loosePlanks: $('loosePlanks'), looseBase: $('looseBase'), paletteItems: $('paletteItems'), programSelect: $('programSelect'), programView: $('programView'),
+    codeLoopBotId: $('codeLoopBotId'), codeLoopEditor: $('codeLoopEditor'), codeLoopStartBtn: $('codeLoopStartBtn'), codeLoopStopBtn: $('codeLoopStopBtn'), codeLoopStatus: $('codeLoopStatus'), codeLoopConsole: $('codeLoopConsole'),
     llmMode: $('llmMode'), templateRouting: $('templateRouting'), semanticRouting: $('semanticRouting'), semanticRouterStatus: $('semanticRouterStatus'), semanticRouterPackSelect: $('semanticRouterPackSelect'), semanticRouterTrainBtn: $('semanticRouterTrainBtn'), ollamaEndpoint: $('ollamaEndpoint'), ollamaModel: $('ollamaModel'), refreshModels: $('refreshModels'), benchmarkBtn: $('benchmarkBtn'), ollamaStatus: $('ollamaStatus'), llmProviderLabel: $('llmProviderLabel'), serverOllamaBtn: $('serverOllamaBtn'), localOllamaBtn: $('localOllamaBtn'), localTabbyBtn: $('localTabbyBtn'), localOllamaWindowsHelp: $('localOllamaWindowsHelp'), localTabbyHelp: $('localTabbyHelp'), asrMode: $('asrMode'), asrModeHelp: $('asrModeHelp'), browserSttModel: $('browserSttModel'), browserSttDownloadBtn: $('browserSttDownloadBtn'), browserSttUnloadBtn: $('browserSttUnloadBtn'), browserSttStatus: $('browserSttStatus'), browserSttProgress: $('browserSttProgress'), browserSttProgressText: $('browserSttProgressText'),
     buildPanel: $('buildPanel'), buildStatus: $('buildStatus'), buildDrawer: $('buildDrawer'), buildDrawerToggle: $('buildDrawerToggle'), zonesPanel: $('zonesPanel'), zonesDrawer: $('zonesDrawer'), zonesDrawerToggle: $('zonesDrawerToggle'), zoneList: $('zoneList'), drawZoneDrawerButton: $('drawZoneDrawerButton'), botMenu: $('botMenu'), dogPopup: $('dogPopup'), structureMenu: $('structureMenu'), templateDrawer: $('templateDrawer'), templateDrawerToggle: $('templateDrawerToggle'), templateSaveForm: $('templateSaveForm'), templateName: $('templateName'), templateStatus: $('templateStatus'), templateList: $('templateList'),
     settingsOverlay: $('settingsOverlay'), settingsClose: $('settingsClose'), openSettingsTabBtn: $('openSettingsTabBtn'), settingsMainPanel: $('settingsMainPanel'), chatOverlay: $('chatOverlay'), chatToggle: $('chatToggle'), chatCollapse: $('chatCollapse'), assignmentToast: $('assignmentToast'),
@@ -473,38 +474,45 @@ export async function startGame() {
   function setBotDrawerOpen(open) {
     dom.botDrawer?.classList.toggle('is-collapsed', !open);
     dom.botDrawerToggle?.setAttribute('aria-expanded', String(open));
-    if (open) { setTemplateDrawerOpen(false); setBuildDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.hideMenus(); }
+    if (open) { setTemplateDrawerOpen(false); setBuildDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); setQuestDrawerOpen(false); game.hideMenus(); }
     syncDrawerStack();
   }
   function toggleBotDrawer() { setBotDrawerOpen(dom.botDrawer?.classList.contains('is-collapsed')); }
   function setTemplateDrawerOpen(open) {
     dom.templateDrawer?.classList.toggle('is-collapsed', !open);
     dom.templateDrawerToggle?.setAttribute('aria-expanded', String(open));
-    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setBuildDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.hideMenus(); game.syncTemplateDrawerUi?.(); }
+    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setBuildDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); setQuestDrawerOpen(false); game.hideMenus(); game.syncTemplateDrawerUi?.(); }
     syncDrawerStack();
   }
   function toggleTemplateDrawer() { setTemplateDrawerOpen(dom.templateDrawer?.classList.contains('is-collapsed')); }
   function setBuildDrawerOpen(open) {
     dom.buildDrawer?.classList.toggle('is-collapsed', !open);
     dom.buildDrawerToggle?.setAttribute('aria-expanded', String(open));
-    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setTemplateDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.hideMenus(); }
+    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setTemplateDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); setQuestDrawerOpen(false); game.hideMenus(); }
     syncDrawerStack();
   }
   function toggleBuildDrawer() { setBuildDrawerOpen(dom.buildDrawer?.classList.contains('is-collapsed')); }
   function setZonesDrawerOpen(open) {
     dom.zonesDrawer?.classList.toggle('is-collapsed', !open);
     dom.zonesDrawerToggle?.setAttribute('aria-expanded', String(open));
-    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setTemplateDrawerOpen(false); setBuildDrawerOpen(false); setMultiplayerDrawerOpen(false); game.hideMenus(); game.syncZonesUi?.(); }
+    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setTemplateDrawerOpen(false); setBuildDrawerOpen(false); setMultiplayerDrawerOpen(false); setQuestDrawerOpen(false); game.hideMenus(); game.syncZonesUi?.(); }
     syncDrawerStack();
   }
   function toggleZonesDrawer() { setZonesDrawerOpen(dom.zonesDrawer?.classList.contains('is-collapsed')); }
   function setMultiplayerDrawerOpen(open) {
     dom.multiplayerDrawer?.classList.toggle('is-collapsed', !open);
     dom.multiplayerDrawerToggle?.setAttribute('aria-expanded', String(open));
-    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setTemplateDrawerOpen(false); setBuildDrawerOpen(false); setZonesDrawerOpen(false); game.hideMenus(); }
+    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setTemplateDrawerOpen(false); setBuildDrawerOpen(false); setZonesDrawerOpen(false); setQuestDrawerOpen(false); game.hideMenus(); }
     syncDrawerStack();
   }
   function toggleMultiplayerDrawer() { setMultiplayerDrawerOpen(dom.multiplayerDrawer?.classList.contains('is-collapsed')); }
+  function setQuestDrawerOpen(open) {
+    dom.questDrawer?.classList.toggle('is-collapsed', !open);
+    dom.questDrawerToggle?.setAttribute('aria-expanded', String(open));
+    if (open) { setSettingsOpen(false); setBotDrawerOpen(false); setTemplateDrawerOpen(false); setBuildDrawerOpen(false); setZonesDrawerOpen(false); setMultiplayerDrawerOpen(false); game.hideMenus(); renderQuestLog(); }
+    syncDrawerStack();
+  }
+  function toggleQuestDrawer() { setQuestDrawerOpen(dom.questDrawer?.classList.contains('is-collapsed')); }
   function closeOpenUiPanels() {
     let closed = false;
     if (dom.teachPanel && !dom.teachPanel.hidden) {
@@ -1037,6 +1045,79 @@ export async function startGame() {
     }
   }
 
+  function initCodeLoopUi(gameInstance) {
+    const editor = dom.codeLoopEditor;
+    const startBtn = dom.codeLoopStartBtn;
+    const stopBtn = dom.codeLoopStopBtn;
+    const statusEl = dom.codeLoopStatus;
+    const consoleEl = dom.codeLoopConsole;
+    const botIdInput = dom.codeLoopBotId;
+    if (!editor || !startBtn || !stopBtn || !gameInstance) return;
+
+    let session = null;
+    let consoleLines = [];
+
+    function setStatus(state, label) {
+      if (!statusEl) return;
+      statusEl.dataset.state = state;
+      statusEl.textContent = label || state;
+    }
+
+    function appendConsole(line, level = 'log') {
+      const prefix = level === 'error' ? '✗ ' : level === 'warn' ? '! ' : '› ';
+      consoleLines.push(prefix + line);
+      if (consoleLines.length > 200) consoleLines.shift();
+      if (consoleEl) consoleEl.textContent = consoleLines.join('\n');
+      if (consoleEl) consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    function clearConsole() {
+      consoleLines = [];
+      if (consoleEl) consoleEl.textContent = 'No output yet.';
+    }
+
+    function syncButtons() {
+      const running = !!(session && session.running);
+      if (startBtn) startBtn.disabled = running;
+      if (stopBtn) stopBtn.disabled = !running;
+      if (botIdInput) botIdInput.disabled = running;
+    }
+
+    startBtn.addEventListener('click', () => {
+      const botId = Number(botIdInput?.value || 1);
+      const bot = gameInstance.findBot(botId);
+      if (!bot) { appendConsole(`Bot ${botId} not found.`, 'error'); setStatus('error', 'no bot'); return; }
+      if (!editor.value || !editor.value.trim()) { appendConsole('No code to run.', 'warn'); return; }
+      clearConsole();
+      try {
+        session = gameInstance.createCodeLoopSession({ botId });
+      } catch (err) {
+        appendConsole(`Failed to create session: ${err.message}`, 'error');
+        setStatus('error', 'init failed');
+        return;
+      }
+      session.onLog = (entry) => appendConsole(entry.message, entry.level);
+      session.onError = (message) => { setStatus('error', 'error'); syncButtons(); };
+      session.onDone = (reason) => { setStatus('completed', reason); syncButtons(); };
+      setStatus('running', 'running');
+      syncButtons();
+      gameInstance.startCodeLoop(session, editor.value);
+    });
+
+    stopBtn.addEventListener('click', () => {
+      if (session) {
+        gameInstance.stopCodeLoop(session);
+        appendConsole('Stopped by user.', 'warn');
+        setStatus('stopped', 'stopped');
+        session = null;
+      }
+      syncButtons();
+    });
+
+    setStatus('idle', 'idle');
+    syncButtons();
+    appendConsole('Ready. Click Start to run the bot code.');
+  }
   function initAudioUi() {
     if (dom.radioStationButtons) {
       dom.radioStationButtons.innerHTML = Object.entries(audio.stations).map(([id, station]) => `
@@ -1099,6 +1180,7 @@ export async function startGame() {
   for (const id of PROGRAMS) { const o = document.createElement('option'); o.value = id; o.textContent = id; dom.programSelect.appendChild(o); }
   const renderProgram = () => dom.programView.textContent = JSON.stringify(PROGRAM_TEMPLATES[dom.programSelect.value], null, 2);
   dom.programSelect.addEventListener('change', renderProgram); renderProgram();
+  initCodeLoopUi(game);
   if (dom.dslWikiView) dom.dslWikiView.textContent = formatDslActionWiki();
   renderKnowledgePackSelector();
   updateSemanticRouterUi(semanticRouter.getLastRoute?.());
@@ -1426,6 +1508,12 @@ export async function startGame() {
       e.preventDefault();
       return;
     }
+    // Advance/dismiss active speech bubble dialogue on Space or Enter (when not typing).
+    if ((k === ' ' || k === 'spacebar' || k === 'enter') && !chat.isTypingTarget(e.target) && game.activeDialogue) {
+      e.preventDefault();
+      game.advanceDialogue();
+      return;
+    }
     if (k === 'escape') {
       e.preventDefault();
       if (closeOpenUiPanels()) return;
@@ -1490,6 +1578,13 @@ export async function startGame() {
   window.gameMenuDebug = { save: saveGameToCache, load: loadGameFromCache, saveLibrary: () => saveGames.snapshot(), selectMenuMode: mode => setMainMenuLayer(normalizeGameMode(mode) === 'online_lakes' ? 'online-actions' : 'mode-actions', mode), startCampaign: startCampaignFromMenu, startTest: () => startNewGameFromMenu('test'), startNew: startNewGameFromMenu, openMainMenu: () => setMainMenuOpen(true), closeMainMenu: () => setMainMenuOpen(false), quitToMainMenu, showQuitSavePrompt: () => setQuitSavePromptOpen(true), hideQuitSavePrompt: () => setQuitSavePromptOpen(false), hasSavedGame, wasSavedRecently, getLastSaveAgeMs, setLastSaveAgeSeconds: seconds => { lastSuccessfulSaveAt = Number.isFinite(Number(seconds)) ? Date.now() - (Number(seconds) * 1000) : 0; return getLastSaveAgeMs(); }, isPaused: () => !!game.paused, campaignIntroActive: () => campaignIntroActive, campaignIntroScene: () => ({ active: campaignIntroActive, index: campaignIntroSceneIndex, total: CAMPAIGN_INTRO_SCENES.length }), advanceCampaignIntro, skipCampaignIntro: () => finishCampaignIntro('skip') };
   window.getCameraState = () => ({ camera: { ...game.camera }, player: { x: game.player.x, y: game.player.y, target: game.player.target ? { ...game.player.target } : null, targetQueue: (game.player.targetQueue || []).map(target => ({ ...target })) }, map: { ...game.map } });
   window.getWorldObjects = () => game.getObjectRegistry();
+  window.gameDialogueDebug = {
+    trigger: id => game.triggerDialogue(id),
+    dismiss: () => game.dismissDialogue(),
+    advance: () => game.advanceDialogue(),
+    getActive: () => game.getDialogueState()
+  };
+  window.getDialogueState = () => game.getDialogueState();
   window.getHoverState = () => game.getHoverState();
   window.beginZoneDrawing = () => game.beginZoneDrawing();
   window.teachDebug = {
@@ -1552,6 +1647,61 @@ export async function startGame() {
     fetch: (botId, text) => game.setDogFetchCommand(botId, text),
     praise: botId => game.praiseDogFetch(botId),
     reject: botId => game.rejectDogFetch(botId)
+  };
+  // Campaign quest debug hook — test the 9-quest tutorial campaign
+  window.campaignQuestDebug = {
+    getQuestState: () => game.campaignQuest ? JSON.parse(JSON.stringify(game.campaignQuest)) : null,
+    getCurrentQuest: () => game.campaignQuest?.currentQuest ?? null,
+    advanceQuest: () => {
+      if (!game.campaignQuest?.active) return null;
+      const q = game.campaignQuest;
+      q.completedQuests.push(q.currentQuest);
+      q.currentQuest++;
+      if (q.currentQuest > 9) q.active = false;
+      game.checkCampaignQuest?.();
+      return game.campaignQuest;
+    },
+    unpackVan: () => game.unpackVan?.() ?? false,
+    setQuest: (n) => {
+      if (!game.campaignQuest) return null;
+      game.campaignQuest.currentQuest = Math.max(1, Math.min(9, Number(n) || 1));
+      return game.campaignQuest;
+    },
+    triggerDialogue: (id) => game.triggerDialogue?.(id) ?? false,
+    resetQuest: () => {
+      game.campaignQuest = {
+        active: true, currentQuest: 1, vanUnpackCount: 0,
+        treesChopped: 0, logsStored: 0, holesDug: 0, seedsPlanted: 0,
+        completedQuests: [],
+        quest2AxePickedUp: false, quest2TreeChopped: false, quest2AxeDropped: false,
+        quest4BotTaught: false, quest5StoragePlaced: false, quest8ShovelPickedUp: false,
+      };
+      return game.campaignQuest;
+    }
+  };
+  // Player repeat-action debug hook — for smoke testing chop/mine/search auto-repeat
+  window.repeatDebug = {
+    chopFirstTree: () => {
+      const t = game.trees.find(t => !t.stump);
+      if (!t) return false;
+      return game.queuePlayerResourceAction(t, 'chop_tree');
+    },
+    mineFirstRock: () => {
+      const r = game.rocks.find(r => !r.depleted);
+      if (!r) return false;
+      return game.queuePlayerStoneMining(r);
+    },
+    searchFirstTree: () => {
+      const t = game.trees.find(t => !t.stump);
+      if (!t) return false;
+      return game.queuePlayerTreeSearch(t);
+    },
+    getTrees: () => game.trees.filter(t => !t.stump).slice(0, 3).map(t => ({ id: t.id, hp: t.hp })),
+    getRocks: () => game.rocks.filter(r => !r.depleted).slice(0, 3).map(r => ({ id: r.id, hp: r.hp })),
+    getTarget: () => game.player.target ? JSON.parse(JSON.stringify(game.player.target)) : null,
+    clearTarget: () => { game.player.target = null; game.player.targetQueue = []; },
+    getTreeHp: (treeId) => { const t = game.trees.find(t => t.id === treeId); return t ? t.hp : null; },
+    getRockHp: (rockId) => { const r = game.rocks.find(r => r.id === rockId); return r ? r.hp : null; }
   };
   window.validateAssistantToolCalls = raw => validateToolCalls(raw, game, { loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
   window.validateAssistantDslAssignments = raw => validateDslAssignments(raw, game, { loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });

@@ -333,6 +333,17 @@ export function installInventorySystem(Game, deps) {
       this.emitSound('pickup', { cooldownKey: 'player:pickup', minGapMs: 120 });
       this.recordTeachStep({ op: 'pick_up', type: item.type });
       this.syncTeachUi();
+      // Campaign quest tracking: axe pickup (quest 2), shovel pickup (quest 8)
+      if (this.campaignQuest?.active) {
+        const q = this.campaignQuest;
+        if (q.currentQuest === 2 && item.type === 'crude_axe') {
+          q.quest2AxePickedUp = true;
+          this.checkCampaignQuest?.();
+        }
+        if (q.currentQuest === 8 && item.type === 'crude_shovel') {
+          q.quest8ShovelPickedUp = true;
+        }
+      }
       return true;
     },
     manualPickupNearest(type = null) {
@@ -400,6 +411,17 @@ export function installInventorySystem(Game, deps) {
       this.emitSound('drop', { cooldownKey: 'player:drop', minGapMs: 120 });
       this.recordTeachStep(this.dropItemStep(dropX, dropY));
       this.syncTeachUi();
+      // Campaign quest tracking: axe drop (quest 2) and shovel drop (quest 8)
+      if (this.campaignQuest?.active) {
+        const q = this.campaignQuest;
+        if (q.currentQuest === 2 && held.type === 'crude_axe') {
+          q.quest2AxeDropped = true;
+          this.checkCampaignQuest?.();
+        }
+        if (q.currentQuest === 8 && held.type === 'crude_shovel') {
+          this.checkCampaignQuest?.();
+        }
+      }
       return true;
     },
     manualDepositToStructure(s = null, { waitIfProcessing = false } = {}) {
@@ -417,6 +439,12 @@ export function installInventorySystem(Game, deps) {
       this.emitSound('deposit', { cooldownKey: 'player:deposit', minGapMs: 120 });
       this.recordTeachStep({ op: 'deposit_to_structure', type, structureId: target.id, structureRef: target.ref, structureType: target.type, structureName: target.name, target: target.name });
       this.syncTeachUi();
+      // Campaign quest 6: track logs stored in item_palette
+      if (this.campaignQuest?.active && this.campaignQuest.currentQuest === 6 && type === 'log' && STORAGE_STRUCTURE_TYPES.includes(target.type)) {
+        this.campaignQuest.logsStored++;
+        this.addFloat?.(`Logs stored: ${this.campaignQuest.logsStored}/10`, target.x, target.y - 55, '#9abf8f');
+        this.checkCampaignQuest?.();
+      }
       return true;
     }
   });

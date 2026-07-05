@@ -140,7 +140,22 @@ export function drawMapFeatures(game, c, view) {
       if (isCampaignArrivalActive(game) && feature.id === getCampaignArrivalScene()?.parkedFeatureId) continue;
       const w = feature.w || 118;
       const h = feature.h || 58;
-      if (rectInView(feature.x - w / 2 - 24, feature.y - h / 2 - 32, w + 48, h + 64, view)) drawCamperVanFeature(c, feature);
+      if (rectInView(feature.x - w / 2 - 24, feature.y - h / 2 - 32, w + 48, h + 64, view)) {
+        // Hover highlight glow when player is hovering the van
+        if (game.mouse?.hoverVan) {
+          c.save();
+          c.translate(feature.x, feature.y);
+          c.rotate(feature.rotation || 0);
+          c.fillStyle = 'rgba(255, 244, 208, .12)';
+          c.strokeStyle = '#fff4d0';
+          c.lineWidth = 2.5;
+          roundedRect(c, -w / 2 - 8, -h / 2 - 8, w + 16, h + 16, 18);
+          c.fill();
+          c.stroke();
+          c.restore();
+        }
+        drawCamperVanFeature(c, feature);
+      }
     }
   }
 }

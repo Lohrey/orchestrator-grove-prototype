@@ -216,18 +216,29 @@ export function installPlayerSystem(Game, deps) {
       const invType = this.player.inventory?.type;
       return invType === 'crude_pickaxe' || !this.player.inventory;
     },
-    finishPlayerChopTree(target) {
+    finishPlayerChopTree(target, { recordTeach = true } = {}) {
       const tree = this.trees.find(t => t.id === target.resourceId && this.isChoppableTree(t));
       if (!tree || this.player.inventory?.type !== 'crude_axe') return false;
       tree.hp--;
       this.addFloat('Chopped', tree.x, tree.y - 34, '#d3a95f');
       this.emitSound('chop', { cooldownKey: 'player:chop', minGapMs: 160 });
-      this.recordTeachStep(this.resourceRadiusStep('chop_tree', tree, this.treeDisplayName(tree)));
-      this.syncTeachUi();
+      if (recordTeach) {
+        this.recordTeachStep(this.resourceRadiusStep('chop_tree', tree, this.treeDisplayName(tree)));
+        this.syncTeachUi();
+      }
       if (tree.hp <= 0) { tree.stump = true; tree.regrow = 0; this.spawnItem('log', tree.x, tree.y, 1); this.spawnItem('stick', tree.x, tree.y, 2); this.spawnItem('tree_seed', tree.x, tree.y, 1); this.addFloat('Tree felled', tree.x, tree.y - 50, '#9abf8f'); }
+      // Campaign quest 2: track tree chopped (tree fully felled counts)
+      if (this.campaignQuest?.active && tree.stump) {
+        this.campaignQuest.treesChopped++;
+        if (this.campaignQuest.currentQuest === 2 && !this.campaignQuest.quest2TreeChopped) {
+          this.campaignQuest.quest2TreeChopped = true;
+          this.triggerDialogue?.('quest2_tree_chopped');
+          this.checkCampaignQuest?.();
+        }
+      }
       return true;
     },
-    finishPlayerMineStone(target) {
+    finishPlayerMineStone(target, { recordTeach = true } = {}) {
       const rock = this.rocks.find(r => r.id === target.resourceId && !r.depleted);
       if (!rock) return false;
       const invType = this.player.inventory?.type;
@@ -236,15 +247,18 @@ export function installPlayerSystem(Game, deps) {
       this.spawnItem('stone', rock.x, rock.y, 1);
       this.addFloat('Mined stone', rock.x, rock.y - 24, '#d3a95f');
       this.emitSound('mine', { cooldownKey: 'player:mine', minGapMs: 160 });
-      this.recordTeachStep(this.resourceRadiusStep('mine_stone', rock, 'stone deposit'));
-      this.syncTeachUi();
-      if (rock.hp <= 0) { rock.depleted = true; rock.respawn = 24; this.addFloat('Stone deposit depleted', rock.x, rock.y - 24, '#9aa09d'); }
+      if (recordTeach) {
+        this.recordTeachStep(this.resourceRadiusStep('mine_stone', rock, 'stone deposit'));
+        this.syncTeachUi();
+      }
+      // Stone depot must NEVER break: keep hp floored at 1 so mining repeats forever.
+      if (rock.hp <= 0) { rock.hp = 1; }
       return true;
     },
     queuePlayerTreeSearch(tree) {
       if (!tree || tree.stump || this.player.inventory) return false;
       if (!this.treeSearchAvailable(tree, 'player')) { this.addFloat('Tree already being searched', tree.x, tree.y - 34, '#c86b5f'); return true; }
-      this.setPlayerDestination(tree.x, tree.y, { action: 'search_tree', resourceId: tree.id, floatText: 'Search tree for sticks/seeds' });
+      this.setPlayerDestination(tree.x, tree.y, { action: 'search_tree', resourceId: tree.id, repeat: true, floatText: 'Search tree for sticks/seeds' });
       return true;
     },
     queuePlayerHempAction(hemp, { append = false } = {}) {
@@ -289,13 +303,15 @@ export function installPlayerSystem(Game, deps) {
       this.syncTeachUi();
       return true;
     },
-    finishTreeSearch(tree) {
+    finishTreeSearch(tree, { recordTeach = true } = {}) {
       if (!tree || tree.stump || this.player.inventory) return false;
       this.dropTreeSearchFinds(tree);
       this.addFloat('Found stick + tree seed', tree.x, tree.y - 34, '#d3a95f');
       this.emitSound('search', { cooldownKey: 'player:search_tree', minGapMs: 160 });
-      this.recordTeachStep(this.resourceRadiusStep('search_tree', tree, this.treeDisplayName(tree)));
-      this.syncTeachUi();
+      if (recordTeach) {
+        this.recordTeachStep(this.resourceRadiusStep('search_tree', tree, this.treeDisplayName(tree)));
+        this.syncTeachUi();
+      }
       return true;
     },
     canFinishPlayerDeployHeldKit(target) {
@@ -315,6 +331,8 @@ export function installPlayerSystem(Game, deps) {
       this.player.inventory = null;
       this.recordTeachStep(this.deployBuildingKitStep(kitType, s.x, s.y));
       this.syncTeachUi();
+      // Campaign quest 5: storage building placed
+      if (s.type === 'item_palette') this.onStoragePlaced?.();
       return true;
     },
     finishPlayerDeployLooseKit(target) {
@@ -327,6 +345,8 @@ export function installPlayerSystem(Game, deps) {
       this.recordTeachStep({ op: 'pick_up', type: kitType });
       this.recordTeachStep(this.deployBuildingKitStep(kitType, s.x, s.y));
       this.syncTeachUi();
+      // Campaign quest 5: storage building placed
+      if (s.type === 'item_palette') this.onStoragePlaced?.();
       return true;
     },
     queuePlayerDeployHeldKit(x, y, { append = false } = {}) {
@@ -348,7 +368,7 @@ export function installPlayerSystem(Game, deps) {
       if (op === 'chop_tree' && this.player.inventory?.type !== 'crude_axe') return false;
       if (op === 'mine_stone' && this.player.inventory?.type !== 'crude_pickaxe') return false;
       const label = op === 'chop_tree' ? 'Chop tree' : 'Mine stone deposit';
-      this.setPlayerDestination(resource.x, resource.y, { action: op, resourceId: resource.id, floatText: label }, { append });
+      this.setPlayerDestination(resource.x, resource.y, { action: op, resourceId: resource.id, repeat: true, floatText: label }, { append });
       return true;
     },
     queuePlayerStoneMining(rock, { append = false } = {}) {
@@ -360,8 +380,13 @@ export function installPlayerSystem(Game, deps) {
         this.addFloat(`Need empty hands or crude pickaxe${held}`, rock.x, rock.y - 34, '#c86b5f');
         return true;
       }
-      this.setPlayerDestination(rock.x, rock.y, { action: 'mine_stone', resourceId: rock.id, floatText: hasPickaxe ? 'Mine stone deposit' : 'Mine stone (bare hands)' }, { append });
+      this.setPlayerDestination(rock.x, rock.y, { action: 'mine_stone', resourceId: rock.id, repeat: true, floatText: hasPickaxe ? 'Mine stone deposit' : 'Mine stone (bare hands)' }, { append });
       return true;
+    },
+    _resourceForRepeat(target) {
+      if (target.action === 'chop_tree' || target.action === 'search_tree') return this.trees.find(t => t.id === target.resourceId);
+      if (target.action === 'mine_stone') return this.rocks.find(r => r.id === target.resourceId);
+      return null;
     },
     queuePlayerDemolishStructure(s, { append = false } = {}) {
       if (!this.canDemolishStructure(s) || this.player.inventory?.type !== 'crude_hammer') return false;
