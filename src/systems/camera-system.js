@@ -14,24 +14,69 @@ export function installCameraSystem(Game, deps) {
 
   Object.assign(Game.prototype, {
     resizeCanvas(clampEntities = true) {
-      const canvasRect = this.canvas.getBoundingClientRect();
-      const parentRect = (this.canvas.parentElement || this.canvas).getBoundingClientRect();
-      const rect = canvasRect.width && canvasRect.height ? canvasRect : parentRect;
-      const w = Math.max(1, Math.round(rect.width || window.innerWidth || this.canvas.width));
-      const h = Math.max(1, Math.round(rect.height || window.innerHeight || this.canvas.height));
-      if (this.canvas.width === w && this.canvas.height === h) return;
-      this.canvas.width = w;
-      this.canvas.height = h;
-      this.W = w;
-      this.H = h;
-      if (clampEntities && this.player) {
-        this.player.x = clamp(this.player.x, 20, Math.max(20, this.map.width - 20));
-        this.player.y = clamp(this.player.y, 20, Math.max(20, this.map.height - 20));
-        this.assistant.x = clamp(this.assistant.x, 20, Math.max(20, this.map.width - 20));
-        this.assistant.y = clamp(this.assistant.y, 20, Math.max(20, this.map.height - 20));
+      // ── Integer scaling: fixed native resolution ──
+      // The canvas backing store is always 640×360 (16:9 native) for non-Pixi
+      // renderers. CSS scales the element to fill the viewport with an integer
+      // factor (×1, ×2, ×3, ...). The Pixi renderer manages its own resolution
+      // via autoDensity, so it keeps the old dynamic-backing-store behavior.
+      const useIntegerScaling = this._useIntegerScaling !== false
+        && this.renderBackend?.kind !== 'pixi';
+      if (!useIntegerScaling) {
+        // Legacy path: backing store matches the CSS viewport size (Pixi, etc.)
+        const canvasRect = this.canvas.getBoundingClientRect();
+        const parentRect = (this.canvas.parentElement || this.canvas).getBoundingClientRect();
+        const rect = canvasRect.width && canvasRect.height ? canvasRect : parentRect;
+        const w = Math.max(1, Math.round(rect.width || window.innerWidth || this.canvas.width));
+        const h = Math.max(1, Math.round(rect.height || window.innerHeight || this.canvas.height));
+        if (this.canvas.width === w && this.canvas.height === h) return;
+        this.canvas.width = w;
+        this.canvas.height = h;
+        this.W = w; this.H = h;
+        if (clampEntities && this.player) {
+          this.player.x = clamp(this.player.x, 20, Math.max(20, this.map.width - 20));
+          this.player.y = clamp(this.player.y, 20, Math.max(20, this.map.height - 20));
+          this.assistant.x = clamp(this.assistant.x, 20, Math.max(20, this.map.width - 20));
+          this.assistant.y = clamp(this.assistant.y, 20, Math.max(20, this.map.height - 20));
+        }
+        this.clampCamera();
+        this.renderBackend?.resize?.({ width: w, height: h, canvas: this.canvas });
+        return;
       }
-      this.clampCamera();
-      this.renderBackend?.resize?.({ width: w, height: h, canvas: this.canvas });
+      // Integer-scaling path: fixed 640×360 backing store
+      const NATIVE_W = 640;
+      const NATIVE_H = 360;
+      const alreadyNative = this.canvas.width === NATIVE_W && this.canvas.height === NATIVE_H;
+      this.canvas.width = NATIVE_W;
+      this.canvas.height = NATIVE_H;
+      this.W = NATIVE_W;
+      this.H = NATIVE_H;
+      this._updateIntegerScale();
+      if (!alreadyNative) {
+        // Only clamp entities / notify renderer when the backing store actually changed
+        if (clampEntities && this.player) {
+          this.player.x = clamp(this.player.x, 20, Math.max(20, this.map.width - 20));
+          this.player.y = clamp(this.player.y, 20, Math.max(20, this.map.height - 20));
+          this.assistant.x = clamp(this.assistant.x, 20, Math.max(20, this.map.width - 20));
+          this.assistant.y = clamp(this.assistant.y, 20, Math.max(20, this.map.height - 20));
+        }
+        this.clampCamera();
+        this.renderBackend?.resize?.({ width: NATIVE_W, height: NATIVE_H, canvas: this.canvas });
+      }
+    },
+    _updateIntegerScale() {
+      // Compute the integer scale factor from the live viewport and apply via CSS.
+      // The backing store stays 640×360; only the element's CSS size changes.
+      const rect = this.canvas.getBoundingClientRect();
+      const parent = (this.canvas.parentElement || this.canvas).getBoundingClientRect();
+      const screenW = rect.width || parent.width || window.innerWidth;
+      const screenH = rect.height || parent.height || window.innerHeight;
+      const scale = Math.max(1, Math.min(Math.floor(screenW / 640), Math.floor(screenH / 360)));
+      this.canvas.style.width = `${640 * scale}px`;
+      this.canvas.style.height = `${360 * scale}px`;
+      this.canvas.style.marginLeft = 'auto';
+      this.canvas.style.marginRight = 'auto';
+      this.canvas.style.display = 'block';
+      this._integerScale = scale;
     },
     clampCamera() {
       const zoom = clamp(this.camera.zoom || 1, CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM);

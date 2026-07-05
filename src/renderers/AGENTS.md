@@ -64,9 +64,22 @@ Orchestrator Grove prototype maintainers.
     has w=132 > 128; all other structures fit in 128)
   This ensures WebGL texture efficiency (no padding waste), uniform UV mapping
   for atlas packing, and integer-scaling compatibility for the native-resolution
-  render pipeline (planned: 640×360 backing store, integer-scaled to viewport).
+  render pipeline (640×360 backing store, integer-scaled to viewport).
   Phase 1 (sprite cache + `image-rendering: pixelated` in `styles.css`) is done;
-  Phase 2 (native backing-store resolution + camera zoom recalibration) is future work.
+  Phase 2 (native backing-store resolution + integer CSS scaling) is done — see
+  the integer-scaling bullet below.
+- **Integer scaling (native resolution)**: For non-Pixi renderers (canvas2d,
+  webgl2), the canvas backing store is fixed at 640×360 (16:9). CSS scales the
+  element with an integer factor (×1, ×2, ×3, ...) computed from the viewport
+  size in `camera-system.js` `_updateIntegerScale()`. This gives pixel-perfect
+  rendering at any display size. `image-rendering: pixelated` ensures crisp
+  upscaling. Letterbox bars (black) fill the remaining viewport when the aspect
+  ratio differs from 16:9; the `.game-stage` parent centers the canvas via
+  flexbox. The **Pixi renderer is exempt**: it manages its own resolution via
+  `autoDensity` and sets `canvas.style.width/height = '100%'` inline, so
+  `resizeCanvas()` detects `renderBackend.kind === 'pixi'` and falls back to the
+  legacy dynamic-backing-store path. The `_useIntegerScaling` flag on the Game
+  instance can also force-disable integer scaling if needed.
 
 ## Verification
 - Render behavior is covered by smoke tests under `tests/` (e.g. render-viewport-culling,

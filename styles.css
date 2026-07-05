@@ -102,15 +102,27 @@ code { color: #d7e8cf; }
 .statline b { color: var(--text); }
 
 /* ── Pixel-art pipeline (Moonlighter-style integer scaling) ──
-   Phase 1 (NOW): sprite cache normalized to power-of-2 grid (32/64/128/256).
+   Phase 1 (DONE): sprite cache normalized to power-of-2 grid (32/64/128/256).
                   CSS image-rendering: pixelated prepared.
-   Phase 2 (LATER): canvas backing store → fixed native resolution (640×360),
-                    integer-scaled (×3/×4/×5) to fill screen via CSS.
-                    Camera zoom recalibrated to native-res world units. */
-#game {
-  display: block;
+   Phase 2 (DONE): canvas backing store → fixed native resolution (640×360),
+                    integer-scaled (×1/×2/×3/...) to fill screen via CSS.
+                    Letterboxed with black bars when the viewport aspect ≠ 16:9.
+                    The Pixi renderer manages its own resolution (autoDensity)
+                    and bypasses integer scaling — see camera-system.js. */
+.game-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 100%;
+  /* Letterbox bars use the stage background (matches #game background) */
+  background: #000;
+}
+
+#game {
+  display: block;
+  /* width/height are set by JS (_updateIntegerScale) for integer scaling.
+     For the Pixi path the element fills its parent as before. */
   max-height: none;
   aspect-ratio: auto;
   background: #18201c;
