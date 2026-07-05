@@ -6,7 +6,7 @@ import {
   getLookOffset,
   isBotHandTool,
   roundedRect
-} from '../shared/renderer-utils.js?v=grove_proc_cache_0705';
+} from '../shared/renderer-utils.js?v=grove_anim_cache_0705';
 import { createDepthDrawable } from '../../depth-sort.js?v=t_da28d8dd';
 import {
   drawHeldToolAsset,
@@ -18,7 +18,7 @@ import {
   botSpriteKey,
   playerSpriteKey,
   SPRITE_SIZE
-} from '../shared/sprite-cache.js?v=grove_proc_cache_0705';
+} from '../shared/sprite-cache.js?v=grove_anim_cache_0705';
 
 // ── Procedural offscreen-cached player & bot rendering ─────────────────
 // The buggy Tiny Swords spritesheet atlas path has been disabled for the

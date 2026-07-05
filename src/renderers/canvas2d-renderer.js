@@ -1,6 +1,6 @@
-import { drawWorld } from '../canvas-renderer.js?v=grove_proc_cache_0705';
-import { initSpriteCache } from './shared/sprite-cache.js?v=grove_proc_cache_0705';
-import { initTinySwordsSprites } from './canvas2d/entities-layer.js?v=grove_proc_cache_0705';
+import { drawWorld } from '../canvas-renderer.js?v=grove_anim_cache_0705';
+import { initSpriteCache } from './shared/sprite-cache.js?v=grove_anim_cache_0705';
+import { initTinySwordsSprites } from './canvas2d/entities-layer.js?v=grove_anim_cache_0705';
 
 export function createCanvas2dRenderer({ canvas }) {
   const ctx = canvas.getContext('2d', { alpha: false });

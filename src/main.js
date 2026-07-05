@@ -1,25 +1,25 @@
-import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, ALLOWED_OPS, formatDslActionWiki, getActionStepChainRows } from './data.js?v=grove_proc_cache_0705';
-import { createChatController } from './chat.js?v=grove_proc_cache_0705';
-import { createAudioController } from './audio.js?v=grove_proc_cache_0705';
+import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, ALLOWED_OPS, formatDslActionWiki, getActionStepChainRows } from './data.js?v=grove_anim_cache_0705';
+import { createChatController } from './chat.js?v=grove_anim_cache_0705';
+import { createAudioController } from './audio.js?v=grove_anim_cache_0705';
 import { createBrowserSttController, DEFAULT_BROWSER_STT_MODEL } from './browser-stt.js';
-import { Game } from './world.js?v=grove_proc_cache_0705';
-import { createSaveGameManager, GAME_MODE_LABELS, normalizeGameMode } from './savegames.js?v=grove_proc_cache_0705';
-import { createMultiplayerController } from './multiplayer.js?v=grove_proc_cache_0705';
-import { probeRenderer, startGameLoop } from './browser-runtime.js?v=grove_proc_cache_0705';
-import { createRenderBackend } from './renderers/index.js?v=grove_proc_cache_0705';
-import { createSimWorkerClient } from './sim/sim-worker-client.js?v=grove_proc_cache_0705';
-import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js?v=grove_proc_cache_0705';
-import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=grove_proc_cache_0705';
-import { LOCAL_AI_PROVIDERS, defaultOllamaEndpoint, getDefaultProviderConfig, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, validateDslAssignments, validateToolCalls } from './assistant.js?v=grove_proc_cache_0705';
-import { escapeHtml } from './utils.js?v=grove_proc_cache_0705';
+import { Game } from './world.js?v=grove_anim_cache_0705';
+import { createSaveGameManager, GAME_MODE_LABELS, normalizeGameMode } from './savegames.js?v=grove_anim_cache_0705';
+import { createMultiplayerController } from './multiplayer.js?v=grove_anim_cache_0705';
+import { probeRenderer, startGameLoop } from './browser-runtime.js?v=grove_anim_cache_0705';
+import { createRenderBackend } from './renderers/index.js?v=grove_anim_cache_0705';
+import { createSimWorkerClient } from './sim/sim-worker-client.js?v=grove_anim_cache_0705';
+import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js?v=grove_anim_cache_0705';
+import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=grove_anim_cache_0705';
+import { LOCAL_AI_PROVIDERS, defaultOllamaEndpoint, getDefaultProviderConfig, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, validateDslAssignments, validateToolCalls } from './assistant.js?v=grove_anim_cache_0705';
+import { escapeHtml } from './utils.js?v=grove_anim_cache_0705';
 // UI module imports — extracted from the monolithic startGame() closure
-import { createDomHelpers } from './ui/dom-helpers.js?v=grove_proc_cache_0705';
-import { createChatUi } from './ui/chat-ui.js?v=grove_proc_cache_0705';
-import { createRendererSettings } from './ui/renderer-settings.js?v=grove_proc_cache_0705';
-import { createPerformanceUi } from './ui/performance-ui.js?v=grove_proc_cache_0705';
-import { createProviderUi } from './ui/provider-ui.js?v=grove_proc_cache_0705';
-import { createFullscreenUi } from './ui/fullscreen-ui.js?v=grove_proc_cache_0705';
-import { createAssistantUi } from './ui/assistant-ui.js?v=grove_proc_cache_0705';
+import { createDomHelpers } from './ui/dom-helpers.js?v=grove_anim_cache_0705';
+import { createChatUi } from './ui/chat-ui.js?v=grove_anim_cache_0705';
+import { createRendererSettings } from './ui/renderer-settings.js?v=grove_anim_cache_0705';
+import { createPerformanceUi } from './ui/performance-ui.js?v=grove_anim_cache_0705';
+import { createProviderUi } from './ui/provider-ui.js?v=grove_anim_cache_0705';
+import { createFullscreenUi } from './ui/fullscreen-ui.js?v=grove_anim_cache_0705';
+import { createAssistantUi } from './ui/assistant-ui.js?v=grove_anim_cache_0705';
 
 export async function startGame() {
   const $ = id => document.getElementById(id);

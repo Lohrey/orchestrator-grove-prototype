@@ -1,10 +1,10 @@
-import { createCanvas2dRenderer } from './canvas2d-renderer.js?v=grove_proc_cache_0705';
+import { createCanvas2dRenderer } from './canvas2d-renderer.js?v=grove_anim_cache_0705';
 
 export async function createRenderBackend({ canvas, mode = 'pixi', capture = false, settings = null } = {}) {
   const normalized = String(mode || 'pixi').toLowerCase();
   if (normalized === 'pixi') {
     try {
-      const { createPixiRenderer } = await import('./pixi-renderer.js?v=grove_proc_cache_0705');
+      const { createPixiRenderer } = await import('./pixi-renderer.js?v=grove_anim_cache_0705');
       return await createPixiRenderer({ canvas, capture, settings });
     } catch (err) {
       console.warn('Pixi renderer failed; falling back to Canvas2D', err);

@@ -224,11 +224,14 @@ function drawRockBodyToCtx(ctx, radius, depleted) {
 }
 
 // ── Draw a tree body onto a ctx (simplified, no hover/health bar) ──
-function drawTreeBodyToCtx(ctx, radius, stage) {
+// swayPx shifts the foliage horizontally to bake a gentle wind animation
+// into pre-rendered frames. 0 = no sway (rest pose). The shadow and trunk
+// stay fixed; only the foliage blobs move, mirroring the live vector path.
+function drawTreeBodyToCtx(ctx, radius, stage, swayPx = 0) {
   const cx = (radius + 12);
   const cy = (radius + 12);
 
-  // Shadow
+  // Shadow (fixed — does not sway)
   ctx.fillStyle = 'rgba(0,0,0,0.24)';
   ctx.beginPath();
   ctx.ellipse(cx, cy + radius * 0.8, radius * 1.15, radius * 0.34, 0, 0, Math.PI * 2);
@@ -237,14 +240,14 @@ function drawTreeBodyToCtx(ctx, radius, stage) {
   if (stage === 'sapling') {
     ctx.strokeStyle = '#9abf8f';
     ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(cx, cy + 10); ctx.lineTo(cx, cy - 10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy + 10); ctx.quadraticCurveTo(cx + swayPx, cy, cx + swayPx, cy - 10); ctx.stroke();
     // Small leaf blobs
-    treeLeafBlob(ctx, cx - 6, cy - 6, 6, '#78aa68');
-    treeLeafBlob(ctx, cx + 6, cy - 8, 6, '#9ac887');
+    treeLeafBlob(ctx, cx - 6 + swayPx, cy - 6, 6, '#78aa68');
+    treeLeafBlob(ctx, cx + 6 + swayPx, cy - 8, 6, '#9ac887');
     return;
   }
 
-  // Trunk
+  // Trunk (fixed — does not sway)
   const trunkW = stage === 'small_tree' ? 10 : 13;
   const trunkH = stage === 'small_tree' ? 25 : 34;
   const trunkGrad = ctx.createLinearGradient(cx - trunkW / 2, cy, cx + trunkW / 2, cy);
@@ -254,11 +257,11 @@ function drawTreeBodyToCtx(ctx, radius, stage) {
   roundRectPath(ctx, cx - trunkW / 2, cy + 3, trunkW, trunkH, 4);
   ctx.fill();
 
-  // Foliage blobs
-  treeLeafBlob(ctx, cx - 10, cy - 2, radius * 0.82, '#2f5737');
-  treeLeafBlob(ctx, cx + 13, cy - 4, radius * 0.74, '#426d42');
-  treeLeafBlob(ctx, cx, cy - 17, radius * 0.9, stage === 'small_tree' ? '#4f824e' : '#37643b');
-  treeLeafBlob(ctx, cx + 1, cy + 7, radius * 0.7, '#274b31');
+  // Foliage blobs (sway-offset)
+  treeLeafBlob(ctx, cx - 10 + swayPx, cy - 2, radius * 0.82, '#2f5737');
+  treeLeafBlob(ctx, cx + 13 + swayPx, cy - 4, radius * 0.74, '#426d42');
+  treeLeafBlob(ctx, cx + swayPx, cy - 17, radius * 0.9, stage === 'small_tree' ? '#4f824e' : '#37643b');
+  treeLeafBlob(ctx, cx + 1 + swayPx, cy + 7, radius * 0.7, '#274b31');
 }
 
 function treeLeafBlob(ctx, x, y, r, color) {
@@ -326,15 +329,29 @@ async function buildCache() {
   // so the render loop can look up the closest cached size.
 
   // Trees: grown_tree (r=22 default), small_tree (r=18), sapling (r=14)
+  // Pre-render 4 sway frames per stage so the blit path can cycle through
+  // them with a per-tree offset for a cheap wind animation. The sway samples
+  // a sine wave at 4 phases; the render loop advances the frame index over
+  // time (see drawTree in world-layer.js). Keys:
+  //   tree_<stage>        → [frame0Bitmap, frame1Bitmap, frame2Bitmap, frame3Bitmap]
+  //   tree_<stage>_meta   → { w, h, cx, cy, frames: 4 }
+  const SWAY_FRAMES = 4;
+  const SWAY_AMPLITUDE = 2.5; // px; matches the live vector sway magnitude
   for (const [stage, treeRadius] of [['grown_tree', 22], ['small_tree', 18], ['sapling', 14]]) {
     const key = `tree_${stage}`;
     const size = (treeRadius + 12) * 2; // padding for foliage/leaves
-    const { canvas } = preRender(ctx => {
-      drawTreeBodyToCtx(ctx, treeRadius, stage);
-    }, size, size);
-    out[key] = await toBitmap(canvas);
-    // Store metadata so the draw path knows the canvas size
-    out[key + '_meta'] = { w: size, h: size, cx: size / 2, cy: size / 2 };
+    const frames = [];
+    for (let f = 0; f < SWAY_FRAMES; f++) {
+      // Sample sin at 4 evenly-spaced phases: 0, π/2, π, 3π/2
+      const phase = (f / SWAY_FRAMES) * Math.PI * 2;
+      const swayPx = Math.sin(phase) * (stage === 'sapling' ? 1.5 : SWAY_AMPLITUDE);
+      const { canvas } = preRender(ctx => {
+        drawTreeBodyToCtx(ctx, treeRadius, stage, swayPx);
+      }, size, size);
+      frames.push(await toBitmap(canvas));
+    }
+    out[key] = frames; // array of 4 ImageBitmaps
+    out[key + '_meta'] = { w: size, h: size, cx: size / 2, cy: size / 2, frames: SWAY_FRAMES };
   }
 
   // Rocks: standard deposit (r=18 default)
@@ -425,12 +442,35 @@ export function rockSpriteKey(rock) {
 /**
  * Get the cached sprite and its draw metadata for a world object.
  * Returns { sprite, meta } or null if not cached.
+ * For tree keys the cache stores an array of sway frames; this helper
+ * returns frame 0 (rest pose) for backwards compatibility. Use
+ * getTreeSwaySprite() for animated frame selection.
  */
 export function getWorldObjectSprite(key) {
   if (!cache) return null;
-  const sprite = cache[key];
+  const entry = cache[key];
   const meta = cache[key + '_meta'];
-  if (!sprite || !meta) return null;
+  if (!entry || !meta) return null;
+  // Tree entries are arrays of sway frames; rocks/bots are single bitmaps.
+  const sprite = Array.isArray(entry) ? entry[0] : entry;
+  if (!sprite) return null;
+  return { sprite, meta };
+}
+
+/**
+ * Get a specific sway frame for a tree sprite key.
+ * Returns { sprite, meta } or null if not cached / not a multi-frame entry.
+ * @param {string} key - tree sprite key (e.g. 'tree_grown_tree')
+ * @param {number} frameIndex - sway frame index (0..meta.frames-1)
+ */
+export function getTreeSwaySprite(key, frameIndex) {
+  if (!cache) return null;
+  const frames = cache[key];
+  const meta = cache[key + '_meta'];
+  if (!Array.isArray(frames) || !meta || !meta.frames) return null;
+  const idx = ((frameIndex | 0) % meta.frames + meta.frames) % meta.frames;
+  const sprite = frames[idx];
+  if (!sprite) return null;
   return { sprite, meta };
 }
 

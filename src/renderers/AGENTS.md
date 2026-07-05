@@ -31,7 +31,11 @@ Orchestrator Grove prototype maintainers.
   in `shared/renderer-utils.js`. The canvas2d path computes a shared `occluders` object in
   `canvas-renderer.js` before pushing trees/rocks to depth sort. The Pixi path computes
   `pixiOccluders(renderState)` per-update in `pixi-renderer.js` and sets `container.alpha`.
-  Sprite-cache blits are bypassed when opacity < 1 (see `drawRock`/`drawTree` in `world-layer.js`).
+  Semi-transparent trees and rocks still use the sprite-cache blit path via `ctx.globalAlpha`
+  (see `drawRock`/`drawTree` in `world-layer.js`); the full vector draw is only a cache-miss
+  fallback. Tree sprites are pre-rendered as **4 sway frames** per growth stage
+  (`sprite-cache.js` `buildCache`); `drawTree` cycles them with a time-based `frameIndex` and
+  per-tree `t.id` offset so trees don't sway in sync.
 
 ## Verification
 - Render behavior is covered by smoke tests under `tests/` (e.g. render-viewport-culling,

@@ -21,7 +21,7 @@ import {
   itemLabel
 } from '../../visual-assets.js?v=t_building_kits_0618';
 import { getTinySwordsAtlas } from '../shared/tiny-swords-atlas.js?v=ts_fix2_0628';
-import { getWorldObjectSprite, treeSpriteKey, rockSpriteKey } from '../shared/sprite-cache.js?v=t_sprite_cache_0628';
+import { getWorldObjectSprite, getTreeSwaySprite, treeSpriteKey, rockSpriteKey } from '../shared/sprite-cache.js?v=grove_anim_cache_0705';
 
 export function drawZones(game, c, view) {
   c.save();
@@ -91,13 +91,26 @@ export function drawRock(game, c, r, opacity = 1) {
   c.save();
   const hover = game.mouse.hoverRock === r;
 
-  // ── Sprite cache path: blit pre-rendered rock when not hovered and fully opaque ──
-  if (!hover && opacity >= 0.99) {
+  // ── Sprite cache path: blit pre-rendered rock when not hovered ──
+  // Uses globalAlpha for semi-transparent occlusion so we avoid the
+  // expensive per-frame vector path even when an actor is behind the rock.
+  // The vector path is now ONLY a cache-miss fallback.
+  if (!hover) {
     const key = rockSpriteKey(r);
     if (key) {
       const cached = getWorldObjectSprite(key);
       if (cached) {
-        c.drawImage(cached.sprite, r.x - cached.meta.cx, r.y - cached.meta.cy);
+        if (opacity < 0.99) {
+          c.globalAlpha = opacity;
+          c.drawImage(cached.sprite, r.x - cached.meta.cx, r.y - cached.meta.cy);
+          c.globalAlpha = 1;
+        } else {
+          c.drawImage(cached.sprite, r.x - cached.meta.cx, r.y - cached.meta.cy);
+        }
+        // Health bar on top (vector draw is cheap and not the bottleneck)
+        if (!r.depleted && r.hp < r.maxHp) {
+          drawBar(c, r.x - 18, r.y - r.radius - 13, 36, 5, r.hp / r.maxHp, '#d0bf86');
+        }
         c.restore();
         return;
       }
@@ -268,14 +281,26 @@ export function drawTree(game, c, t, now, opacity = 1) {
   const hover = game.mouse.hoverTree === t;
 
   // ── Sprite cache path: blit pre-rendered tree when not hovered/stump ──
-  // The sprite cache has base foliage without sway animation. Sway is
-  // a subtle effect; skipping it for the blit path is a major perf win.
-  if (!hover && !t.stump && opacity >= 0.99) {
+  // Uses globalAlpha for semi-transparent occlusion so we avoid the
+  // expensive per-frame vector path even when an actor is behind the tree.
+  // The sprite cache stores 4 sway frames per growth stage; we cycle through
+  // them using a time-based frameIndex with a per-tree offset (t.id) so trees
+  // don't all sway in sync. The vector path is now ONLY a cache-miss fallback.
+  if (!hover && !t.stump) {
     const key = treeSpriteKey(t);
     if (key) {
-      const cached = getWorldObjectSprite(key);
+      // Sway frame selection: 500ms per frame step → ~2fps cycle through 4 frames.
+      // Per-tree offset via t.id * 0.7 desyncs neighbouring trees.
+      const frameIndex = Math.floor((now / 500 + (t.id || 0) * 0.7) % 4);
+      const cached = getTreeSwaySprite(key, frameIndex) || getWorldObjectSprite(key);
       if (cached) {
-        c.drawImage(cached.sprite, t.x - cached.meta.cx, t.y - cached.meta.cy);
+        if (opacity < 0.99) {
+          c.globalAlpha = opacity;
+          c.drawImage(cached.sprite, t.x - cached.meta.cx, t.y - cached.meta.cy);
+          c.globalAlpha = 1;
+        } else {
+          c.drawImage(cached.sprite, t.x - cached.meta.cx, t.y - cached.meta.cy);
+        }
         // Still draw health bar on top if tree has been damaged
         if (t.hp < t.maxHp) {
           c.save();

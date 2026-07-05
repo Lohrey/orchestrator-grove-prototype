@@ -40,7 +40,7 @@ import {
   drawStructure,
   drawTree,
   drawZones
-} from './renderers/canvas2d/world-layer.js?v=grove_proc_cache_0705';
+} from './renderers/canvas2d/world-layer.js?v=grove_anim_cache_0705';
 
 import {
   drawAssistant,
@@ -49,7 +49,7 @@ import {
   drawPlayerActor,
   drawPlayerTarget,
   pushRemotePlayersToDepth
-} from './renderers/canvas2d/entities-layer.js?v=grove_proc_cache_0705';
+} from './renderers/canvas2d/entities-layer.js?v=grove_anim_cache_0705';
 
 import {
   drawFloaters,
