@@ -1,25 +1,25 @@
-import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, ALLOWED_OPS, formatDslActionWiki, getActionStepChainRows } from './data.js?v=t_building_kits_0618';
-import { createChatController } from './chat.js?v=20260613-player-tools';
-import { createAudioController } from './audio.js?v=t_3ef6c5ab_menu_polish';
+import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, ALLOWED_OPS, formatDslActionWiki, getActionStepChainRows } from './data.js?v=grove_ui_fix_0705';
+import { createChatController } from './chat.js?v=grove_ui_fix_0705';
+import { createAudioController } from './audio.js?v=grove_ui_fix_0705';
 import { createBrowserSttController, DEFAULT_BROWSER_STT_MODEL } from './browser-stt.js';
-import { Game } from './world.js?v=grove_repeat_chop_0705';
-import { createSaveGameManager, GAME_MODE_LABELS, normalizeGameMode } from './savegames.js?v=t_777178b3';
-import { createMultiplayerController } from './multiplayer.js?v=t_f62dde4d_modes';
-import { probeRenderer, startGameLoop } from './browser-runtime.js?v=t_76822d1f';
-import { createRenderBackend } from './renderers/index.js?v=grove_pixi_fixes_0628';
-import { createSimWorkerClient } from './sim/sim-worker-client.js?v=t_building_kits_0618';
-import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js?v=grove_repeat_chop_0705';
-import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=grove_cinematic_overlay_0629';
-import { LOCAL_AI_PROVIDERS, defaultOllamaEndpoint, getDefaultProviderConfig, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, validateDslAssignments, validateToolCalls } from './assistant.js?v=t_building_kits_0618';
-import { escapeHtml } from './utils.js?v=grove_pixi_fixes_0628';
+import { Game } from './world.js?v=grove_ui_fix_0705';
+import { createSaveGameManager, GAME_MODE_LABELS, normalizeGameMode } from './savegames.js?v=grove_ui_fix_0705';
+import { createMultiplayerController } from './multiplayer.js?v=grove_ui_fix_0705';
+import { probeRenderer, startGameLoop } from './browser-runtime.js?v=grove_ui_fix_0705';
+import { createRenderBackend } from './renderers/index.js?v=grove_ui_fix_0705';
+import { createSimWorkerClient } from './sim/sim-worker-client.js?v=grove_ui_fix_0705';
+import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js?v=grove_ui_fix_0705';
+import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=grove_ui_fix_0705';
+import { LOCAL_AI_PROVIDERS, defaultOllamaEndpoint, getDefaultProviderConfig, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, validateDslAssignments, validateToolCalls } from './assistant.js?v=grove_ui_fix_0705';
+import { escapeHtml } from './utils.js?v=grove_ui_fix_0705';
 // UI module imports — extracted from the monolithic startGame() closure
-import { createDomHelpers } from './ui/dom-helpers.js?v=grove_fixes_0628';
-import { createChatUi } from './ui/chat-ui.js?v=grove_fixes_0628';
-import { createRendererSettings } from './ui/renderer-settings.js?v=grove_fixes_0628';
-import { createPerformanceUi } from './ui/performance-ui.js?v=grove_fixes_0628';
-import { createProviderUi } from './ui/provider-ui.js?v=grove_fixes_0628';
-import { createFullscreenUi } from './ui/fullscreen-ui.js?v=grove_fixes_0628';
-import { createAssistantUi } from './ui/assistant-ui.js?v=grove_fixes_0628';
+import { createDomHelpers } from './ui/dom-helpers.js?v=grove_ui_fix_0705';
+import { createChatUi } from './ui/chat-ui.js?v=grove_ui_fix_0705';
+import { createRendererSettings } from './ui/renderer-settings.js?v=grove_ui_fix_0705';
+import { createPerformanceUi } from './ui/performance-ui.js?v=grove_ui_fix_0705';
+import { createProviderUi } from './ui/provider-ui.js?v=grove_ui_fix_0705';
+import { createFullscreenUi } from './ui/fullscreen-ui.js?v=grove_ui_fix_0705';
+import { createAssistantUi } from './ui/assistant-ui.js?v=grove_ui_fix_0705';
 
 export async function startGame() {
   const $ = id => document.getElementById(id);
@@ -30,7 +30,7 @@ export async function startGame() {
     sawLogs: $('sawLogs'), sawPlanks: $('sawPlanks'), sawPoles: $('sawPoles'), factoryPlanks: $('factoryPlanks'), factoryRecipe: $('factoryRecipe'), looseLogs: $('looseLogs'), loosePlanks: $('loosePlanks'), looseBase: $('looseBase'), paletteItems: $('paletteItems'), programSelect: $('programSelect'), programView: $('programView'),
     codeLoopBotId: $('codeLoopBotId'), codeLoopEditor: $('codeLoopEditor'), codeLoopStartBtn: $('codeLoopStartBtn'), codeLoopStopBtn: $('codeLoopStopBtn'), codeLoopStatus: $('codeLoopStatus'), codeLoopConsole: $('codeLoopConsole'),
     llmMode: $('llmMode'), templateRouting: $('templateRouting'), semanticRouting: $('semanticRouting'), semanticRouterStatus: $('semanticRouterStatus'), semanticRouterPackSelect: $('semanticRouterPackSelect'), semanticRouterTrainBtn: $('semanticRouterTrainBtn'), ollamaEndpoint: $('ollamaEndpoint'), ollamaModel: $('ollamaModel'), refreshModels: $('refreshModels'), benchmarkBtn: $('benchmarkBtn'), ollamaStatus: $('ollamaStatus'), llmProviderLabel: $('llmProviderLabel'), serverOllamaBtn: $('serverOllamaBtn'), localOllamaBtn: $('localOllamaBtn'), localTabbyBtn: $('localTabbyBtn'), localOllamaWindowsHelp: $('localOllamaWindowsHelp'), localTabbyHelp: $('localTabbyHelp'), asrMode: $('asrMode'), asrModeHelp: $('asrModeHelp'), browserSttModel: $('browserSttModel'), browserSttDownloadBtn: $('browserSttDownloadBtn'), browserSttUnloadBtn: $('browserSttUnloadBtn'), browserSttStatus: $('browserSttStatus'), browserSttProgress: $('browserSttProgress'), browserSttProgressText: $('browserSttProgressText'),
-    buildPanel: $('buildPanel'), buildStatus: $('buildStatus'), buildDrawer: $('buildDrawer'), buildDrawerToggle: $('buildDrawerToggle'), zonesPanel: $('zonesPanel'), zonesDrawer: $('zonesDrawer'), zonesDrawerToggle: $('zonesDrawerToggle'), zoneList: $('zoneList'), drawZoneDrawerButton: $('drawZoneDrawerButton'), botMenu: $('botMenu'), dogPopup: $('dogPopup'), structureMenu: $('structureMenu'), templateDrawer: $('templateDrawer'), templateDrawerToggle: $('templateDrawerToggle'), templateSaveForm: $('templateSaveForm'), templateName: $('templateName'), templateStatus: $('templateStatus'), templateList: $('templateList'),
+    buildPanel: $('buildPanel'), buildStatus: $('buildStatus'), buildDrawer: $('buildDrawer'), buildDrawerToggle: $('buildDrawerToggle'), zonesPanel: $('zonesPanel'), zonesDrawer: $('zonesDrawer'), zonesDrawerToggle: $('zonesDrawerToggle'), zoneList: $('zoneList'), drawZoneDrawerButton: $('drawZoneDrawerButton'), questDrawer: $('questDrawer'), questDrawerToggle: $('questDrawerToggle'), questPanel: $('questPanel'), questLogContent: $('questLogContent'), botMenu: $('botMenu'), dogPopup: $('dogPopup'), structureMenu: $('structureMenu'), templateDrawer: $('templateDrawer'), templateDrawerToggle: $('templateDrawerToggle'), templateSaveForm: $('templateSaveForm'), templateName: $('templateName'), templateStatus: $('templateStatus'), templateList: $('templateList'),
     settingsOverlay: $('settingsOverlay'), settingsClose: $('settingsClose'), openSettingsTabBtn: $('openSettingsTabBtn'), settingsMainPanel: $('settingsMainPanel'), chatOverlay: $('chatOverlay'), chatToggle: $('chatToggle'), chatCollapse: $('chatCollapse'), assignmentToast: $('assignmentToast'),
     aiLog: $('aiLog'), dslWikiView: $('dslWikiView'), botDrawer: $('botDrawer'), botDrawerToggle: $('botDrawerToggle'), botSearch: $('botSearch'), botTeamForm: $('botTeamForm'), botTeamName: $('botTeamName'), botTeamColor: $('botTeamColor'), botTeamCreate: $('botTeamCreate'),
     multiplayerDrawer: $('multiplayerDrawer'), multiplayerDrawerToggle: $('multiplayerDrawerToggle'), multiplayerHostBtn: $('multiplayerHostBtn'), multiplayerJoinCode: $('multiplayerJoinCode'), multiplayerJoinBtn: $('multiplayerJoinBtn'), multiplayerSaveBtn: $('multiplayerSaveBtn'), multiplayerStatus: $('multiplayerStatus'), multiplayerSessionLink: $('multiplayerSessionLink'),
@@ -468,7 +468,7 @@ export async function startGame() {
     assignmentToastTimer = setTimeout(hideAssignmentToast, 2600);
   }
   function syncDrawerStack() {
-    const open = [dom.botDrawer, dom.templateDrawer, dom.buildDrawer, dom.zonesDrawer, dom.multiplayerDrawer].some(drawer => drawer && !drawer.classList.contains('is-collapsed'));
+    const open = [dom.botDrawer, dom.templateDrawer, dom.buildDrawer, dom.zonesDrawer, dom.multiplayerDrawer, dom.questDrawer].some(drawer => drawer && !drawer.classList.contains('is-collapsed'));
     dom.gameStage?.classList.toggle('has-open-drawer', open);
   }
   function setBotDrawerOpen(open) {
@@ -513,6 +513,49 @@ export async function startGame() {
     syncDrawerStack();
   }
   function toggleQuestDrawer() { setQuestDrawerOpen(dom.questDrawer?.classList.contains('is-collapsed')); }
+
+  // Quest metadata for the quest log display
+  const QUEST_INFO = [
+    { n: 1, title: 'Unpack the Van', desc: 'Right-click the camper van to unpack the first item.' },
+    { n: 2, title: 'First Chop', desc: 'Pick up the axe, chop a tree, then drop the axe (Q).' },
+    { n: 3, title: 'A Helper Arrives', desc: 'Unpack the van again to get a helper bot.' },
+    { n: 4, title: 'Teach the Bot', desc: 'Right-click the bot, teach it to pick up the axe and chop a tree.' },
+    { n: 5, title: 'Storage Solutions', desc: 'Unpack the van, take the storage kit, place it somewhere.' },
+    { n: 6, title: 'Stockpile', desc: 'Chop trees and store 10 logs in the storage building.' },
+    { n: 7, title: 'Dig It', desc: 'Unpack the van to get a shovel.' },
+    { n: 8, title: 'Hole Digger', desc: 'Pick up the shovel, dig 5 holes, then drop the shovel.' },
+    { n: 9, title: 'New Grove', desc: 'Plant seeds from chopped trees into the 5 holes.' },
+  ];
+
+  function renderQuestLog() {
+    const el = dom.questLogContent;
+    if (!el) return;
+    const q = game.campaignQuest;
+    if (!q || !q.active) {
+      if (q && q.completedQuests?.length >= 9) {
+        el.innerHTML = '<div class="quest-log-complete"><p>✓ All quests complete!</p><p class="quest-log-subtitle">The camp is self-sustaining.</p></div>';
+      } else {
+        el.innerHTML = '<p class="empty">No active quest. Start campaign mode to begin.</p>';
+      }
+      return;
+    }
+    const html = QUEST_INFO.map(info => {
+      const done = q.completedQuests.includes(info.n);
+      const current = q.currentQuest === info.n;
+      let progress = '';
+      if (current) {
+        if (info.n === 2) progress = ` <span class="quest-progress">${q.quest2AxePickedUp ? '✓' : '○'} axe · ${q.quest2TreeChopped ? '✓' : '○'} chop · ${q.quest2AxeDropped ? '✓' : '○'} drop</span>`;
+        else if (info.n === 6) progress = ` <span class="quest-progress">${q.logsStored}/10 logs</span>`;
+        else if (info.n === 8) progress = ` <span class="quest-progress">${q.holesDug}/5 holes</span>`;
+        else if (info.n === 9) progress = ` <span class="quest-progress">${q.seedsPlanted}/5 seeds</span>`;
+        else if (info.n === 1 || info.n === 3 || info.n === 5 || info.n === 7) progress = ` <span class="quest-progress">van unpacks: ${q.vanUnpackCount}</span>`;
+      }
+      const cls = done ? 'quest-entry quest-entry--done' : (current ? 'quest-entry quest-entry--current' : 'quest-entry quest-entry--locked');
+      const icon = done ? '✓' : (current ? '▶' : '🔒');
+      return `<div class="${cls}"><span class="quest-icon">${icon}</span><div class="quest-body"><div class="quest-title">${info.title}</div><div class="quest-desc">${info.desc}</div>${current ? progress : ''}</div></div>`;
+    }).join('');
+    el.innerHTML = html;
+  }
   function closeOpenUiPanels() {
     let closed = false;
     if (dom.teachPanel && !dom.teachPanel.hidden) {
@@ -1492,6 +1535,7 @@ export async function startGame() {
   dom.buildDrawerToggle?.addEventListener('click', toggleBuildDrawer);
   dom.zonesDrawerToggle?.addEventListener('click', toggleZonesDrawer);
   dom.multiplayerDrawerToggle?.addEventListener('click', toggleMultiplayerDrawer);
+  dom.questDrawerToggle?.addEventListener('click', toggleQuestDrawer);
   dom.drawZoneButton.addEventListener('click', beginDrawZone);
   dom.drawZoneDrawerButton?.addEventListener('click', beginDrawZone);
   setSettingsTab('controls');
@@ -1582,6 +1626,7 @@ export async function startGame() {
     trigger: id => game.triggerDialogue(id),
     dismiss: () => game.dismissDialogue(),
     advance: () => game.advanceDialogue(),
+    previousPage: () => game.previousDialoguePage(),
     getActive: () => game.getDialogueState()
   };
   window.getDialogueState = () => game.getDialogueState();
