@@ -21,7 +21,7 @@ import {
   itemLabel
 } from '../../visual-assets.js?v=t_building_kits_0618';
 import { getTinySwordsAtlas } from '../shared/tiny-swords-atlas.js?v=ts_fix2_0628';
-import { getWorldObjectSprite, getTreeSwaySprite, treeSpriteKey, rockSpriteKey, structureSpriteKey } from '../shared/sprite-cache.js?v=grove_full_cache_0705';
+import { getWorldObjectSprite, getTreeSwaySprite, treeSpriteKey, rockSpriteKey, structureSpriteKey, getItemSprite } from '../shared/sprite-cache.js?v=grove_full_cache_0705';
 
 export function drawZones(game, c, view) {
   c.save();
@@ -292,7 +292,14 @@ export function drawItem(game, c, i, now) {
     c.strokeStyle = '#fff4d0'; c.lineWidth = 2;
     c.beginPath(); c.arc(0, 0, 17, 0, Math.PI * 2); c.stroke();
   }
-  drawItemAsset(c, i.type);
+  // ── Sprite cache path: blit pre-rendered item when cached ──
+  // Falls back to drawItemAsset (vector) only on cache miss (before init).
+  const cached = getItemSprite(i.type);
+  if (cached) {
+    c.drawImage(cached.sprite, -cached.meta.cx, -cached.meta.cy);
+  } else {
+    drawItemAsset(c, i.type);
+  }
   if (hover) drawNameTag(c, itemLabel(i.type), 0, -24);
   c.restore();
 }

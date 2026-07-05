@@ -50,6 +50,12 @@ Orchestrator Grove prototype maintainers.
   the bot is moving (`b.target || b.vx || b.vy`) and the static frame when idle. Walk animation
   runs at 140ms per step (~7fps), desynced by `b.id * 0.7`. Dog bots keep their existing static
   path.
+- **Item caching**: every loose ground item type (logs, stones, tools, seeds, story objects, and
+  building-kit items) is pre-rendered to a single static `ImageBitmap` in `sprite-cache.js`.
+  `drawItem` (`world-layer.js`) blits the cached sprite via `drawImage` when available; the vector
+  path (`drawItemAsset`) is only a cache-miss fallback (before init completes). Shadow and hover
+  overlay are still drawn live (cheap). Keys: `item_<type>` / `item_<type>_meta` (32×32 canvas,
+  cx=cy=16). Building-kit types route through `drawItemAsset` → `drawBuildingKitItem` internally.
 
 ## Verification
 - Render behavior is covered by smoke tests under `tests/` (e.g. render-viewport-culling,

@@ -3,7 +3,7 @@
 // structures, and static objects. Falls back gracefully if
 // OffscreenCanvas/ImageBitmap unavailable.
 
-import { drawBuildingAsset } from '../../visual-assets.js?v=t_building_kits_0618';
+import { drawBuildingAsset, drawItemAsset } from '../../visual-assets.js?v=t_building_kits_0618';
 import { BUILDING_TYPES } from '../../data.js?v=t_building_kits_0618';
 
 const SPRITE_SIZE = 48; // base sprite canvas size for bots
@@ -236,6 +236,10 @@ function drawMonsterBodyToCtx(ctx, radius, type, wobbleOffset = 0) {
 // ── Structure sprite size: large enough for all building types ──
 const STRUCTURE_SIZE = 160; // max structure w/h is ~132, so 160 gives padding
 const STRUCTURE_HALF = STRUCTURE_SIZE / 2;
+
+// ── Item sprite size: items are small (~18×10 px art) ──
+const ITEM_SIZE = 32;   // 32×32 canvas gives padding around centered item art
+const ITEM_HALF = ITEM_SIZE / 2;
 
 // ── Draw a structure body onto a ctx at center ──
 // Renders the static building visual (no hover highlight) using the existing
@@ -514,6 +518,38 @@ async function buildCache() {
     out[key + '_meta'] = { w: STRUCTURE_SIZE, h: STRUCTURE_SIZE, cx: STRUCTURE_HALF, cy: STRUCTURE_HALF };
   }
 
+  // ── Item sprites: one static frame per loose-item type ────────────
+  // Pre-render every item type that drawItemAsset handles so drawItem
+  // (world-layer.js) can blit instead of running per-frame vector paths.
+  // Item art is roughly within (-9,-5) to (9,5); a 32×32 canvas centered
+  // at (16,16) gives ample padding. Building-kit types route through
+  // drawItemAsset → drawBuildingKitItem internally, so we pre-render them
+  // the same way.
+  // Keys:
+  //   item_<type>     → single ImageBitmap
+  //   item_<type>_meta → { w, h, cx, cy }
+  const ITEM_TYPES = [
+    'stone', 'tree_seed', 'hemp_seed', 'hemp', 'bow', 'arrow_pack',
+    'crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer',
+    'wooden_sword', 'wooden_shield', 'log', 'plank', 'pole', 'stick',
+    'camper_van', 'hammock', 'ultrabook', 'solar_panel', 'power_station',
+    'portable_3d_printer', 'assembler', 'robotics_parts'
+  ];
+  // Building-kit items: each BUILDING_TYPES key + '_kit' suffix.
+  for (const buildingType of Object.keys(BUILDING_TYPES)) {
+    ITEM_TYPES.push(`${buildingType}_kit`);
+  }
+  for (const type of ITEM_TYPES) {
+    const key = `item_${type}`;
+    const { canvas } = preRender(ctx => {
+      // drawItemAsset draws centered at (0,0); translate to canvas center.
+      ctx.translate(ITEM_HALF, ITEM_HALF);
+      drawItemAsset(ctx, type);
+    }, ITEM_SIZE, ITEM_SIZE);
+    out[key] = await toBitmap(canvas);
+    out[key + '_meta'] = { w: ITEM_SIZE, h: ITEM_SIZE, cx: ITEM_HALF, cy: ITEM_HALF };
+  }
+
   return out;
 }
 
@@ -654,6 +690,20 @@ export function getMonsterWobbleSprite(key, frameIndex) {
  */
 export function structureSpriteKey(structure) {
   return `structure_${structure.type}`;
+}
+
+/**
+ * Get the cached sprite and its draw metadata for a loose ground item.
+ * Returns { sprite, meta } or null if not cached.
+ * @param {string} type - item type (e.g. 'log', 'stone', 'sawbench_kit')
+ */
+export function getItemSprite(type) {
+  if (!cache) return null;
+  const key = `item_${type}`;
+  const sprite = cache[key];
+  const meta = cache[key + '_meta'];
+  if (!sprite || !meta) return null;
+  return { sprite, meta };
 }
 
 /**
