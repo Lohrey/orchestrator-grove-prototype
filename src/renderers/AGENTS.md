@@ -36,6 +36,20 @@ Orchestrator Grove prototype maintainers.
   fallback. Tree sprites are pre-rendered as **4 sway frames** per growth stage
   (`sprite-cache.js` `buildCache`); `drawTree` cycles them with a time-based `frameIndex` and
   per-tree `t.id` offset so trees don't sway in sync.
+- **Monster caching**: monsters are pre-rendered as **4 wobble frames** per type (default,
+  night_monster) in `sprite-cache.js`. `drawMonster` (`entities-layer.js`) blits the cached
+  frame via `drawImage`, cycling frames with a time-based index and per-monster `m.id` offset.
+  Vector drawing is only a cache-miss fallback or hover path.
+- **Structure caching**: each building type (sawbench, workbench, factory, etc.) is pre-rendered
+  to a single static `ImageBitmap` in `sprite-cache.js`. `drawStructure` (`world-layer.js`) blits
+  the cached sprite via `drawImage` when not hovered; hovered structures use the vector path
+  (`drawBuildingAsset`) to show highlight outlines. Tiny Swords atlas path for defense towers
+  remains unchanged.
+- **Bot walk-cycle**: bots have **4 walk-cycle frames** per color (5 colors = 20 frames) in
+  addition to the static idle frame. `drawBot` (`entities-layer.js`) uses walk-cycle frames when
+  the bot is moving (`b.target || b.vx || b.vy`) and the static frame when idle. Walk animation
+  runs at 140ms per step (~7fps), desynced by `b.id * 0.7`. Dog bots keep their existing static
+  path.
 
 ## Verification
 - Render behavior is covered by smoke tests under `tests/` (e.g. render-viewport-culling,

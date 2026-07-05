@@ -1,6 +1,10 @@
 // ── Sprite cache: pre-render vector draw functions into ImageBitmaps at init ──
-// This eliminates per-frame path-fill canvas API calls for bots and static objects.
-// Falls back gracefully if OffscreenCanvas/ImageBitmap unavailable.
+// This eliminates per-frame path-fill canvas API calls for bots, monsters,
+// structures, and static objects. Falls back gracefully if
+// OffscreenCanvas/ImageBitmap unavailable.
+
+import { drawBuildingAsset } from '../../visual-assets.js?v=t_building_kits_0618';
+import { BUILDING_TYPES } from '../../data.js?v=t_building_kits_0618';
 
 const SPRITE_SIZE = 48; // base sprite canvas size for bots
 const SPRITE_HALF = SPRITE_SIZE / 2;
@@ -63,15 +67,25 @@ export async function preRenderToBitmap(drawFn, w, h) {
 const BOT_COLORS = ['#80a9c9', '#9abf8f', '#d3a95f', '#c7b683', '#8fb9b5'];
 
 // ── Draw a default bot body onto a ctx at center (SPRITE_HALF, SPRITE_HALF) ──
-function drawBotBodyToCtx(ctx, color, radius, hover) {
+// bobOffset shifts the body vertically for a walk-cycle bob.
+// legSpread shifts small "leg" indicators at the bottom to suggest walking.
+function drawBotBodyToCtx(ctx, color, radius, hover, bobOffset = 0, legSpread = 0) {
   const cx = SPRITE_HALF;
-  const cy = SPRITE_HALF;
+  const cy = SPRITE_HALF + bobOffset;
   const pulse = hover ? 1.5 : 0;
-  // Shadow
+  // Shadow (fixed — stays at base position, does not bob)
   ctx.fillStyle = 'rgba(0,0,0,0.26)';
   ctx.beginPath();
-  ctx.ellipse(cx, cy + radius + 5, radius + 8, 5, 0, 0, Math.PI * 2);
+  ctx.ellipse(SPRITE_HALF, SPRITE_HALF + radius + 5, radius + 8, 5, 0, 0, Math.PI * 2);
   ctx.fill();
+  // Leg indicators (only visible when walking — legSpread != 0)
+  if (legSpread !== 0) {
+    ctx.fillStyle = 'rgba(14,21,18,0.5)';
+    ctx.beginPath();
+    ctx.arc(cx - radius * 0.4 - legSpread, SPRITE_HALF + radius + 3, 2.5, 0, Math.PI * 2);
+    ctx.arc(cx + radius * 0.4 + legSpread, SPRITE_HALF + radius + 3, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
   // Body
   ctx.fillStyle = color;
   ctx.strokeStyle = hover ? '#fff4d0' : '#0e1512';
@@ -165,6 +179,75 @@ function drawPlayerBodyToCtx(ctx, radius, lowHp, facing = 'e') {
   ctx.beginPath();
   ctx.arc(cx + off.x, cy + off.y, 3, 0, Math.PI * 2);
   ctx.fill();
+}
+
+// ── Monster sprite constants ──
+const MONSTER_SIZE = 56; // canvas size for monster sprites (radius 18 + padding)
+const MONSTER_HALF = MONSTER_SIZE / 2;
+
+// ── Draw monster body onto a ctx (simplified, no hover/health bar) ──
+// wobbleOffset shifts the body vertically to bake a breathing/wobble
+// animation into pre-rendered frames. type controls the color scheme.
+function drawMonsterBodyToCtx(ctx, radius, type, wobbleOffset = 0) {
+  const cx = MONSTER_HALF;
+  const cy = MONSTER_HALF;
+  // Shadow (fixed — does not wobble)
+  ctx.fillStyle = 'rgba(0,0,0,0.27)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + radius * 0.7 + 4, radius * 1.1, radius * 0.34, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Body — shifted by wobbleOffset
+  const by = cy + wobbleOffset;
+  const body = ctx.createRadialGradient(cx - radius * 0.25, by - radius * 0.35, 2, cx, by, radius * 1.15);
+  if (type === 'night_monster') {
+    body.addColorStop(0, '#d3a95f');
+    body.addColorStop(0.42, '#6b3f2f');
+    body.addColorStop(1, '#17201d');
+  } else {
+    body.addColorStop(0, '#8fb9b5');
+    body.addColorStop(1, '#344d47');
+  }
+  ctx.fillStyle = body;
+  ctx.strokeStyle = type === 'night_monster' ? '#070908' : '#0d1714';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(cx, by, radius, radius * 0.82, 0, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  // Eyes
+  ctx.fillStyle = type === 'night_monster' ? '#ffd982' : '#e5ece8';
+  ctx.beginPath();
+  ctx.arc(cx - radius * 0.33, by - radius * 0.1, 3.2, 0, Math.PI * 2);
+  ctx.arc(cx + radius * 0.33, by - radius * 0.1, 3.2, 0, Math.PI * 2);
+  ctx.fill();
+  // Pupils
+  ctx.fillStyle = '#16211d';
+  ctx.beginPath();
+  ctx.arc(cx - radius * 0.33, by - radius * 0.1, 1.4, 0, Math.PI * 2);
+  ctx.arc(cx + radius * 0.33, by - radius * 0.1, 1.4, 0, Math.PI * 2);
+  ctx.fill();
+  // Mouth
+  ctx.strokeStyle = 'rgba(229,236,232,.45)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, by + radius * 0.14, radius * 0.25, 0.15, Math.PI - 0.15);
+  ctx.stroke();
+}
+
+// ── Structure sprite size: large enough for all building types ──
+const STRUCTURE_SIZE = 160; // max structure w/h is ~132, so 160 gives padding
+const STRUCTURE_HALF = STRUCTURE_SIZE / 2;
+
+// ── Draw a structure body onto a ctx at center ──
+// Renders the static building visual (no hover highlight) using the existing
+// drawBuildingAsset vector path. The structure is drawn at (STRUCTURE_HALF,
+// STRUCTURE_HALF) so the cached sprite can be blitted via drawImage.
+function drawStructureBodyToCtx(ctx, type, w, h) {
+  const cx = STRUCTURE_HALF;
+  const cy = STRUCTURE_HALF;
+  const def = BUILDING_TYPES[type] || { color: '#6b766f', w, h };
+  // drawBuildingAsset translates to (structure.x, structure.y) and draws
+  // relative to that point, so we pass our center coordinates.
+  drawBuildingAsset(ctx, { type, x: cx, y: cy, w, h }, def, { hover: false, now: 0 });
 }
 
 /**
@@ -300,6 +383,28 @@ async function buildCache() {
     out[key] = await toBitmap(canvas);
   }
 
+  // Bot walk-cycle sprites: 4 frames per color for walking animation.
+  // Each frame bakes a vertical bob + leg spread offset so the render loop
+  // can blit them to show a walking animation when bots are moving.
+  // Keys: bot_<i>_walk → [frame0Bitmap, frame1Bitmap, frame2Bitmap, frame3Bitmap]
+  const WALK_FRAMES = 4;
+  for (let i = 0; i < BOT_COLORS.length; i++) {
+    const key = `bot_${i}_walk`;
+    const frames = [];
+    for (let f = 0; f < WALK_FRAMES; f++) {
+      // Sample sin at 4 phases for bob; use a cosine for leg spread so they
+      // alternate left/right naturally across the cycle.
+      const phase = (f / WALK_FRAMES) * Math.PI * 2;
+      const bobOffset = Math.sin(phase) * 1.5; // ±1.5px vertical bob
+      const legSpread = Math.cos(phase) * 2;   // ±2px leg shift
+      const { canvas } = preRender(ctx => {
+        drawBotBodyToCtx(ctx, BOT_COLORS[i], radius, false, bobOffset, legSpread);
+      }, SPRITE_SIZE, SPRITE_SIZE);
+      frames.push(await toBitmap(canvas));
+    }
+    out[key] = frames;
+  }
+
   // Dog bot sprites: facing left + facing right
   for (const facing of [true, false]) {
     const key = `dog_${facing ? 'right' : 'left'}`;
@@ -363,6 +468,50 @@ async function buildCache() {
     }, size, size);
     out[key] = await toBitmap(canvas);
     out[key + '_meta'] = { w: size, h: size, cx: size / 2, cy: size / 2 };
+  }
+
+  // ── Monster sprites: 2 types × 4 wobble frames ────────────────────
+  // Pre-render monster bodies with baked wobble (vertical offset) so the
+  // render loop can blit them instead of running per-frame radial gradients.
+  // Keys:
+  //   monster_<type>     → [frame0Bitmap, frame1Bitmap, frame2Bitmap, frame3Bitmap]
+  //   monster_<type>_meta → { w, h, cx, cy, frames: 4 }
+  const MONSTER_TYPES = ['default', 'night_monster'];
+  const MONSTER_WOBBLE_FRAMES = 4;
+  const MONSTER_RADIUS = 18;
+  for (const type of MONSTER_TYPES) {
+    const key = `monster_${type}`;
+    const frames = [];
+    for (let f = 0; f < MONSTER_WOBBLE_FRAMES; f++) {
+      // Sample sin at 4 phases: 0, π/2, π, 3π/2 — amplitude ±2px
+      const phase = (f / MONSTER_WOBBLE_FRAMES) * Math.PI * 2;
+      const wobbleOffset = Math.sin(phase) * 2;
+      const { canvas } = preRender(ctx => {
+        drawMonsterBodyToCtx(ctx, MONSTER_RADIUS, type, wobbleOffset);
+      }, MONSTER_SIZE, MONSTER_SIZE);
+      frames.push(await toBitmap(canvas));
+    }
+    out[key] = frames;
+    out[key + '_meta'] = { w: MONSTER_SIZE, h: MONSTER_SIZE, cx: MONSTER_HALF, cy: MONSTER_HALF, frames: MONSTER_WOBBLE_FRAMES };
+  }
+
+  // ── Structure sprites: one static frame per building type ─────────
+  // Pre-render each structure type to a single ImageBitmap so drawStructure
+  // can blit instead of calling drawBuildingAsset every frame. The cached
+  // sprite is drawn at STRUCTURE_SIZE resolution; the render loop positions
+  // it via the meta cx/cy offsets.
+  // Keys:
+  //   structure_<type> → single ImageBitmap
+  //   structure_<type>_meta → { w, h, cx, cy }
+  for (const [type, def] of Object.entries(BUILDING_TYPES)) {
+    const key = `structure_${type}`;
+    const sw = def.w || 96;
+    const sh = def.h || 64;
+    const { canvas } = preRender(ctx => {
+      drawStructureBodyToCtx(ctx, type, sw, sh);
+    }, STRUCTURE_SIZE, STRUCTURE_SIZE);
+    out[key] = await toBitmap(canvas);
+    out[key + '_meta'] = { w: STRUCTURE_SIZE, h: STRUCTURE_SIZE, cx: STRUCTURE_HALF, cy: STRUCTURE_HALF };
   }
 
   return out;
@@ -472,6 +621,55 @@ export function getTreeSwaySprite(key, frameIndex) {
   const sprite = frames[idx];
   if (!sprite) return null;
   return { sprite, meta };
+}
+
+/**
+ * Get a monster sprite key from its type.
+ * Returns 'monster_default' or 'monster_night_monster'.
+ */
+export function monsterSpriteKey(monster) {
+  return `monster_${monster.type || 'default'}`;
+}
+
+/**
+ * Get a specific wobble frame for a monster sprite key.
+ * Returns { sprite, meta } or null if not cached / not a multi-frame entry.
+ * @param {string} key - monster sprite key (e.g. 'monster_default')
+ * @param {number} frameIndex - wobble frame index (0..meta.frames-1)
+ */
+export function getMonsterWobbleSprite(key, frameIndex) {
+  if (!cache) return null;
+  const frames = cache[key];
+  const meta = cache[key + '_meta'];
+  if (!Array.isArray(frames) || !meta || !meta.frames) return null;
+  const idx = ((frameIndex | 0) % meta.frames + meta.frames) % meta.frames;
+  const sprite = frames[idx];
+  if (!sprite) return null;
+  return { sprite, meta };
+}
+
+/**
+ * Get a structure sprite key from its type.
+ * Returns 'structure_<type>'.
+ */
+export function structureSpriteKey(structure) {
+  return `structure_${structure.type}`;
+}
+
+/**
+ * Get a specific walk-cycle frame for a bot color index.
+ * Returns { sprite } or null if not cached / not a multi-frame entry.
+ * @param {number} colorIndex - bot color index (0..4)
+ * @param {number} frameIndex - walk frame index (0..3)
+ */
+export function getBotWalkSprite(colorIndex, frameIndex) {
+  if (!cache) return null;
+  const frames = cache[`bot_${colorIndex}_walk`];
+  if (!Array.isArray(frames)) return null;
+  const idx = ((frameIndex | 0) % 4 + 4) % 4;
+  const sprite = frames[idx];
+  if (!sprite) return null;
+  return { sprite };
 }
 
 export { SPRITE_SIZE, SPRITE_HALF, BOT_COLORS };

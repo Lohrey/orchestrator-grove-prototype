@@ -21,7 +21,7 @@ import {
   itemLabel
 } from '../../visual-assets.js?v=t_building_kits_0618';
 import { getTinySwordsAtlas } from '../shared/tiny-swords-atlas.js?v=ts_fix2_0628';
-import { getWorldObjectSprite, getTreeSwaySprite, treeSpriteKey, rockSpriteKey } from '../shared/sprite-cache.js?v=grove_anim_cache_0705';
+import { getWorldObjectSprite, getTreeSwaySprite, treeSpriteKey, rockSpriteKey, structureSpriteKey } from '../shared/sprite-cache.js?v=grove_full_cache_0705';
 
 export function drawZones(game, c, view) {
   c.save();
@@ -207,43 +207,63 @@ export function drawStructure(game, c, s, now) {
       usedAtlasSprite = true;
     }
   }
+
+  // ── Sprite cache path: blit pre-rendered structure when not hovered ──
+  // Pre-renders each structure type to a single static ImageBitmap at init.
+  // The vector path (drawBuildingAsset) is now ONLY a cache-miss fallback
+  // or the hover path (hover uses vector to show highlight outlines).
+  if (!usedAtlasSprite && !hover) {
+    const key = structureSpriteKey(s);
+    const cached = getWorldObjectSprite(key);
+    if (cached) {
+      c.drawImage(cached.sprite, s.x - cached.meta.cx, s.y - cached.meta.cy);
+      c.restore();
+      return;
+    }
+  }
+
   if (!usedAtlasSprite) {
     drawBuildingAsset(c, s, def, { hover, now });
   }
 
   if (hover) {
-    c.font = '700 12px system-ui';
-    c.textAlign = 'center';
-    c.lineWidth = 3;
-    c.strokeStyle = 'rgba(3, 6, 5, .72)';
-    c.fillStyle = '#f5faf6';
-    c.strokeText(s.name, s.x, s.y + 5);
-    c.fillText(s.name, s.x, s.y + 5);
-    c.font = '11px system-ui';
-    c.fillStyle = '#ffe3a7';
-    const line = s.type === 'throne'
-      ? `${s.ownerLabel || 'player'} · ${Math.max(0, Math.ceil(s.hp ?? 0))}/${s.maxHp || 120} HP`
-      : ['item_palette', 'power_station', 'robotics_parts_bin'].includes(s.type)
-        ? `${s.storageType || 'empty'} ${s.stored || 0}/${s.capacity || 0}`
-      : ['camper_van', 'hammock_camp', 'ultrabook_desk', 'solar_array', 'portable_3d_printer', 'assembler'].includes(s.type)
-        ? (s.label || 'story object')
-      : s.type === 'workbench'
-        ? `S${s.sticks || 0} R${s.stones || 0} ${(s.workbenchRecipe || 'crude_axe').replace('crude_', '')}`
-        : s.type === 'factory'
-          ? `L${s.logs || 0} P${s.planks || 0} Po${s.poles || 0} Se${s.tree_seeds || 0}`
-          : s.type === 'smithery'
-            ? `S${s.sticks || 0} P${s.planks || 0} ${(s.smitheryRecipe || 'wooden_sword').replace('wooden_', '')}`
-            : s.type === 'bowmaker'
-              ? `S${s.sticks || 0}/2 H${s.hemps || 0}/3 B${s.bows || 0}`
-              : s.type === 'defensetower'
-                ? `R${s.rangedAttack?.range || 260} · ${s.rangedAttack?.damage || 1}/s`
-                : `L${s.logs || 0} P${s.planks || 0} Po${s.poles || 0}`;
-    c.strokeText(line, s.x, s.y + 22);
-    c.fillText(line, s.x, s.y + 22);
-    if (s.type === 'throne') drawBar(c, s.x - 42, s.y + s.h / 2 + 8, 84, 7, Math.max(0, s.hp || 0) / Math.max(1, s.maxHp || 120), s.ownerId === 'p1' ? '#80a9c9' : '#c86b5f');
-    if (s.processing) drawBar(c, s.x - 28, s.y + s.h / 2 + 8, 56, 6, 1 - Math.max(0, s.processing.remaining || 0) / Math.max(0.1, s.processing.total || 1), '#d3a95f');
+    drawStructureHoverLabel(c, s);
   }
   c.restore();
+}
+
+/** Draw the hover name/status label and bars for a hovered structure. */
+function drawStructureHoverLabel(c, s) {
+  c.font = '700 12px system-ui';
+  c.textAlign = 'center';
+  c.lineWidth = 3;
+  c.strokeStyle = 'rgba(3, 6, 5, .72)';
+  c.fillStyle = '#f5faf6';
+  c.strokeText(s.name, s.x, s.y + 5);
+  c.fillText(s.name, s.x, s.y + 5);
+  c.font = '11px system-ui';
+  c.fillStyle = '#ffe3a7';
+  const line = s.type === 'throne'
+    ? `${s.ownerLabel || 'player'} · ${Math.max(0, Math.ceil(s.hp ?? 0))}/${s.maxHp || 120} HP`
+    : ['item_palette', 'power_station', 'robotics_parts_bin'].includes(s.type)
+      ? `${s.storageType || 'empty'} ${s.stored || 0}/${s.capacity || 0}`
+    : ['camper_van', 'hammock_camp', 'ultrabook_desk', 'solar_array', 'portable_3d_printer', 'assembler'].includes(s.type)
+      ? (s.label || 'story object')
+    : s.type === 'workbench'
+      ? `S${s.sticks || 0} R${s.stones || 0} ${(s.workbenchRecipe || 'crude_axe').replace('crude_', '')}`
+      : s.type === 'factory'
+        ? `L${s.logs || 0} P${s.planks || 0} Po${s.poles || 0} Se${s.tree_seeds || 0}`
+        : s.type === 'smithery'
+          ? `S${s.sticks || 0} P${s.planks || 0} ${(s.smitheryRecipe || 'wooden_sword').replace('wooden_', '')}`
+          : s.type === 'bowmaker'
+            ? `S${s.sticks || 0}/2 H${s.hemps || 0}/3 B${s.bows || 0}`
+            : s.type === 'defensetower'
+              ? `R${s.rangedAttack?.range || 260} · ${s.rangedAttack?.damage || 1}/s`
+              : `L${s.logs || 0} P${s.planks || 0} Po${s.poles || 0}`;
+  c.strokeText(line, s.x, s.y + 22);
+  c.fillText(line, s.x, s.y + 22);
+  if (s.type === 'throne') drawBar(c, s.x - 42, s.y + s.h / 2 + 8, 84, 7, Math.max(0, s.hp || 0) / Math.max(1, s.maxHp || 120), s.ownerId === 'p1' ? '#80a9c9' : '#c86b5f');
+  if (s.processing) drawBar(c, s.x - 28, s.y + s.h / 2 + 8, 56, 6, 1 - Math.max(0, s.processing.remaining || 0) / Math.max(0.1, s.processing.total || 1), '#d3a95f');
 }
 
 export function drawProjectile(c, p) {

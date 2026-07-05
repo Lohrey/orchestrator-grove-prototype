@@ -32,6 +32,9 @@ Orchestrator Grove prototype maintainers.
 - Run individual smoke tests directly: `python3 tests/<name>-smoke.py`.
 - `python3 tests/canvas2d-sway-transparency-smoke.py` — verifies Canvas2D tree sway frame
   blitting and semi-transparent occlusion via `globalAlpha` (requires `python3 -m http.server 8191`).
+- `python3 tests/canvas2d-full-cache-smoke.py` — verifies Canvas2D monster wobble frames,
+  structure sprite caching, and bot walk-cycle animation render without errors (requires
+  `python3 -m http.server 8191`).
 
 ## Child DOX Index
 - None.

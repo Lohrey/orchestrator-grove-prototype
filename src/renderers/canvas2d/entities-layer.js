@@ -6,7 +6,7 @@ import {
   getLookOffset,
   isBotHandTool,
   roundedRect
-} from '../shared/renderer-utils.js?v=grove_anim_cache_0705';
+} from '../shared/renderer-utils.js?v=grove_full_cache_0705';
 import { createDepthDrawable } from '../../depth-sort.js?v=t_da28d8dd';
 import {
   drawHeldToolAsset,
@@ -17,8 +17,12 @@ import {
   isSpriteCacheReady,
   botSpriteKey,
   playerSpriteKey,
+  monsterSpriteKey,
+  getMonsterWobbleSprite,
+  getBotWalkSprite,
+  BOT_COLORS,
   SPRITE_SIZE
-} from '../shared/sprite-cache.js?v=grove_anim_cache_0705';
+} from '../shared/sprite-cache.js?v=grove_full_cache_0705';
 
 // ── Procedural offscreen-cached player & bot rendering ─────────────────
 // The buggy Tiny Swords spritesheet atlas path has been disabled for the
@@ -43,6 +47,31 @@ export function drawMonster(game, c, m, now) {
   const hover = game.mouse.hoverMonster === m;
   const r = m.radius || 18;
   const wobble = m._wobble ?? Math.sin(now / 520 + (m.phase || 0)) * 2;
+
+  // ── Sprite cache path: blit pre-rendered monster body ──
+  // Pre-rendered as 4 wobble frames per type; the render loop cycles through
+  // them using a time-based frameIndex with a per-monster offset (m.id) so
+  // monsters don't all wobble in sync. The vector path is now ONLY a
+  // cache-miss fallback.
+  if (!hover) {
+    const key = monsterSpriteKey(m);
+    if (key) {
+      // Wobble frame selection: 400ms per frame step → ~2.5fps cycle through 4 frames.
+      // Per-monster offset via m.id * 0.7 desyncs neighbouring monsters.
+      const frameIndex = Math.floor((now / 400 + (m.id || 0) * 0.7) % 4);
+      const cached = getMonsterWobbleSprite(key, frameIndex);
+      if (cached) {
+        c.drawImage(cached.sprite, m.x - cached.meta.cx, m.y - cached.meta.cy);
+        // Health bar on top (vector draw is cheap and not the bottleneck)
+        if ((m.hp || 0) < (m.maxHp || 10)) {
+          drawBar(c, m.x - 20, m.y - r - 16, 40, 5, (m.hp || 0) / Math.max(1, m.maxHp || 10), '#8fb9b5');
+        }
+        return;
+      }
+    }
+  }
+
+  // Fallback: full vector drawing (cache-miss or hover)
   c.save();
   drawShadow(c, m.x, m.y + r * .7, r * 1.1, r * .34, .27);
   c.translate(m.x, m.y + wobble);
@@ -187,7 +216,19 @@ export function drawBot(game, c, b, now) {
   const spriteCache = getSpriteCache();
   if (spriteCache) {
     const key = botSpriteKey(b);
-    const sprite = spriteCache[key];
+    const colorIdx = BOT_COLORS.indexOf(b.color || BOT_COLORS[0]);
+    // Determine if bot is moving (has a target destination it's heading to)
+    const isMoving = !!(b.target || b.vx || b.vy);
+    // Use walk-cycle frames when moving; static idle frame otherwise
+    let sprite;
+    if (isMoving && colorIdx >= 0) {
+      // Walk-cycle: 140ms per step (~7fps), desynced by bot id
+      const frameIndex = Math.floor((now / 140 + (b.id || 0) * 0.7) % 4);
+      const walkSprite = getBotWalkSprite(colorIdx, frameIndex);
+      sprite = walkSprite ? walkSprite.sprite : spriteCache[key];
+    } else {
+      sprite = spriteCache[key];
+    }
     if (sprite) {
       // Hover highlight glow behind the sprite
       if (hover) {
