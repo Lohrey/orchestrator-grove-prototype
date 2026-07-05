@@ -56,6 +56,17 @@ Orchestrator Grove prototype maintainers.
   path (`drawItemAsset`) is only a cache-miss fallback (before init completes). Shadow and hover
   overlay are still drawn live (cheap). Keys: `item_<type>` / `item_<type>_meta` (32×32 canvas,
   cx=cy=16). Building-kit types route through `drawItemAsset` → `drawBuildingKitItem` internally.
+- **Power-of-2 sprite grid**: All sprite cache canvases use power-of-2 dimensions
+  following a Moonlighter-style pixel-art grid:
+  - Items/Tools/Seeds: 32×32
+  - Bots/Player/Dog/Monsters/Trees/Rocks: 64×64
+  - Structures: 256×256 (bumped from the nominal 128 to 256 because camper_van
+    has w=132 > 128; all other structures fit in 128)
+  This ensures WebGL texture efficiency (no padding waste), uniform UV mapping
+  for atlas packing, and integer-scaling compatibility for the native-resolution
+  render pipeline (planned: 640×360 backing store, integer-scaled to viewport).
+  Phase 1 (sprite cache + `image-rendering: pixelated` in `styles.css`) is done;
+  Phase 2 (native backing-store resolution + camera zoom recalibration) is future work.
 
 ## Verification
 - Render behavior is covered by smoke tests under `tests/` (e.g. render-viewport-culling,

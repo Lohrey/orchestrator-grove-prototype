@@ -6,7 +6,7 @@
 import { drawBuildingAsset, drawItemAsset } from '../../visual-assets.js?v=t_building_kits_0618';
 import { BUILDING_TYPES } from '../../data.js?v=t_building_kits_0618';
 
-const SPRITE_SIZE = 48; // base sprite canvas size for bots
+const SPRITE_SIZE = 64; // base sprite canvas size for bots/player/dog (power-of-2 grid)
 const SPRITE_HALF = SPRITE_SIZE / 2;
 
 let cachePromise = null;
@@ -182,7 +182,7 @@ function drawPlayerBodyToCtx(ctx, radius, lowHp, facing = 'e') {
 }
 
 // ── Monster sprite constants ──
-const MONSTER_SIZE = 56; // canvas size for monster sprites (radius 18 + padding)
+const MONSTER_SIZE = 64; // canvas size for monster sprites (power-of-2 grid, radius 18 + padding)
 const MONSTER_HALF = MONSTER_SIZE / 2;
 
 // ── Draw monster body onto a ctx (simplified, no hover/health bar) ──
@@ -233,13 +233,20 @@ function drawMonsterBodyToCtx(ctx, radius, type, wobbleOffset = 0) {
   ctx.stroke();
 }
 
-// ── Structure sprite size: large enough for all building types ──
-const STRUCTURE_SIZE = 160; // max structure w/h is ~132, so 160 gives padding
+// ── Structure sprite size: power-of-2 grid ──
+// camper_van w=132 > 128, so next power-of-2 is 256 to avoid clipping.
+const STRUCTURE_SIZE = 256;
 const STRUCTURE_HALF = STRUCTURE_SIZE / 2;
 
 // ── Item sprite size: items are small (~18×10 px art) ──
 const ITEM_SIZE = 32;   // 32×32 canvas gives padding around centered item art
 const ITEM_HALF = ITEM_SIZE / 2;
+
+// ── Tree/rock sprite sizes: fixed 64×64 (power-of-2 grid) ──
+const TREE_SIZE = 64;
+const TREE_HALF = TREE_SIZE / 2;
+const ROCK_SIZE = 64;
+const ROCK_HALF = ROCK_SIZE / 2;
 
 // ── Draw a structure body onto a ctx at center ──
 // Renders the static building visual (no hover highlight) using the existing
@@ -283,8 +290,8 @@ function roundRectPath(ctx, x, y, w, h, r) {
 
 // ── Draw a rock body onto a ctx (simplified, no hover bar) ──
 function drawRockBodyToCtx(ctx, radius, depleted) {
-  const cx = (radius + 14);
-  const cy = (radius + 14);
+  const cx = ROCK_HALF;
+  const cy = ROCK_HALF;
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.26)';
   ctx.beginPath();
@@ -315,8 +322,8 @@ function drawRockBodyToCtx(ctx, radius, depleted) {
 // into pre-rendered frames. 0 = no sway (rest pose). The shadow and trunk
 // stay fixed; only the foliage blobs move, mirroring the live vector path.
 function drawTreeBodyToCtx(ctx, radius, stage, swayPx = 0) {
-  const cx = (radius + 12);
-  const cy = (radius + 12);
+  const cx = TREE_HALF;
+  const cy = TREE_HALF;
 
   // Shadow (fixed — does not sway)
   ctx.fillStyle = 'rgba(0,0,0,0.24)';
@@ -448,7 +455,7 @@ async function buildCache() {
   const SWAY_AMPLITUDE = 2.5; // px; matches the live vector sway magnitude
   for (const [stage, treeRadius] of [['grown_tree', 22], ['small_tree', 18], ['sapling', 14]]) {
     const key = `tree_${stage}`;
-    const size = (treeRadius + 12) * 2; // padding for foliage/leaves
+    const size = TREE_SIZE; // fixed 64×64 (power-of-2 grid)
     const frames = [];
     for (let f = 0; f < SWAY_FRAMES; f++) {
       // Sample sin at 4 evenly-spaced phases: 0, π/2, π, 3π/2
@@ -460,18 +467,18 @@ async function buildCache() {
       frames.push(await toBitmap(canvas));
     }
     out[key] = frames; // array of 4 ImageBitmaps
-    out[key + '_meta'] = { w: size, h: size, cx: size / 2, cy: size / 2, frames: SWAY_FRAMES };
+    out[key + '_meta'] = { w: size, h: size, cx: TREE_HALF, cy: TREE_HALF, frames: SWAY_FRAMES };
   }
 
   // Rocks: standard deposit (r=18 default)
   for (const [variant, rockRadius] of [['normal', 18], ['depleted', 18]]) {
     const key = `rock_${variant}`;
-    const size = (rockRadius + 14) * 2;
+    const size = ROCK_SIZE; // fixed 64×64 (power-of-2 grid)
     const { canvas } = preRender(ctx => {
       drawRockBodyToCtx(ctx, rockRadius, variant === 'depleted');
     }, size, size);
     out[key] = await toBitmap(canvas);
-    out[key + '_meta'] = { w: size, h: size, cx: size / 2, cy: size / 2 };
+    out[key + '_meta'] = { w: size, h: size, cx: ROCK_HALF, cy: ROCK_HALF };
   }
 
   // ── Monster sprites: 2 types × 4 wobble frames ────────────────────

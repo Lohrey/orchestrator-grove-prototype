@@ -101,6 +101,12 @@ code { color: #d7e8cf; }
 .statline { text-align: right; font-size: 13px; line-height: 1.35; min-width: 190px; }
 .statline b { color: var(--text); }
 
+/* ── Pixel-art pipeline (Moonlighter-style integer scaling) ──
+   Phase 1 (NOW): sprite cache normalized to power-of-2 grid (32/64/128/256).
+                  CSS image-rendering: pixelated prepared.
+   Phase 2 (LATER): canvas backing store → fixed native resolution (640×360),
+                    integer-scaled (×3/×4/×5) to fill screen via CSS.
+                    Camera zoom recalibrated to native-res world units. */
 #game {
   display: block;
   width: 100%;
@@ -110,7 +116,8 @@ code { color: #d7e8cf; }
   background: #18201c;
   border: 0;
   border-radius: 0;
-  image-rendering: auto;
+  image-rendering: pixelated;        /* crisp pixel-art upscaling */
+  image-rendering: crisp-edges;      /* Firefox fallback */
 }
 
 .hintbar,
