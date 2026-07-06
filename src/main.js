@@ -1,31 +1,32 @@
-import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, ALLOWED_OPS, formatDslActionWiki, getActionStepChainRows } from './data.js?v=grove_full_cache_0705';
-import { createChatController } from './chat.js?v=grove_full_cache_0705';
-import { createAudioController } from './audio.js?v=grove_full_cache_0705';
+import { PROGRAMS, PROGRAM_TEMPLATES, DSL_ACTION_WIKI, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT, ALLOWED_OPS, formatDslActionWiki, getActionStepChainRows } from './data.js';
+import { createChatController } from './chat.js';
+import { createAudioController } from './audio.js';
 import { createBrowserSttController, DEFAULT_BROWSER_STT_MODEL } from './browser-stt.js';
-import { Game } from './world.js?v=grove_full_cache_0705';
-import { createSaveGameManager, GAME_MODE_LABELS, normalizeGameMode } from './savegames.js?v=grove_full_cache_0705';
-import { createMultiplayerController } from './multiplayer.js?v=grove_full_cache_0705';
-import { probeRenderer, startGameLoop } from './browser-runtime.js?v=grove_full_cache_0705';
-import { createRenderBackend } from './renderers/index.js?v=grove_full_cache_0705';
-import { createSimWorkerClient } from './sim/sim-worker-client.js?v=grove_full_cache_0705';
-import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js?v=grove_full_cache_0705';
-import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js?v=grove_full_cache_0705';
-import { LOCAL_AI_PROVIDERS, defaultOllamaEndpoint, getDefaultProviderConfig, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, validateDslAssignments, validateToolCalls } from './assistant.js?v=grove_full_cache_0705';
-import { escapeHtml } from './utils.js?v=grove_full_cache_0705';
+import { Game } from './world.js';
+import { createAudioUi } from './ui/audio-ui.js';
+import { createSaveGameManager, GAME_MODE_LABELS, normalizeGameMode } from './savegames.js';
+import { createMultiplayerController } from './multiplayer.js';
+import { probeRenderer, startGameLoop } from './browser-runtime.js';
+import { createRenderBackend } from './renderers/index.js';
+import { createSimWorkerClient } from './sim/sim-worker-client.js';
+import { CAMPAIGN_INTRO_SCENES } from './campaign-scenes.js';
+import { createCampaignIntroCinematic } from './campaign-intro-cinematic.js';
+import { LOCAL_AI_PROVIDERS, defaultOllamaEndpoint, getDefaultProviderConfig, parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, refreshLocalAiModels, validateDslAssignments, validateToolCalls } from './assistant/assistant.js';
+import { escapeHtml } from './utils.js';
 // UI module imports — extracted from the monolithic startGame() closure
-import { createDomHelpers } from './ui/dom-helpers.js?v=grove_full_cache_0705';
-import { createChatUi } from './ui/chat-ui.js?v=grove_full_cache_0705';
-import { createRendererSettings } from './ui/renderer-settings.js?v=grove_full_cache_0705';
-import { createPerformanceUi } from './ui/performance-ui.js?v=grove_full_cache_0705';
-import { createProviderUi } from './ui/provider-ui.js?v=grove_full_cache_0705';
-import { createFullscreenUi } from './ui/fullscreen-ui.js?v=grove_full_cache_0705';
-import { createAssistantUi } from './ui/assistant-ui.js?v=grove_full_cache_0705';
+import { createDomHelpers } from './ui/dom-helpers.js';
+import { createChatUi } from './ui/chat-ui.js';
+import { createRendererSettings } from './ui/renderer-settings.js';
+import { createPerformanceUi } from './ui/performance-ui.js';
+import { createProviderUi } from './ui/provider-ui.js';
+import { createFullscreenUi } from './ui/fullscreen-ui.js';
+import { createAssistantUi } from './ui/assistant-ui.js';
 
 export async function startGame() {
   const $ = id => document.getElementById(id);
   const dom = {
     canvas: $('game'), gameStage: $('gameStage'), chatLog: $('chatLog'), chatForm: $('chatForm'), chatInput: $('chatInput'), micButton: $('micButton'), asrStatus: $('asrStatus'), quickCommands: $('quickCommands'), drawZoneButton: $('drawZoneButton'),
-    botList: $('botList'), statline: $('statline'), rendererStatus: $('rendererStatus'), targetFps: $('targetFps'), targetFpsValue: $('targetFpsValue'), maxBots: $('maxBots'), maxBotsValue: $('maxBotsValue'), performanceProfile: $('performanceProfile'), applyAutoPerformance: $('applyAutoPerformance'), fogOfWarToggle: $('fogOfWarToggle'), lightingEffects: $('lightingEffects'), dynamicShadows: $('dynamicShadows'), showFpsOverlay: $('showFpsOverlay'), useCanvas2dRenderer: $('useCanvas2dRenderer'), pixiHighResolution: $('pixiHighResolution'), pixiAntialias: $('pixiAntialias'), detectedGpu: $('detectedGpu'), detectedVram: $('detectedVram'), detectedProfile: $('detectedProfile'), recommendedBots: $('recommendedBots'), recommendedFps: $('recommendedFps'), performanceNotes: $('performanceNotes'),
+    botList: $('botList'), statline: $('statline'), rendererStatus: $('rendererStatus'), targetFps: $('targetFps'), targetFpsValue: $('targetFpsValue'), maxBots: $('maxBots'), maxBotsValue: $('maxBotsValue'), performanceProfile: $('performanceProfile'), applyAutoPerformance: $('applyAutoPerformance'), fogOfWarToggle: $('fogOfWarToggle'), lightingEffects: $('lightingEffects'), dynamicShadows: $('dynamicShadows'), showFpsOverlay: $('showFpsOverlay'), rendererWebgl2: $('rendererWebgl2'), rendererPixi: $('rendererPixi'), rendererCanvas2d: $('rendererCanvas2d'), pixiHighResolution: $('pixiHighResolution'), pixiAntialias: $('pixiAntialias'), detectedGpu: $('detectedGpu'), detectedVram: $('detectedVram'), detectedProfile: $('detectedProfile'), recommendedBots: $('recommendedBots'), recommendedFps: $('recommendedFps'), performanceNotes: $('performanceNotes'),
     teachPanel: $('teachPanel'), teachCloseBtn: $('teachCloseBtn'), teachRecordBtn: $('teachRecordBtn'), teachAssignBtn: $('teachAssignBtn'), teachBotId: $('teachBotId'), teachStatus: $('teachStatus'), teachSteps: $('teachSteps'),
     sawLogs: $('sawLogs'), sawPlanks: $('sawPlanks'), sawPoles: $('sawPoles'), factoryPlanks: $('factoryPlanks'), factoryRecipe: $('factoryRecipe'), looseLogs: $('looseLogs'), loosePlanks: $('loosePlanks'), looseBase: $('looseBase'), paletteItems: $('paletteItems'), programSelect: $('programSelect'), programView: $('programView'),
     codeLoopBotId: $('codeLoopBotId'), codeLoopEditor: $('codeLoopEditor'), codeLoopStartBtn: $('codeLoopStartBtn'), codeLoopStopBtn: $('codeLoopStopBtn'), codeLoopStatus: $('codeLoopStatus'), codeLoopConsole: $('codeLoopConsole'),
@@ -55,7 +56,11 @@ export async function startGame() {
   const SEMANTIC_ROUTING_KEY = 'orchestratorGrove.semanticRoutingEnabled';
   const ASSISTANT_LOADOUT_KEY = 'orchestratorGrove.assistantLoadout.v1';
   const CUSTOM_ACTION_PACKS_KEY = 'orchestratorGrove.customActionPacks.v1';
-  const SETTINGS_KEY = 'orchestratorGrove.settings.v1';
+  // Bumped from v1 → v2: the renderer default changed from 'pixi' to 'webgl2'.
+  // Old v1 entries may carry rendererMode:'pixi' from the previous default,
+  // which would override the new code default. Bumping the key makes those
+  // stale entries invisible so the WebGL2 default takes effect cleanly.
+  const SETTINGS_KEY = 'orchestratorGrove.settings.v2';
   // ── Constants & config (kept in main.js as the orchestrator) ──────────
   const SAVE_KEY = 'orchestratorGrove.save.v1';
   const SAVE_LIBRARY_KEY = 'orchestratorGrove.saveLibrary.v2';
@@ -139,29 +144,12 @@ export async function startGame() {
   }
 
   // Assistant module wiring
-  function getActionPackCatalog() { return assistantModule.getActionPackCatalog(); }
-  function getAssistantLoadout() { return assistantModule.getAssistantLoadout(); }
-  function getAssistantLoadoutDebug() { return assistantModule.getAssistantLoadoutDebug(); }
-  function getSemanticRoutingEnabled() { return assistantModule.getSemanticRoutingEnabled(); }
-  function getTemplateRoutingEnabled() { return assistantModule.getTemplateRoutingEnabled(); }
-  function getChatDraftText() { return assistantModule.getChatDraftText(); }
-  function getRoutedAssistantLoadout(text, opts) { return assistantModule.getRoutedAssistantLoadout(text, opts); }
-  function updateSemanticRouterUi(route) { return assistantModule.updateSemanticRouterUi(route); }
   function scheduleSemanticRoutePreview() { return assistantModule.scheduleSemanticRoutePreview({ updateAssistantPromptPreview: () => updateAssistantPromptPreview() })(); }
-  function renderActionStepChainTable() { return assistantModule.renderActionStepChainTable(); }
-  function readCustomPackForm() { return assistantModule.readCustomPackForm(); }
-  function clearCustomPackForm(pack) { return assistantModule.clearCustomPackForm(pack); }
-  function renderCustomPackActionSelector(ops) { return assistantModule.renderCustomPackActionSelector(ops); }
-  function renderCustomPackAliasEditor(ops, src) { return assistantModule.renderCustomPackAliasEditor(ops, src); }
-  function readCustomPackAliasEditor(ops) { return assistantModule.readCustomPackAliasEditor(ops); }
-  function defaultPackActionAliases(ops, src) { return assistantModule.defaultPackActionAliases(ops, src); }
-  function actionRowsByOp() { return assistantModule.actionRowsByOp(); }
-  function flattenPartAliases(aliases) { return assistantModule.flattenPartAliases(aliases); }
 
   function updateAssistantPromptPreview() {
     return assistantModule.updateAssistantPromptPreview({
       game, getCurrentLocalAiConfig,
-      getTemplateRoutingEnabled: () => getTemplateRoutingEnabled(),
+      getTemplateRoutingEnabled: () => assistantModule.getTemplateRoutingEnabled(),
       formatAssistantPromptPreview
     })();
   }
@@ -178,14 +166,14 @@ export async function startGame() {
   function persistAssistantLoadout(nextLoadout) {
     return assistantModule.persistAssistantLoadout({
       storageSet, renderKnowledgePackSelector: msg => renderKnowledgePackSelector(msg),
-      game, updateSemanticRouterUi: route => updateSemanticRouterUi(route)
+      game, updateSemanticRouterUi: route => assistantModule.updateSemanticRouterUi(route)
     })(nextLoadout);
   }
   function persistCustomActionPacks(message) {
     return assistantModule.persistCustomActionPacks({
       storageGet, storageSet,
       renderKnowledgePackSelector: msg => renderKnowledgePackSelector(msg),
-      game, updateSemanticRouterUi: route => updateSemanticRouterUi(route)
+      game, updateSemanticRouterUi: route => assistantModule.updateSemanticRouterUi(route)
     })(message);
   }
   function upsertCustomActionPack(input) {
@@ -194,7 +182,7 @@ export async function startGame() {
   function deleteCustomActionPack(id) {
     return assistantModule.deleteCustomActionPack({
       persistFn: msg => persistCustomActionPacks(msg),
-      clearForm: () => clearCustomPackForm()
+      clearForm: () => assistantModule.clearCustomPackForm()
     })(id);
   }
 
@@ -240,7 +228,7 @@ export async function startGame() {
 
   const params = new URLSearchParams(window.location.search);
   const storedSettings = readJson(SETTINGS_KEY, null);
-  const storedRendererMode = String(storedSettings?.rendererMode || 'pixi').toLowerCase();
+  const storedRendererMode = String(storedSettings?.rendererMode || 'webgl2').toLowerCase();
   const storedRendererSettings = normalizeRendererSettings(storedSettings?.rendererSettings);
   const storedPerformanceProfile = storedSettings?.performanceProfile || 'auto';
   const storedAsrMode = storedSettings?.asrMode || storageGet(ASR_MODE_KEY);
@@ -264,16 +252,16 @@ export async function startGame() {
     onSubmit: text => handleAssistant(text)
   });
   const rendererUrlParam = params.get('renderer');
-  const rendererMode = rendererUrlParam || storedRendererMode || 'pixi';
+  const rendererMode = rendererUrlParam || storedRendererMode || 'webgl2';
   syncRendererModeUi(rendererMode);
   syncRendererSettingsUi(storedRendererSettings);
   const renderBackend = await createRenderBackend({ canvas: dom.canvas, mode: rendererMode, settings: storedRendererSettings });
   game = new Game({ canvas: dom.canvas, chat, dom, isChatActive: () => isChatOpen(), renderBackend });
-  game.setManagerKnowledgePackCatalog(getActionPackCatalog());
-  semanticRouter.syncCatalog(getActionPackCatalog(), getAssistantLoadout()).then(() => updateSemanticRouterUi(semanticRouter.getLastRoute?.())).catch(error => {
+  game.setManagerKnowledgePackCatalog(assistantModule.getActionPackCatalog());
+  semanticRouter.syncCatalog(assistantModule.getActionPackCatalog(), assistantModule.getAssistantLoadout()).then(() => assistantModule.updateSemanticRouterUi(semanticRouter.getLastRoute?.())).catch(error => {
     if (dom.semanticRouterStatus) dom.semanticRouterStatus.textContent = `Semantic router unavailable: ${error.message}`;
   });
-  game.getDefaultManagerKnowledgePacks = () => getAssistantLoadout();
+  game.getDefaultManagerKnowledgePacks = () => assistantModule.getAssistantLoadout();
   game.managerMessageHandler = ({ manager, sender, message }) => handleManagerMessage(manager, message, { source: 'delegate_to_manager', sender });
   game.renderer = {
     text: formatRendererStatus(renderBackend.text || renderBackend.kind || 'Renderer ready'),
@@ -1008,21 +996,21 @@ export async function startGame() {
 
   async function handleAssistant(text) {
     addChat('user', escapeHtml(text));
-    const knowledgePacks = getActionPackCatalog();
-    const routed = await getRoutedAssistantLoadout(text, { loadout: getAssistantLoadout(), knowledgePacks });
+    const knowledgePacks = assistantModule.getActionPackCatalog();
+    const routed = await assistantModule.getRoutedAssistantLoadout(text, { loadout: assistantModule.getAssistantLoadout(), knowledgePacks });
     const assistantLoadoutForRequest = routed.loadout;
     const semanticRoute = routed.route;
     if (dom.llmMode.value === 'ollama' || dom.llmMode.value === 'tabbyapi') {
       const { provider, endpoint, model } = getCurrentLocalAiConfig();
       const parsed = provider === 'tabbyapi'
-        ? await parseWithOpenAiCompatible(text, game, { endpoint, model, providerLabel: LOCAL_AI_PROVIDERS.tabbyapi.backendLabel, enableTemplates: getTemplateRoutingEnabled(), loadout: assistantLoadoutForRequest, knowledgePacks })
-        : await parseWithOllama(text, game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout: assistantLoadoutForRequest, knowledgePacks });
+        ? await parseWithOpenAiCompatible(text, game, { endpoint, model, providerLabel: LOCAL_AI_PROVIDERS.tabbyapi.backendLabel, enableTemplates: assistantModule.getTemplateRoutingEnabled(), loadout: assistantLoadoutForRequest, knowledgePacks })
+        : await parseWithOllama(text, game, { endpoint, model, enableTemplates: assistantModule.getTemplateRoutingEnabled(), loadout: assistantLoadoutForRequest, knowledgePacks });
       const { debug, ...parsedForLog } = parsed;
       logChatAi({ mode: provider === 'tabbyapi' ? LOCAL_AI_PROVIDERS.tabbyapi.backendLabel : 'ollama', sent: debug?.sent || { endpoint, model, text, loadout: assistantLoadoutForRequest, semanticRoute }, returned: debug?.returned || parsedForLog });
       return handleParsed(parsed);
     } else {
-      const parsed = parseAssistantRequest(text, game, { enableTemplates: getTemplateRoutingEnabled(), loadout: assistantLoadoutForRequest, knowledgePacks });
-      logChatAi({ mode: 'mock parser', sent: { text, enableTemplates: getTemplateRoutingEnabled(), loadout: assistantLoadoutForRequest, semanticRoute }, returned: parsed });
+      const parsed = parseAssistantRequest(text, game, { enableTemplates: assistantModule.getTemplateRoutingEnabled(), loadout: assistantLoadoutForRequest, knowledgePacks });
+      logChatAi({ mode: 'mock parser', sent: { text, enableTemplates: assistantModule.getTemplateRoutingEnabled(), loadout: assistantLoadoutForRequest, semanticRoute }, returned: parsed });
       return handleParsed(parsed);
     }
   }
@@ -1034,7 +1022,7 @@ export async function startGame() {
     const clean = game.sanitizeManagerMessage?.(message) || String(message || '').trim();
     if (!clean) return { ok: false, error: 'Manager message is empty' };
     const loadout = game.normalizeManagerKnowledgePacks(manager.managerKnowledgePacks || manager.knowledgePacks || [], ['starter_automation']);
-    const routed = await getRoutedAssistantLoadout(clean, { loadout, knowledgePacks: getActionPackCatalog() });
+    const routed = await assistantModule.getRoutedAssistantLoadout(clean, { loadout, knowledgePacks: assistantModule.getActionPackCatalog() });
     const managerLoadoutForRequest = routed.loadout;
     const semanticRoute = routed.route;
     const managerText = `Manager ${game.botDisplayName(manager)} (${manager.ref}, status manager) received a delegation from ${sender ? game.botDisplayName(sender) : source}: ${clean}`;
@@ -1043,12 +1031,12 @@ export async function startGame() {
     if (dom.llmMode.value === 'ollama' || dom.llmMode.value === 'tabbyapi') {
       const { provider, endpoint, model } = getCurrentLocalAiConfig();
       parsed = provider === 'tabbyapi'
-        ? await parseWithOpenAiCompatible(managerText, game, { endpoint, model, providerLabel: `${LOCAL_AI_PROVIDERS.tabbyapi.backendLabel} manager`, enableTemplates: getTemplateRoutingEnabled(), loadout: managerLoadoutForRequest, knowledgePacks: getActionPackCatalog() })
-        : await parseWithOllama(managerText, game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout: managerLoadoutForRequest, knowledgePacks: getActionPackCatalog() });
+        ? await parseWithOpenAiCompatible(managerText, game, { endpoint, model, providerLabel: `${LOCAL_AI_PROVIDERS.tabbyapi.backendLabel} manager`, enableTemplates: assistantModule.getTemplateRoutingEnabled(), loadout: managerLoadoutForRequest, knowledgePacks: assistantModule.getActionPackCatalog() })
+        : await parseWithOllama(managerText, game, { endpoint, model, enableTemplates: assistantModule.getTemplateRoutingEnabled(), loadout: managerLoadoutForRequest, knowledgePacks: assistantModule.getActionPackCatalog() });
       const { debug, ...parsedForLog } = parsed;
       logChatAi({ mode: provider === 'tabbyapi' ? `${LOCAL_AI_PROVIDERS.tabbyapi.backendLabel} manager` : 'ollama manager', sent: debug?.sent || { endpoint, model, text: managerText, loadout: managerLoadoutForRequest, semanticRoute }, returned: debug?.returned || parsedForLog });
     } else {
-      parsed = parseAssistantRequest(managerText, game, { enableTemplates: getTemplateRoutingEnabled(), loadout: managerLoadoutForRequest, knowledgePacks: getActionPackCatalog() });
+      parsed = parseAssistantRequest(managerText, game, { enableTemplates: assistantModule.getTemplateRoutingEnabled(), loadout: managerLoadoutForRequest, knowledgePacks: assistantModule.getActionPackCatalog() });
       logChatAi({ mode: 'mock manager parser', sent: { text: managerText, loadout: managerLoadoutForRequest, managerBotId: manager.id, semanticRoute }, returned: parsed });
     }
     const results = handleParsed(parsed);
@@ -1056,37 +1044,9 @@ export async function startGame() {
     return { ok: true, managerId: manager.id, loadout: managerLoadoutForRequest, parsed, results };
   }
 
-  function setRadioWidgetOpen(open) {
-    if (!dom.radioWidgetPanel || !dom.radioWidgetToggle) return;
-    dom.radioWidgetPanel.hidden = !open;
-    dom.radioWidgetToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    dom.widgetRoster?.classList.toggle('has-open-widget', open);
-    dom.widgetRosterHandle?.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (open) setWidgetRosterOpen(true);
-  }
-
-  function setWidgetRosterOpen(open) {
-    dom.widgetRoster?.classList.toggle('is-roster-open', !!open);
-    dom.widgetRosterHandle?.setAttribute('aria-expanded', open ? 'true' : 'false');
-  }
-
-  function syncAudioUi(message = '') {
-    if (dom.audioSfxToggle) dom.audioSfxToggle.checked = audio.state.enabled;
-    if (dom.audioSfxVolume) dom.audioSfxVolume.value = String(audio.state.sfxVolume);
-    if (dom.audioMusicVolume) dom.audioMusicVolume.value = String(audio.state.musicVolume);
-    if (dom.radioStationButtons) {
-      dom.radioStationButtons.querySelectorAll('[data-radio-station]').forEach(button => {
-        const selected = button.dataset.radioStation === audio.state.station;
-        button.classList.toggle('is-active', selected);
-        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
-      });
-    }
-    if (dom.audioMusicStatus) {
-      const station = audio.stations[audio.state.station];
-      const playing = audio.isMusicPlaying();
-      dom.audioMusicStatus.textContent = message || `${playing ? 'Playing' : 'Selected'} ${station?.label || audio.state.station}. ${playing ? '' : 'Press Play to start.'}`;
-    }
-  }
+  // Audio UI extracted to src/ui/audio-ui.js
+  const audioUi = createAudioUi({ dom, audio, escapeHtml });
+  const { setRadioWidgetOpen, setWidgetRosterOpen, sync: syncAudioUi } = audioUi;
 
   function initCodeLoopUi(gameInstance) {
     const editor = dom.codeLoopEditor;
@@ -1161,64 +1121,7 @@ export async function startGame() {
     syncButtons();
     appendConsole('Ready. Click Start to run the bot code.');
   }
-  function initAudioUi() {
-    if (dom.radioStationButtons) {
-      dom.radioStationButtons.innerHTML = Object.entries(audio.stations).map(([id, station]) => `
-        <button type="button" class="radio-station-button" data-radio-station="${escapeHtml(id)}" aria-pressed="false">
-          <b>${escapeHtml(station.label)}</b>
-          <small>${escapeHtml(station.vibe || station.source || '')}</small>
-        </button>
-      `).join('');
-    }
-    syncAudioUi();
-    dom.audioSfxToggle?.addEventListener('change', () => syncAudioUi(audio.setSfxEnabled(dom.audioSfxToggle.checked) ? 'Sound effects enabled.' : 'Sound effects muted.'));
-    dom.audioSfxVolume?.addEventListener('input', () => { audio.setSfxVolume(dom.audioSfxVolume.value); syncAudioUi(); });
-    dom.audioSfxTest?.addEventListener('click', () => { audio.play('craft_done', { cooldownKey: 'ui_test', minGapMs: 0 }); syncAudioUi('Played generated test chime.'); });
-    const openWidgetRoster = event => {
-      event?.preventDefault?.();
-      setWidgetRosterOpen(true);
-    };
-    dom.widgetRosterHandle?.addEventListener('pointerenter', openWidgetRoster);
-    dom.widgetRosterHandle?.addEventListener('pointerdown', openWidgetRoster);
-    dom.widgetRosterHandle?.addEventListener('click', openWidgetRoster);
-    dom.widgetRoster?.addEventListener('pointerenter', () => setWidgetRosterOpen(true));
-    dom.radioWidgetToggle?.addEventListener('mouseenter', () => audio.play('ui_hover', { cooldownKey: 'radio:hover-toggle', minGapMs: 140 }));
-    dom.radioWidgetToggle?.addEventListener('click', () => { audio.play('ui_click', { cooldownKey: 'radio:toggle', minGapMs: 0 }); setRadioWidgetOpen(dom.radioWidgetPanel?.hidden !== false); });
-    dom.widgetRoster?.addEventListener('mouseleave', () => { if (dom.radioWidgetPanel?.hidden) { setWidgetRosterOpen(false); audio.play('ui_hover', { cooldownKey: 'radio:hover-roster', minGapMs: 260 }); } });
-    dom.radioStationButtons?.addEventListener('mouseover', e => { if (e.target.closest('[data-radio-station]')) audio.play('ui_hover', { cooldownKey: 'radio:hover-station', minGapMs: 120 }); });
-    dom.radioStationButtons?.addEventListener('click', async e => {
-      const button = e.target.closest('[data-radio-station]');
-      if (!button) return;
-      audio.play('switch', { cooldownKey: 'radio:station', minGapMs: 0 });
-      const station = audio.setMusicStation(button.dataset.radioStation);
-      syncAudioUi(`Selected ${station.label}.`);
-      if (audio.isMusicPlaying()) {
-        try {
-          const started = await audio.startMusic(button.dataset.radioStation);
-          syncAudioUi(`Playing ${started.label}. Low-bandwidth AAC stream.`);
-        } catch (err) {
-          syncAudioUi(`Could not switch radio: ${err.message}`);
-        }
-      }
-    });
-    dom.audioMusicVolume?.addEventListener('input', () => { audio.setMusicVolume(dom.audioMusicVolume.value); syncAudioUi(); });
-    dom.audioMusicStart?.addEventListener('mouseenter', () => audio.play('ui_hover', { cooldownKey: 'radio:hover-play', minGapMs: 120 }));
-    dom.audioMusicStop?.addEventListener('mouseenter', () => audio.play('ui_hover', { cooldownKey: 'radio:hover-stop', minGapMs: 120 }));
-    dom.audioMusicStart?.addEventListener('click', async () => {
-      audio.play('ui_click', { cooldownKey: 'radio:play', minGapMs: 0 });
-      try {
-        const station = await audio.startMusic(audio.state.station);
-        syncAudioUi(`Playing ${station.label}. Low-bandwidth AAC stream.`);
-      } catch (err) {
-        syncAudioUi(`Could not start radio: ${err.message}`);
-      }
-    });
-    dom.audioMusicStop?.addEventListener('click', () => { audio.play('ui_click', { cooldownKey: 'radio:stop', minGapMs: 0 }); audio.stopMusic(); syncAudioUi('Cozy radio stopped.'); });
-    audio.state.music.addEventListener('waiting', () => syncAudioUi('Radio buffering… trying to keep the stream warm.'));
-    audio.state.music.addEventListener('playing', () => syncAudioUi());
-    audio.state.music.addEventListener('stalled', () => syncAudioUi('Radio stream stalled. Try another low-bandwidth station.'));
-    audio.state.music.addEventListener('error', () => syncAudioUi('Radio stream error. Pick another station or press Play again.'));
-  }
+  // initAudioUi moved to src/ui/audio-ui.js — called via audioUi.init()
 
   for (const id of PROGRAMS) { const o = document.createElement('option'); o.value = id; o.textContent = id; dom.programSelect.appendChild(o); }
   const renderProgram = () => dom.programView.textContent = JSON.stringify(PROGRAM_TEMPLATES[dom.programSelect.value], null, 2);
@@ -1226,10 +1129,10 @@ export async function startGame() {
   initCodeLoopUi(game);
   if (dom.dslWikiView) dom.dslWikiView.textContent = formatDslActionWiki();
   renderKnowledgePackSelector();
-  updateSemanticRouterUi(semanticRouter.getLastRoute?.());
-  renderActionStepChainTable();
+  assistantModule.updateSemanticRouterUi(semanticRouter.getLastRoute?.());
+  assistantModule.renderActionStepChainTable();
   game.syncTemplateDrawerUi?.();
-  initAudioUi();
+  audioUi.init();
   initMobileControls();
   if (isMobileControlsDevice()) setChatOpen(false);
   initMainMenuAudiovisuals();
@@ -1304,14 +1207,18 @@ export async function startGame() {
     syncPerformanceUi(game.showFpsOverlay ? 'FPS meter visible in the top-right HUD.' : 'FPS meter hidden.');
     saveBrowserSettings();
   });
-  dom.useCanvas2dRenderer?.addEventListener('change', () => {
-    // URL ?renderer= param takes priority over the checkbox for this page load.
-    // Don't let the checkbox clobber a URL-forced mode in saved settings.
+  const rendererModeLabels = { webgl2: 'WebGL2', pixi: 'Pixi', canvas2d: 'Canvas 2D' };
+  const onRendererModeChange = () => {
+    // URL ?renderer= param takes priority over the radio buttons for this page load.
+    // Don't let the radio clobber a URL-forced mode in saved settings.
     if (rendererUrlParam) { syncRendererModeUi(rendererUrlParam); }
     const mode = getRendererModeFromUi();
-    syncPerformanceUi(mode === 'canvas2d' ? 'Canvas 2D renderer selected. Reload the page to switch from Pixi.' : 'Pixi renderer selected. Reload the page to switch from Canvas 2D.');
+    syncPerformanceUi(`${rendererModeLabels[mode] || mode} renderer selected. Reload the page to switch renderer.`);
     saveBrowserSettings();
-  });
+  };
+  dom.rendererWebgl2?.addEventListener('change', onRendererModeChange);
+  dom.rendererPixi?.addEventListener('change', onRendererModeChange);
+  dom.rendererCanvas2d?.addEventListener('change', onRendererModeChange);
   dom.pixiHighResolution?.addEventListener('change', () => {
     applyRendererSettings(getRendererSettingsFromUi(), {
       save: true,
@@ -1374,11 +1281,11 @@ export async function startGame() {
     syncBrowserSttUi();
     saveBrowserSettings();
   });
-  dom.templateRouting?.addEventListener('change', () => { storageSet(TEMPLATE_ROUTING_KEY, String(getTemplateRoutingEnabled())); updateAssistantPromptPreview(); saveBrowserSettings(); });
-  dom.semanticRouting?.addEventListener('change', () => { storageSet(SEMANTIC_ROUTING_KEY, String(getSemanticRoutingEnabled())); updateSemanticRouterUi(semanticRouter.getLastRoute?.()); updateAssistantPromptPreview(); scheduleSemanticRoutePreview(); saveBrowserSettings(); });
-  dom.semanticRouterPackSelect?.addEventListener('change', () => updateSemanticRouterUi(semanticRouter.getLastRoute?.()));
+  dom.templateRouting?.addEventListener('change', () => { storageSet(TEMPLATE_ROUTING_KEY, String(assistantModule.getTemplateRoutingEnabled())); updateAssistantPromptPreview(); saveBrowserSettings(); });
+  dom.semanticRouting?.addEventListener('change', () => { storageSet(SEMANTIC_ROUTING_KEY, String(assistantModule.getSemanticRoutingEnabled())); assistantModule.updateSemanticRouterUi(semanticRouter.getLastRoute?.()); updateAssistantPromptPreview(); scheduleSemanticRoutePreview(); saveBrowserSettings(); });
+  dom.semanticRouterPackSelect?.addEventListener('change', () => assistantModule.updateSemanticRouterUi(semanticRouter.getLastRoute?.()));
   dom.semanticRouterTrainBtn?.addEventListener('click', async () => {
-    const text = getChatDraftText();
+    const text = assistantModule.getChatDraftText();
     const packId = dom.semanticRouterPackSelect?.value || semanticRouter.getLastRoute?.()?.bestId || assistantLoadout[0];
     if (!text) {
       if (dom.semanticRouterStatus) dom.semanticRouterStatus.textContent = 'Type a request in chat before training the semantic router.';
@@ -1389,8 +1296,8 @@ export async function startGame() {
       return;
     }
     try {
-      const result = await semanticRouter.train(text, packId, { knowledgePacks: getActionPackCatalog(), loadout: getAssistantLoadout() });
-      updateSemanticRouterUi(semanticRouter.getLastRoute?.());
+      const result = await semanticRouter.train(text, packId, { knowledgePacks: assistantModule.getActionPackCatalog(), loadout: assistantModule.getAssistantLoadout() });
+      assistantModule.updateSemanticRouterUi(semanticRouter.getLastRoute?.());
       updateAssistantPromptPreview();
       if (dom.semanticRouterStatus) dom.semanticRouterStatus.textContent = `Trained "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}" into ${result.packName}.`;
     } catch (error) {
@@ -1399,13 +1306,13 @@ export async function startGame() {
   });
   dom.customPackActionList?.addEventListener('change', e => {
     if (!e.target.matches('[data-action-pack-op]')) return;
-    customPackAliasDraft = readCustomPackAliasEditor();
+    customPackAliasDraft = assistantModule.readCustomPackAliasEditor();
     const selectedOps = [...dom.customPackActionList.querySelectorAll('[data-action-pack-op]:checked')].map(input => input.dataset.actionPackOp);
-    customPackAliasDraft = defaultPackActionAliases(selectedOps, customPackAliasDraft);
-    renderCustomPackAliasEditor(selectedOps, customPackAliasDraft);
+    customPackAliasDraft = assistantModule.defaultPackActionAliases(selectedOps, customPackAliasDraft);
+    assistantModule.renderCustomPackAliasEditor(selectedOps, customPackAliasDraft);
   });
   dom.customPackAliasEditor?.addEventListener('input', () => {
-    customPackAliasDraft = readCustomPackAliasEditor();
+    customPackAliasDraft = assistantModule.readCustomPackAliasEditor();
   });
   dom.knowledgePackList?.addEventListener('change', e => {
     if (!e.target.matches('[data-knowledge-pack]')) return;
@@ -1416,7 +1323,7 @@ export async function startGame() {
     const edit = e.target.closest('[data-edit-custom-pack]');
     if (edit) {
       const pack = assistantModule.customActionPacks[edit.dataset.editCustomPack];
-      if (pack) clearCustomPackForm(pack);
+      if (pack) assistantModule.clearCustomPackForm(pack);
       return;
     }
     const del = e.target.closest('[data-delete-custom-pack]');
@@ -1424,14 +1331,14 @@ export async function startGame() {
   });
   dom.saveCustomPack?.addEventListener('click', () => {
     try {
-      const pack = upsertCustomActionPack(readCustomPackForm());
+      const pack = upsertCustomActionPack(assistantModule.readCustomPackForm());
       if (!assistantLoadout.includes(pack.id)) persistAssistantLoadout([...assistantLoadout, pack.id]);
-      clearCustomPackForm(pack);
+      assistantModule.clearCustomPackForm(pack);
     } catch (err) {
       if (dom.knowledgePackStatus) dom.knowledgePackStatus.textContent = err.message;
     }
   });
-  dom.clearCustomPackForm?.addEventListener('click', () => clearCustomPackForm());
+  dom.clearCustomPackForm?.addEventListener('click', () => assistantModule.clearCustomPackForm());
   dom.resetKnowledgePacks?.addEventListener('click', () => persistAssistantLoadout(DEFAULT_ASSISTANT_LOADOUT));
   dom.serverOllamaBtn?.addEventListener('click', () => {
     const serverProxy = location.hostname === 'docs.pau1.cloud' ? '/ollama-proxy' : 'https://docs.pau1.cloud/ollama-proxy';
@@ -1450,10 +1357,10 @@ export async function startGame() {
     const { provider, endpoint, model } = getCurrentLocalAiConfig();
     const started = performance.now();
     try {
-      const benchmarkRoute = await getRoutedAssistantLoadout('Bot 1 chop wood', { loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
+      const benchmarkRoute = await assistantModule.getRoutedAssistantLoadout('Bot 1 chop wood', { loadout: assistantModule.getAssistantLoadout(), knowledgePacks: assistantModule.getActionPackCatalog() });
       const parsed = provider === 'tabbyapi'
-        ? await parseWithOpenAiCompatible('Bot 1 chop wood', game, { endpoint, model, providerLabel: LOCAL_AI_PROVIDERS.tabbyapi.backendLabel, enableTemplates: getTemplateRoutingEnabled(), loadout: benchmarkRoute.loadout, knowledgePacks: getActionPackCatalog() })
-        : await parseWithOllama('Bot 1 chop wood', game, { endpoint, model, enableTemplates: getTemplateRoutingEnabled(), loadout: benchmarkRoute.loadout, knowledgePacks: getActionPackCatalog() });
+        ? await parseWithOpenAiCompatible('Bot 1 chop wood', game, { endpoint, model, providerLabel: LOCAL_AI_PROVIDERS.tabbyapi.backendLabel, enableTemplates: assistantModule.getTemplateRoutingEnabled(), loadout: benchmarkRoute.loadout, knowledgePacks: assistantModule.getActionPackCatalog() })
+        : await parseWithOllama('Bot 1 chop wood', game, { endpoint, model, enableTemplates: assistantModule.getTemplateRoutingEnabled(), loadout: benchmarkRoute.loadout, knowledgePacks: assistantModule.getActionPackCatalog() });
       dom.ollamaStatus.textContent = `${parsed.meta || 'Benchmark'} valid calls=${parsed.calls?.length || 0}, total=${Math.round(performance.now()-started)}ms`;
     } catch (e) {
       dom.ollamaStatus.textContent = `Benchmark failed: ${e.message}`;
@@ -1582,29 +1489,29 @@ export async function startGame() {
   window.assignBotProgram = args => game.assignBotProgram(args);
   window.assignCustomDslProgram = args => game.assignCustomDslProgram(args);
   window.programTemplates = PROGRAM_TEMPLATES;
-  Object.defineProperty(window, 'assistantKnowledgePacks', { get: () => getActionPackCatalog(), configurable: true });
-  Object.defineProperty(window, 'actionPackCatalog', { get: () => getActionPackCatalog(), configurable: true });
-  Object.defineProperty(window, 'assistantLoadout', { get: () => getAssistantLoadout(), configurable: true });
-  window.getAssistantLoadout = getAssistantLoadout;
-  window.getAssistantLoadoutDebug = getAssistantLoadoutDebug;
-  window.getAssistantLoadoutText = () => JSON.stringify(getAssistantLoadoutDebug(), null, 2);
+  Object.defineProperty(window, 'assistantKnowledgePacks', { get: () => assistantModule.getActionPackCatalog(), configurable: true });
+  Object.defineProperty(window, 'actionPackCatalog', { get: () => assistantModule.getActionPackCatalog(), configurable: true });
+  Object.defineProperty(window, 'assistantLoadout', { get: () => assistantModule.getAssistantLoadout(), configurable: true });
+  window.getAssistantLoadout = () => assistantModule.getAssistantLoadout();
+  window.getAssistantLoadoutDebug = () => assistantModule.getAssistantLoadoutDebug();
+  window.getAssistantLoadoutText = () => JSON.stringify(assistantModule.getAssistantLoadoutDebug(), null, 2);
   window.getAssistantPromptPreview = updateAssistantPromptPreview;
   window.setAssistantLoadout = ids => persistAssistantLoadout(ids);
   window.semanticRouterDebug = {
     getState: () => semanticRouter.getStatus(),
     getLastRoute: () => semanticRouter.getLastRoute?.(),
-    route: (text, options = {}) => semanticRouter.route(text, { knowledgePacks: options.knowledgePacks || getActionPackCatalog(), loadout: options.loadout || getAssistantLoadout() }),
-    train: (text, packId, options = {}) => semanticRouter.train(text, packId, { knowledgePacks: options.knowledgePacks || getActionPackCatalog(), loadout: options.loadout || getAssistantLoadout() }),
-    syncCatalog: () => semanticRouter.syncCatalog(getActionPackCatalog(), getAssistantLoadout())
+    route: (text, options = {}) => semanticRouter.route(text, { knowledgePacks: options.knowledgePacks || assistantModule.getActionPackCatalog(), loadout: options.loadout || assistantModule.getAssistantLoadout() }),
+    train: (text, packId, options = {}) => semanticRouter.train(text, packId, { knowledgePacks: options.knowledgePacks || assistantModule.getActionPackCatalog(), loadout: options.loadout || assistantModule.getAssistantLoadout() }),
+    syncCatalog: () => semanticRouter.syncCatalog(assistantModule.getActionPackCatalog(), assistantModule.getAssistantLoadout())
   };
   window.getCustomActionPacks = () => JSON.parse(JSON.stringify(assistantModule.customActionPacks));
   window.createCustomActionPack = pack => upsertCustomActionPack(pack);
   window.updateCustomActionPack = (id, patch = {}) => upsertCustomActionPack({ ...(assistantModule.customActionPacks[id] || {}), ...patch, id });
   window.deleteCustomActionPack = deleteCustomActionPack;
   window.clearCustomActionPacks = () => { assistantModule.customActionPacks = {}; persistCustomActionPacks('Cleared custom action packs.'); return {}; };
-  window.getActionPackCatalog = getActionPackCatalog;
+  window.getActionPackCatalog = () => assistantModule.getActionPackCatalog();
   window.renderKnowledgePackSelector = renderKnowledgePackSelector;
-  window.generateAssistantDsl = (text, options = {}) => parseAssistantRequest(text, game, { enableTemplates: options.enableTemplates ?? true, loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
+  window.generateAssistantDsl = (text, options = {}) => parseAssistantRequest(text, game, { enableTemplates: options.enableTemplates ?? true, loadout: assistantModule.getAssistantLoadout(), knowledgePacks: assistantModule.getActionPackCatalog() });
   window.dslActionWiki = DSL_ACTION_WIKI;
   window.dslActionWikiText = formatDslActionWiki();
   window.actionStepChainRows = getActionStepChainRows();
@@ -1612,7 +1519,7 @@ export async function startGame() {
   window.validateDslProgram = p => game.validateDslProgram(p);
   window.sendManagerMessage = (botId, message, options = {}) => handleManagerMessage(botId, message, options);
   window.managerDebug = {
-    promote: (botId, packs = getAssistantLoadout()) => game.promoteBotToManager(botId, packs),
+    promote: (botId, packs = assistantModule.getAssistantLoadout()) => game.promoteBotToManager(botId, packs),
     getPacks: botId => (game.resolveBotReference(botId)?.managerKnowledgePacks || []).slice(),
     setPacks: (botId, packs) => game.setManagerKnowledgePacks(botId, packs),
     sendMessage: (botId, message, options = {}) => handleManagerMessage(botId, message, options),
@@ -1651,13 +1558,16 @@ export async function startGame() {
     openBotMenu: botId => { const bot = game.findBot(botId); if (!bot) return null; game.showBotMenu(bot, 320, 240, { refreshEdit: true }); return window.getGameState(); },
     openStructureMenu: structureId => { const s = game.structures.find(entry => entry.id === Number(structureId) || entry.ref === structureId); if (!s) return null; game.showStructureMenu(s, 320, 240); return window.getGameState(); },
     setBotName: (botId, name) => { game.setBotName(botId, name); return window.getGameState(); },
-    promoteManager: (botId, packs = getAssistantLoadout()) => { game.promoteBotToManager(botId, packs); return window.getGameState(); },
+    promoteManager: (botId, packs = assistantModule.getAssistantLoadout()) => { game.promoteBotToManager(botId, packs); return window.getGameState(); },
     setManagerPacks: (botId, packs) => { game.setManagerKnowledgePacks(botId, packs); return window.getGameState(); },
     sendManagerMessage: (botId, message) => handleManagerMessage(botId, message),
     createBotTeam: (name, color) => game.createBotTeam(name, color),
     assignBotTeam: (botId, teamId) => { game.assignBotToTeam(botId, teamId); return window.getGameState(); },
     setBotInventory: (botId, type) => { const bot = game.findBot(botId); if (!bot) return null; bot.inventory = type ? { type, count: 1 } : null; return window.getGameState(); },
     setBotEquipment: (botId, type) => { const bot = game.findBot(botId); if (!bot) return null; if (type) game.equipActor(bot, type); else bot.equipment = null; return window.getGameState(); },
+    setBotCombatMode: (botId, mode) => game.setBotCombatMode(botId, mode),
+    toggleBotCombatMode: botId => game.toggleBotCombatMode(botId),
+    moveBotTo: (botId, x, y) => { const bot = game.findBot(botId); if (!bot) return null; bot.x = x; bot.y = y; bot.target = null; return window.getGameState(); },
     movePlayerTo: (x, y) => { game.player.x = x; game.player.y = y; game.player.target = null; game.player.targetQueue = []; return window.getGameState(); },
     setInventory: type => { game.player.inventory = type ? { type, count: 1 } : null; return window.getGameState(); },
     equipPlayer: type => { if (type) game.equipActor(game.player, type); else game.player.equipment = null; return window.getGameState(); },
@@ -1680,6 +1590,7 @@ export async function startGame() {
     setSmitheryRecipe: (structureId, recipe) => game.setSmitheryRecipe(game.structures.find(s => s.id === Number(structureId)), recipe),
     spawnHemp: (x, y) => game.spawnHemp(x, y),
     spawnMonster: (x, y, options = {}) => game.spawnMonster(x, y, options),
+    removeMonster: ref => { const m = game.monsters.find(x => x.ref === ref); if (m) { m.hp = 0; game.monsters = game.monsters.filter(x => x !== m); } return window.getGameState(); },
     tickPlayer: seconds => { game.updatePlayer(Number(seconds) || 0); return window.getGameState(); },
     tickProduction: seconds => { game.updateProductionStructures(Number(seconds) || 0); return window.getGameState(); },
     tickCombat: seconds => { game.updatePlayer(Number(seconds) || 0); game.updateRangedAttackStructures(Number(seconds) || 0); game.updateProjectiles(Number(seconds) || 0); return window.getGameState(); },
@@ -1748,8 +1659,8 @@ export async function startGame() {
     getTreeHp: (treeId) => { const t = game.trees.find(t => t.id === treeId); return t ? t.hp : null; },
     getRockHp: (rockId) => { const r = game.rocks.find(r => r.id === rockId); return r ? r.hp : null; }
   };
-  window.validateAssistantToolCalls = raw => validateToolCalls(raw, game, { loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
-  window.validateAssistantDslAssignments = raw => validateDslAssignments(raw, game, { loadout: getAssistantLoadout(), knowledgePacks: getActionPackCatalog() });
+  window.validateAssistantToolCalls = raw => validateToolCalls(raw, game, { loadout: assistantModule.getAssistantLoadout(), knowledgePacks: assistantModule.getActionPackCatalog() });
+  window.validateAssistantDslAssignments = raw => validateDslAssignments(raw, game, { loadout: assistantModule.getAssistantLoadout(), knowledgePacks: assistantModule.getActionPackCatalog() });
   window.voiceInputDebug = {
     applyStreamingTranscript: chat.applyTranscript,
     insertTextAtChatCursor: chat.insertAtCursor,

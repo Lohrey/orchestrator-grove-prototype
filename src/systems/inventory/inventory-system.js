@@ -1,4 +1,4 @@
-import { distXY, nearest, rectDistance } from '../../utils.js?v=grove_pixi_fixes_0628';
+import { distXY, nearest, rectDistance } from '../../utils.js';
 
 export function installInventorySystem(Game, deps) {
   const {

@@ -7,14 +7,14 @@ import {
   polylineFeatureInView,
   rectInView,
   terrainNoise
-} from '../shared/renderer-utils.js?v=grove_tileset_0628';
-import { clamp as clampUtil } from '../../utils.js?v=grove_tileset_0628';
+} from '../shared/renderer-utils.js';
+import { clamp as clampUtil } from '../../utils.js';
 import {
   loadLpcTerrain,
   getLpcTerrain,
   LPC_TILE_SIZE
-} from '../shared/lpc-terrain-loader.js?v=grove_tileset_0628';
-import { getCampaignArrivalScene } from '../../campaign-scenes.js?v=t_campaign_scenes_0627';
+} from '../shared/lpc-terrain-loader.js';
+import { getCampaignArrivalScene } from '../../campaign-scenes.js';
 
 const staticMapBaseCache = new Map();
 
@@ -475,4 +475,4 @@ export function drawGrid(game, c, view) {
 }
 
 // Re-export drawing primitives needed internally
-import { drawShadow, drawNameTag, roundedRect } from '../shared/renderer-utils.js?v=t_renderer_split_0627';
+import { drawShadow, drawNameTag, roundedRect } from '../shared/renderer-utils.js';

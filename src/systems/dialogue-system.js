@@ -183,9 +183,21 @@ export function installDialogueSystem(Game, deps = {}) {
 
     /** Remove the active speech bubble immediately. */
     dismissDialogue() {
-      if (!this.activeDialogue) return false;
+      if (!this.activeDialogue) {
+        // Even with no active bubble, fire a deferred dialogue if one is pending.
+        const pending = this.pendingDialogueId;
+        this.pendingDialogueId = null;
+        if (pending) this.triggerDialogue(pending);
+        return false;
+      }
       this._removeDialogueElement();
       this.activeDialogue = null;
+      // Fire any dialogue that was deferred while this one was active.
+      // This prevents timer-based auto-advance from replacing a multi-page
+      // (controls) dialogue — the player must dismiss first, then the next fires.
+      const pending = this.pendingDialogueId;
+      this.pendingDialogueId = null;
+      if (pending) this.triggerDialogue(pending);
       return true;
     },
 

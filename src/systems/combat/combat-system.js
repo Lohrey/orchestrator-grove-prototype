@@ -1,6 +1,10 @@
-import { clamp, distXY, nearest, rectDistance } from '../../utils.js?v=grove_pixi_fixes_0628';
+import { clamp, distXY, nearest, rectDistance } from '../../utils.js';
 import {
   BOW_ATTACK,
+  BOT_AGGRESSIVE_DISENGAGE_RADIUS,
+  BOT_AGGRESSIVE_ENGAGE_RADIUS,
+  BOT_COMBAT_MODES,
+  DEFAULT_BOT_COMBAT_MODE,
   DEFENSE_TOWER_ATTACK,
   IDLE_BOT_AUTO_ATTACK_RANGE,
   MELEE_ATTACK_RANGE,
@@ -8,7 +12,7 @@ import {
   MONSTER_MELEE_ATTACK,
   PLAYER_ATTACK_COOLDOWN,
   PLAYER_AUTO_ENGAGE_RANGE
-} from './combat-config.js?v=grove_pixi_fixes_0628';
+} from './combat-config.js';
 
 function ensureAutoAttackState(actor, defaults = {}) {
   if (!actor) return null;
@@ -120,8 +124,14 @@ export function installCombatSystem(Game) {
       const isMonster = actor.ref?.startsWith('monster:');
       const eq = isMonster ? null : equipmentFor(this, actor);
       const weapon = isMonster ? 'melee' : eq?.weapon;
-      if (!isMonster && !weapon) return false;
+      // ── Barehand auto-attack fix (Patrick: player/dog/bot must auto-attack when idle) ──
+      // Previously `if (!isMonster && !weapon) return false` bailed for any actor without
+      // an equipped weapon — including the player (who can barehand right-click for 1 HP).
+      // Player, dog, and bot must all auto-defend with barehand melee when idle. The barehand
+      // path falls through to `actorMeleeDamage` (returns 1 with no sword). Only the ranged
+      // (bow) path is gated on having a weapon, since firing requires arrows + a bow.
       const ranged = weapon === 'bow';
+      if (!isMonster && ranged && (actor.ammunition ?? 0) <= 0) return false;
       if (!isMonster && actor.manualAttackLock > 0) {
         actor.manualAttackLock = Math.max(0, actor.manualAttackLock - dt);
         return false;
@@ -130,10 +140,13 @@ export function installCombatSystem(Game) {
         ? ensureAutoAttackState(actor, MONSTER_MELEE_ATTACK)
         : (ranged ? eq.rangedAttack : ensureAutoAttackState(actor));
       if (!ranged) {
-        const stats = isMonster ? MONSTER_MELEE_ATTACK : { ...MELEE_AUTO_ATTACK, damage: this.actorMeleeDamage(actor) };
-        attack.range = stats.range;
-        attack.damage = stats.damage;
-        attack.cooldown = stats.cooldown;
+        // Player basic attack is standardized at ~1 hit/sec (PLAYER_ATTACK_COOLDOWN);
+        // bots/dogs/other actors use the MELEE_AUTO_ATTACK cooldown.
+        const baseStats = isMonster ? MONSTER_MELEE_ATTACK : { ...MELEE_AUTO_ATTACK, damage: this.actorMeleeDamage(actor) };
+        if (!isMonster && actor === this.player) baseStats.cooldown = PLAYER_ATTACK_COOLDOWN;
+        attack.range = baseStats.range;
+        attack.damage = baseStats.damage;
+        attack.cooldown = baseStats.cooldown;
       }
       attack.cooldownRemaining = Math.max(0, (attack.cooldownRemaining || 0) - dt);
       const acquisitionRange = Number.isFinite(searchRange) ? Math.max(0, searchRange) : (attack.range || MELEE_AUTO_ATTACK.range);
@@ -477,8 +490,76 @@ export function installCombatSystem(Game) {
         bot.message = `Patrolling to ${checkpoint.name || `checkpoint ${currentIndex + 1}`}.`;
       }
       return false;
+    },
+    // ── Bot combat toggle (Patrick) ──
+    // combatMode: 'aggressive' (DEFAULT) | 'passive'.
+    // Aggressive: auto-attack any enemy within BOT_AGGRESSIVE_ENGAGE_RADIUS, EVEN WHILE
+    //   working a loop. The current loop is paused (bot.combatEngaged = true) and resumed
+    //   when the attack disengages (enemy killed / out of range / toggled passive).
+    // Passive: never auto-attack at all.
+    normalizeBotCombatMode(mode) {
+      const normalized = String(mode || '').trim().toLowerCase();
+      return BOT_COMBAT_MODES.includes(normalized) ? normalized : DEFAULT_BOT_COMBAT_MODE;
+    },
+    ensureBotCombatState(bot) {
+      if (!bot) return null;
+      if (!bot.combatMode) bot.combatMode = DEFAULT_BOT_COMBAT_MODE;
+      if (!bot.combatEngaged) bot.combatEngaged = false;
+      return bot;
+    },
+    setBotCombatMode(botOrId, mode) {
+      const bot = typeof botOrId === 'object' ? botOrId : this.findBot(botOrId);
+      if (!bot) return { ok: false, error: 'Bot not found' };
+      this.ensureBotCombatState(bot);
+      bot.combatMode = this.normalizeBotCombatMode(mode);
+      // Switching to passive immediately disengages any active attack so the loop resumes.
+      if (bot.combatMode === 'passive') {
+        bot.combatEngaged = false;
+        if (bot.autoAttack?.targetRef) bot.autoAttack.targetRef = null;
+      }
+      this.addFloat(`${this.botDisplayName(bot)}: ${bot.combatMode}`, bot.x, bot.y - 30, bot.combatMode === 'aggressive' ? '#c86b5f' : '#8fb9b5');
+      return { ok: true, bot, combatMode: bot.combatMode };
+    },
+    toggleBotCombatMode(botOrId) {
+      const bot = typeof botOrId === 'object' ? botOrId : this.findBot(botOrId);
+      if (!bot) return { ok: false, error: 'Bot not found' };
+      this.ensureBotCombatState(bot);
+      return this.setBotCombatMode(bot, bot.combatMode === 'aggressive' ? 'passive' : 'aggressive');
+    },
+    botCombatEngageTarget(bot, dt) {
+      // Find nearest hostile within the aggressive engage radius. Returns true while
+      // engaged (loop should stay paused). Uses a generous acquisition range so the bot
+      // chases; disengage happens when the target dies or flees past DISENGAGE_RADIUS.
+      if (!bot || (bot.hp ?? 1) <= 0) return false;
+      const engaged = this.updateActorAutoAttack(bot, dt, { searchRange: BOT_AGGRESSIVE_ENGAGE_RADIUS });
+      if (!engaged) return false;
+      const target = bot.autoAttack?.targetRef ? this.findTargetByRef(bot.autoAttack.targetRef) : null;
+      if (!target || (target.hp ?? 1) <= 0) return false;
+      // Disengage if target fled beyond the disengage radius.
+      if (this.targetDistance(bot, target) > BOT_AGGRESSIVE_DISENGAGE_RADIUS) {
+        bot.autoAttack.targetRef = null;
+        return false;
+      }
+      return true;
+    },
+    updateBotCombatOverlay(bot, dt) {
+      // Drives aggressive auto-attack even while the bot is mid-loop. Sets bot.combatEngaged
+      // so the loop runner skips its next step; clears it when the attack disengages.
+      this.ensureBotCombatState(bot);
+      if (bot.combatMode !== 'aggressive') {
+        bot.combatEngaged = false;
+        return;
+      }
+      bot.combatEngaged = this.botCombatEngageTarget(bot, dt);
     }
   });
 }
 
-export { IDLE_BOT_AUTO_ATTACK_RANGE, PLAYER_AUTO_ENGAGE_RANGE };
+export {
+  BOT_AGGRESSIVE_DISENGAGE_RADIUS,
+  BOT_AGGRESSIVE_ENGAGE_RADIUS,
+  BOT_COMBAT_MODES,
+  DEFAULT_BOT_COMBAT_MODE,
+  IDLE_BOT_AUTO_ATTACK_RANGE,
+  PLAYER_AUTO_ENGAGE_RANGE
+};

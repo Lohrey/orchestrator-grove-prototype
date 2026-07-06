@@ -14,7 +14,7 @@
 import {
   isLightEmittingStructure,
   structureLightRadius
-} from '../../fog-of-war.js?v=grove_lighting_0628';
+} from '../shared/fog-of-war.js';
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 

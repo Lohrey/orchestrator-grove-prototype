@@ -268,6 +268,18 @@ button[type="submit"], #benchmarkBtn { border-color: #416149; background: #21312
   margin: 8px 0 6px;
 }
 .checkline input { accent-color: var(--accent); }
+.renderer-select {
+  border: none;
+  padding: 0;
+  margin: 8px 0 6px;
+}
+.renderer-select legend {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  padding: 0;
+}
 .model-row {
   display: flex;
   gap: 8px;

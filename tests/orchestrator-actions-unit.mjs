@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { ACTION_STEP_REGISTRY, actionStepOpsForPack } from '../src/action-steps.js';
-import { parseAssistantRequest, validateDslAssignments } from '../src/assistant.js';
+import { parseAssistantRequest, validateDslAssignments } from '../src/assistant/assistant.js';
 import { ASSISTANT_KNOWLEDGE_PACKS } from '../src/data.js';
 import { Game } from '../src/world.js';
 

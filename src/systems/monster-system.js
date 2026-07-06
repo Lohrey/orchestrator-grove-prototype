@@ -2,7 +2,7 @@
 // Monster spawning, damage, night spawns, and monster behavior helpers.
 // Part of the Game class composition root — installed via installMonsterSystem(Game, deps).
 
-import { clamp, distXY, nearest, rand, rectDistance } from '../utils.js?v=grove_pixi_fixes_0628';
+import { clamp, distXY, nearest, rand, rectDistance } from '../utils.js';
 
 /** Center point of an axis-aligned rect (structure), matching world.js's local helper. */
 const rectCenter = z => ({ x: z.x + z.w / 2, y: z.y + z.h / 2 });

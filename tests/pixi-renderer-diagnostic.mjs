@@ -8,7 +8,7 @@
  * 3. The resulting fog has transparent areas where revealed
  */
 
-import { drawFogOfWarOverlayScreen } from '../src/fog-of-war.js?v=t_building_kits_0618';
+import { drawFogOfWarOverlayScreen } from '../src/renderers/shared/fog-of-war.js';
 import assert from 'node:assert';
 
 // Create a real canvas for this test

@@ -1,25 +1,32 @@
-import { BUILDING_TYPES, PROGRAMS, PROGRAM_TEMPLATES, ALLOWED_OPS, DEFAULT_WORLD_ZONES } from './data.js?v=grove_full_cache_0705';
-import { CAMPAIGN_MAP_FEATURES, CAMPAIGN_MAP_SIZE, CAMPAIGN_START, CAMPAIGN_DIALOGUES, getCampaignArrivalScene } from './campaign-scenes.js?v=grove_full_cache_0705';
-import { createCanvas2dRenderer } from './renderers/canvas2d-renderer.js?v=grove_full_cache_0705';
-import { createRenderState } from './render-state.js?v=grove_full_cache_0705';
-import { installCombatSystem, IDLE_BOT_AUTO_ATTACK_RANGE, PLAYER_AUTO_ENGAGE_RANGE } from './systems/combat/combat-system.js?v=grove_full_cache_0705';
-import { BOW_ATTACK, DEFENSE_TOWER_ATTACK, MELEE_AUTO_ATTACK, MONSTER_MELEE_ATTACK } from './systems/combat/combat-config.js?v=grove_full_cache_0705';
-import { installTaughtLoopSystem } from './systems/dsl/taught-loop-system.js?v=grove_full_cache_0705';
-import { installCodeLoopSystem } from './systems/code-loop/code-loop-system.js?v=grove_full_cache_0705';
-import { installInventorySystem } from './systems/inventory/inventory-system.js?v=grove_full_cache_0705';
-import { assemblerRecipe as getAssemblerRecipe, DEFAULT_SMITHERY_RECIPE, DEFAULT_WORKBENCH_RECIPE, installProductionSystem, productionInputCount, productionInputNeeds as getProductionInputNeeds, SMITHERY_RECIPES, smitheryInputFor, smitheryRecipe, WORKBENCH_TOOL_RECIPES, workbenchRecipe } from './systems/production/production-system.js?v=grove_full_cache_0705';
-import { FOG_CELL_SIZE, createFogOfWar, fogRevealSources as createFogRevealSources, getFogStats, isLightEmittingStructure as isFogLightEmittingStructure, normalizeFogOfWar, revealFogCircle, serializeFogOfWar, structureLightRadius as fogStructureLightRadius, updateFogOfWarState } from './fog-of-war.js?v=grove_full_cache_0705';
-import { clamp, rand, distXY, nearest, pointInRect, rectDistance, canvasPoint, escapeHtml } from './utils.js?v=grove_full_cache_0705';
-import { installCameraSystem } from './systems/camera-system.js?v=grove_full_cache_0705';
-import { installPlayerSystem } from './systems/player-system.js?v=grove_full_cache_0705';
-import { installMonsterSystem } from './systems/monster-system.js?v=grove_full_cache_0705';
-import { installStructureSystem } from './systems/structure-system.js?v=grove_full_cache_0705';
-import { installBotSystem } from './systems/bot-system.js?v=grove_full_cache_0705';
-import { installTeachSystem } from './systems/teach-system.js?v=grove_full_cache_0705';
-import { installSpawnSystem } from './systems/spawn-system.js?v=grove_full_cache_0705';
-import { installInteractionSystem } from './systems/interaction-system.js?v=grove_full_cache_0705';
-import { installHealthSystem } from './systems/health-system.js?v=grove_full_cache_0705';
-import { installDialogueSystem } from './systems/dialogue-system.js?v=grove_full_cache_0705';
+import { BUILDING_TYPES, PROGRAMS, PROGRAM_TEMPLATES, ALLOWED_OPS, DEFAULT_WORLD_ZONES } from './data.js';
+import { CAMPAIGN_MAP_FEATURES, CAMPAIGN_MAP_SIZE, CAMPAIGN_START, CAMPAIGN_DIALOGUES, getCampaignArrivalScene } from './campaign-scenes.js';
+import { createCanvas2dRenderer } from './renderers/canvas2d-renderer.js';
+import { createRenderState } from './renderers/shared/render-state.js';
+import { installCombatSystem, IDLE_BOT_AUTO_ATTACK_RANGE, PLAYER_AUTO_ENGAGE_RANGE, DEFAULT_BOT_COMBAT_MODE } from './systems/combat/combat-system.js';
+import { BOW_ATTACK, DEFENSE_TOWER_ATTACK, MELEE_AUTO_ATTACK, MONSTER_MELEE_ATTACK } from './systems/combat/combat-config.js';
+import { installTaughtLoopSystem } from './systems/dsl/taught-loop-system.js';
+import { installCodeLoopSystem } from './systems/code-loop/code-loop-system.js';
+import { installInventorySystem } from './systems/inventory/inventory-system.js';
+import { assemblerRecipe as getAssemblerRecipe, DEFAULT_SMITHERY_RECIPE, DEFAULT_WORKBENCH_RECIPE, installProductionSystem, productionInputCount, productionInputNeeds as getProductionInputNeeds, SMITHERY_RECIPES, smitheryInputFor, smitheryRecipe, WORKBENCH_TOOL_RECIPES, workbenchRecipe } from './systems/production/production-system.js';
+import { FOG_CELL_SIZE, createFogOfWar, fogRevealSources as createFogRevealSources, getFogStats, isLightEmittingStructure as isFogLightEmittingStructure, normalizeFogOfWar, revealFogCircle, serializeFogOfWar, structureLightRadius as fogStructureLightRadius, updateFogOfWarState } from './renderers/shared/fog-of-war.js';
+import { clamp, rand, distXY, nearest, pointInRect, rectDistance, canvasPoint, escapeHtml } from './utils.js';
+import { installCameraSystem } from './systems/camera-system.js';
+import { installPlayerSystem } from './systems/player-system.js';
+import { installMonsterSystem } from './systems/monster-system.js';
+import { installStructureSystem } from './systems/structure-system.js';
+import { installBotSystem } from './systems/bot-system.js';
+import { installTeachSystem } from './systems/teach-system.js';
+import { installSpawnSystem } from './systems/spawn-system.js';
+import { installInteractionSystem } from './systems/interaction-system.js';
+import { installHealthSystem } from './systems/health-system.js';
+import { installDialogueSystem } from './systems/dialogue-system.js';
+import { installDogSystem } from './systems/dog-system.js';
+import { installMenuSystem } from './systems/menu-system.js';
+import { installMultiplayerSystem } from './systems/multiplayer-system.js';
+import { installDslProgramSystem } from './systems/dsl-program-system.js';
+import { installSaveSystem } from './systems/save-system.js';
+import { installCampaignArrivalSystem } from './campaign/campaign-arrival.js';
+import { installCampaignQuestSystem } from './campaign/campaign-quest.js';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 const rectCenter = z => ({ x: z.x + z.w / 2, y: z.y + z.h / 2 });
@@ -338,296 +345,6 @@ export class Game {
     this.floaters.push({ text, x, y, color, life: 1.3, max: 1.3 });
   }
 
-  normalizeDogFetchMemory(memory = null) {
-    const praiseCounts = Object.fromEntries(Object.entries(memory?.praiseCounts || memory?.praises || {})
-      .map(([type, count]) => [this.normalizeItemType(type, null), Math.max(0, Math.floor(Number(count) || 0))])
-      .filter(([type]) => !!type));
-    const preferredType = this.normalizeItemType(memory?.preferredType || memory?.lastTargetType || memory?.targetType || null, null);
-    const lastTargetType = this.normalizeItemType(memory?.lastTargetType || memory?.targetType || null, null);
-    return { praiseCounts, preferredType, lastTargetType };
-  }
-  normalizeDogFetchState(state = null) {
-    if (!state || typeof state !== 'object') return null;
-    const requestedType = this.normalizeItemType(state.requestedType || state.targetType || null, null);
-    const targetType = this.normalizeItemType(state.targetType || requestedType || null, null);
-    const targetItemId = Number.isFinite(Number(state.targetItemId)) ? Number(state.targetItemId) : null;
-    return {
-      requestedText: String(state.requestedText || state.command || '').trim(),
-      requestedType,
-      targetType,
-      targetItemId,
-      awaitingReward: !!state.awaitingReward,
-      source: String(state.source || 'dog menu').trim() || 'dog menu'
-    };
-  }
-  spawnStarterDog(x, y) {
-    const dog = this.createBot(x, y, 'dog_fetch', true);
-    if (!dog) return null;
-    dog.kind = 'dog';
-    dog.knowledgePacks = ['dog_fetch'];
-    dog.dogFetchMemory = this.normalizeDogFetchMemory(dog.dogFetchMemory);
-    dog.dogFetchState = null;
-    dog.program = 'dog_fetch';
-    dog.state = 'dog_fetch';
-    dog.name = 'Dog';
-    dog.message = 'Following the player.';
-    dog.dogFetchState = null;
-    this.syncBotDrawerUi?.(true);
-    return dog;
-  }
-  showDogPopup(bot, mode = null) {
-    if (!bot) return;
-    this.dogPopupState = { botId: bot.id, mode: mode || (bot.inventory ? 'reward' : 'progress') };
-    this.syncDogPopupUi(true);
-  }
-  isDogFetchPraiseAllowed(bot) {
-    if (!bot || !bot.inventory) return false;
-    const request = this.normalizeDogFetchState(bot.dogFetchState);
-    if (!request?.requestedType) return true;
-    return bot.inventory.type === request.requestedType;
-  }
-  dogFetchPraiseProgress(bot) {
-    const memory = this.normalizeDogFetchMemory(bot?.dogFetchMemory);
-    const entries = Object.entries(memory.praiseCounts || {}).filter(([, count]) => Number(count) > 0).sort((a, b) => b[1] - a[1]);
-    return entries.map(([type, count]) => ({ type, count, ratio: Math.min(1, count / DOG_FETCH_PRAISE_TARGET) }));
-  }
-  closeDogPopup() {
-    window.voiceInputDebug?.clearVoiceTargetInput?.();
-    if (this.dom.dogPopup) this.dom.dogPopup.hidden = true;
-    this.dogPopupState = null;
-  }
-  placeDogPopup(el, bot, { above = 52 } = {}) {
-    const point = this.worldToScreen(bot.x, bot.y - (bot.r || 11) - above);
-    const pad = 12;
-    const width = Math.min(320, Math.max(240, el.offsetWidth || 280));
-    const height = Math.min(340, Math.max(120, el.offsetHeight || 160));
-    const x = clamp(point.x, width / 2 + pad, Math.max(width / 2 + pad, window.innerWidth - width / 2 - pad));
-    const y = clamp(point.y, height + pad, Math.max(height + pad, window.innerHeight - pad));
-    el.style.left = `${x}px`;
-    el.style.top = `${y}px`;
-    el.style.transform = 'translate(-50%, -100%)';
-  }
-  dogPopupRenderKey(bot, mode) {
-    const request = this.normalizeDogFetchState(bot?.dogFetchState);
-    const praiseCounts = bot?.dogFetchMemory?.praiseCounts || {};
-    return JSON.stringify({
-      botId: bot?.id || null,
-      mode,
-      carrying: !!bot?.inventory,
-      itemType: bot?.inventory?.type || null,
-      requestedType: request?.requestedType || null,
-      targetType: request?.targetType || null,
-      praiseCounts
-    });
-  }
-  renderDogPopup(bot, mode = 'progress') {
-    const el = this.dom.dogPopup;
-    if (!el || !bot) return;
-    const carrying = !!bot.inventory;
-    const requestedType = this.normalizeDogFetchState(bot.dogFetchState)?.requestedType || null;
-    const currentType = bot.inventory?.type || null;
-    const isReward = mode === 'reward' && carrying;
-    const progress = this.dogFetchPraiseProgress(bot);
-    const draft = bot.dogCommandDraft || '';
-    const currentLabel = currentType ? itemLabel(currentType) : '';
-    const requestedLabel = requestedType ? itemLabel(requestedType) : '';
-    const progressSummary = progress.length
-      ? progress.map(entry => `<div class="dog-progress-row"><span>${escapeHtml(itemLabel(entry.type))}</span><span>${entry.count}/${DOG_FETCH_PRAISE_TARGET}</span><div class="dog-progress-bar"><i style="width:${Math.round(entry.ratio * 100)}%"></i></div></div>`).join('')
-      : '<p class="dog-popup-empty">No fetches praised yet.</p>';
-    const rewardSummary = requestedType
-      ? `Requested ${escapeHtml(requestedLabel)}. Brought ${escapeHtml(currentLabel)}.`
-      : `Brought ${escapeHtml(currentLabel)}.`;
-    el.innerHTML = isReward
-      ? `<div class="dog-popup-panel dog-popup-reward" data-dog-popup-panel><header><b>Good dog?</b><span>${escapeHtml(currentLabel)}</span></header><p class="dog-popup-summary">${rewardSummary}</p><div class="dog-popup-buttons"><button type="button" class="dog-popup-button is-yes" data-dog-popup-praise${this.isDogFetchPraiseAllowed(bot) ? '' : ' data-disabled="true" aria-disabled="true"'} aria-label="Praise dog">✓</button><button type="button" class="dog-popup-button is-no" data-dog-popup-reject aria-label="Reject dog">✕</button></div><p class="dog-popup-hint">${requestedType ? `Praise only works for ${escapeHtml(requestedLabel)}.` : 'Praise increases the learned chance for this item type.'}</p></div>`
-      : `<div class="dog-popup-panel dog-popup-progress" data-dog-popup-panel><header><b>Dog fetch</b><span>Learning progress</span></header><label class="dog-fetch-input dog-popup-input"><span>Teach command</span><input data-dog-fetch-command placeholder="go fetch me a stick" value="${escapeHtml(draft)}" autocomplete="off"></label><div class="dog-popup-actions"><button type="button" data-dog-fetch-submit>Send</button><button type="button" data-dog-popup-mic aria-label="Dictate command">Mic</button></div><p class="dog-popup-hint">The dog follows you, picks up nearby items, then comes back for praise.</p><div class="dog-popup-progress-list">${progressSummary}</div><p class="dog-popup-hint">10 praises for one item type makes it a guaranteed choice when that item is available.</p></div>`;
-    el.dataset.dogPopupKey = this.dogPopupRenderKey(bot, mode);
-    if (!el.dataset.dogPopupBound) {
-      el.dataset.dogPopupBound = 'true';
-    }
-    const handleRewardAction = action => {
-      const state = this.dogPopupState;
-      const currentBot = state?.botId ? this.findBot(state.botId) : null;
-      if (!currentBot) return;
-      if (action === 'praise') {
-        if (!this.isDogFetchPraiseAllowed(currentBot)) {
-          const btn = el.querySelector('[data-dog-popup-praise]');
-          if (btn) {
-            btn.classList.remove('is-wobble');
-            void btn.offsetWidth;
-            btn.classList.add('is-wobble');
-            setTimeout(() => btn.classList.remove('is-wobble'), 280);
-          }
-          currentBot.message = 'Not possible.';
-          this.emitSound('ui_error', { cooldownKey: `dog:not_possible:${currentBot.id}`, minGapMs: 150 });
-          this.renderDogPopup(currentBot, 'reward');
-          return;
-        }
-        const res = this.praiseDogFetch(currentBot);
-        if (res.ok) this.closeDogPopup();
-        return;
-      }
-      if (action === 'reject') {
-        const res = this.rejectDogFetch(currentBot);
-        if (res.ok) this.closeDogPopup();
-      }
-    };
-    el.querySelector('[data-dog-popup-praise]')?.addEventListener('click', event => {
-      event.preventDefault();
-      event.stopPropagation();
-      handleRewardAction('praise');
-    });
-    el.querySelector('[data-dog-popup-reject]')?.addEventListener('click', event => {
-      event.preventDefault();
-      event.stopPropagation();
-      handleRewardAction('reject');
-    });
-    el.querySelector('[data-dog-popup-praise]')?.addEventListener('pointerdown', event => event.stopPropagation());
-    el.querySelector('[data-dog-popup-reject]')?.addEventListener('pointerdown', event => event.stopPropagation());
-    this.placeDogPopup(el, bot, { above: isReward ? 58 : 54 });
-    el.hidden = false;
-    requestAnimationFrame(() => {
-      const input = el.querySelector('[data-dog-fetch-command]');
-      if (input) {
-        input.focus({ preventScroll: true });
-        input.setSelectionRange(0, input.value.length);
-      }
-    });
-  }
-  syncDogPopupUi(force = false) {
-    const el = this.dom.dogPopup;
-    if (!el) return;
-    const state = this.dogPopupState;
-    const bot = state?.botId ? this.findBot(state.botId) : this.bots.find(entry => entry.kind === 'dog' && entry.inventory && distXY(entry.x, entry.y, this.player.x, this.player.y) <= 64) || this.bots.find(entry => entry.kind === 'dog') || null;
-    if (!bot || (!state && !bot.inventory)) { if (!force) el.hidden = true; return; }
-    const carrying = !!bot.inventory;
-    const nearPlayer = carrying && distXY(bot.x, bot.y, this.player.x, this.player.y) <= 72;
-    const mode = carrying && nearPlayer ? 'reward' : (state?.mode || 'progress');
-    if (!carrying && mode === 'reward') {
-      el.hidden = true;
-      return;
-    }
-    this.dogPopupState = { botId: bot.id, mode };
-    const renderKey = this.dogPopupRenderKey(bot, mode);
-    const shouldRender = force || el.hidden || el.dataset.dogPopupKey !== renderKey;
-    if (shouldRender) this.renderDogPopup(bot, mode);
-    else if (mode !== 'reward') this.placeDogPopup(el, bot, { above: carrying ? 58 : 54 });
-    if (!shouldRender) return;
-    el.querySelector('[data-dog-fetch-submit]')?.addEventListener('click', () => {
-      const text = el.querySelector('[data-dog-fetch-command]')?.value || '';
-      const res = this.setDogFetchCommand(bot, text);
-      if (res.ok) this.renderDogPopup(bot, 'progress');
-    });
-    el.querySelector('[data-dog-fetch-command]')?.addEventListener('keydown', event => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        const text = el.querySelector('[data-dog-fetch-command]')?.value || '';
-        const res = this.setDogFetchCommand(bot, text);
-        if (res.ok) this.renderDogPopup(bot, 'progress');
-      }
-    });
-    el.querySelector('[data-dog-popup-mic]')?.addEventListener('click', async () => {
-      const input = el.querySelector('[data-dog-fetch-command]');
-      if (!input) return;
-      const voice = window.voiceInputDebug;
-      if (!voice) return;
-      if (voice.isRecording?.()) {
-        await voice.stopVoice?.();
-        voice.clearVoiceTargetInput?.();
-      } else {
-        voice.setVoiceTargetInput?.(input);
-        await voice.startVoice?.();
-      }
-    });
-  }
-  extractDogRequestedItemType(text) {
-    const lower = String(text || '').toLowerCase();
-    const candidates = ['arrow pack', 'log', 'plank', 'pole', 'stick', 'stone', 'tree seed', 'hemp seed', 'hemp', 'crude axe', 'crude pickaxe', 'crude shovel', 'crude hammer', 'wooden sword', 'wooden shield', 'bow'];
-    for (const candidate of candidates) {
-      if (new RegExp(`\\b${candidate.replace(/ /g, '\\s+')}\\b`).test(lower)) {
-        const type = this.normalizeItemType(candidate, null);
-        if (type && !this.isEquipmentItem(type)) return type;
-      }
-    }
-    return null;
-  }
-  chooseDogFetchTargetType(bot, requestedType = null) {
-    const nearbyItems = this.items.filter(item => distXY(bot.x, bot.y, item.x, item.y) <= DOG_FETCH_SEARCH_RADIUS && (!item.reservedBy || item.reservedBy === bot.id) && !this.isEquipmentItem(item.type));
-    if (!nearbyItems.length) return null;
-    if (requestedType) {
-      const exactItems = nearbyItems.filter(item => item.type === requestedType);
-      if (exactItems.length) return exactItems[0].type;
-    }
-    const memory = this.normalizeDogFetchMemory(bot.dogFetchMemory);
-    const praiseCounts = memory.praiseCounts || {};
-    const countsByType = nearbyItems.reduce((acc, item) => {
-      acc[item.type] = Math.max(acc[item.type] || 0, praiseCounts[item.type] || 0);
-      return acc;
-    }, {});
-    const sorted = Object.entries(countsByType).sort((a, b) => b[1] - a[1]);
-    const [bestType, bestCount] = sorted[0] || [];
-    if (bestType && bestCount > 0) {
-      const chance = Math.min(1, bestCount / DOG_FETCH_PRAISE_TARGET);
-      if (chance >= 1 || Math.random() < chance) return bestType;
-    }
-    return nearbyItems[Math.floor(Math.random() * nearbyItems.length)]?.type || null;
-  }
-  setDogFetchCommand(botRef, text) {
-    const bot = botRef && typeof botRef === 'object' ? botRef : this.resolveBotReference(botRef);
-    if (!bot) return { ok: false, error: `Bot ${botRef} not found` };
-    if (bot.inventory) return { ok: false, error: 'Dog must have empty paws before a new fetch command.' };
-    if (!this.isDogBot(bot)) return { ok: false, error: 'Only the starter dog can learn fetch commands.' };
-    const requestedText = String(text || '').trim();
-    const requestedType = this.extractDogRequestedItemType(requestedText);
-    const targetType = this.chooseDogFetchTargetType(bot, requestedType);
-    bot.dogCommandDraft = requestedText;
-    bot.dogFetchState = this.normalizeDogFetchState({ requestedText, requestedType, targetType, targetItemId: null, awaitingReward: false, source: 'dog menu' });
-    bot.program = 'dog_fetch';
-    bot.state = 'dog_fetch';
-    bot.message = targetType ? `Fetching ${itemLabel(targetType)}.` : 'No nearby item to fetch.';
-    this.releaseReservation(bot);
-    this.syncDogPopupUi?.(true);
-    this.syncBotDrawerUi?.(true);
-    return { ok: true, bot, targetType };
-  }
-  praiseDogFetch(botRef) {
-    const bot = botRef && typeof botRef === 'object' ? botRef : this.resolveBotReference(botRef);
-    if (!bot || !this.isDogBot(bot) || !bot.inventory) return { ok: false, error: 'Dog has no fetched item to praise.' };
-    const type = bot.dogFetchState?.targetType || bot.inventory.type;
-    bot.dogFetchMemory = this.normalizeDogFetchMemory(bot.dogFetchMemory);
-    bot.dogFetchMemory.praiseCounts[type] = (bot.dogFetchMemory.praiseCounts[type] || 0) + 1;
-    bot.dogFetchMemory.preferredType = type;
-    bot.dogFetchMemory.lastTargetType = type;
-    if (this.canPlayerAcceptItem(type)) {
-      this.player.inventory = { type, count: bot.inventory.count || 1 };
-      this.addFloat(`Good dog: ${itemLabel(type)} delivered`, bot.x, bot.y - 34, '#9abf8f');
-    } else {
-      this.spawnItem(type, bot.x + 8, bot.y + 8, bot.inventory.count || 1);
-      this.addFloat(`Good dog: dropped ${itemLabel(type)}`, bot.x, bot.y - 34, '#9abf8f');
-    }
-    bot.inventory = null;
-    bot.dogFetchState = null;
-    bot.target = null;
-    this.releaseReservation(bot);
-    bot.message = 'Awaiting fetch command.';
-    this.closeDogPopup();
-    this.syncBotDrawerUi?.(true);
-    return { ok: true, bot, type, praiseCount: bot.dogFetchMemory.praiseCounts[type] };
-  }
-  rejectDogFetch(botRef) {
-    const bot = botRef && typeof botRef === 'object' ? botRef : this.resolveBotReference(botRef);
-    if (!bot || !this.isDogBot(bot) || !bot.inventory) return { ok: false, error: 'Dog has no fetched item to reject.' };
-    const type = bot.inventory.type;
-    this.spawnItem(type, bot.x + 8, bot.y + 8, bot.inventory.count || 1);
-    bot.inventory = null;
-    bot.dogFetchState = null;
-    bot.target = null;
-    this.releaseReservation(bot);
-    bot.message = `Rejected ${itemLabel(type)}.`;
-    this.addFloat(`Dog dropped ${itemLabel(type)}`, bot.x, bot.y - 34, '#c86b5f');
-    this.closeDogPopup();
-    this.syncBotDrawerUi?.(true);
-    return { ok: true, bot, type };
-  }
   delegateMessageToManager(senderBot, recipientRef, message, { throttleKey = '' } = {}) {
     const manager = recipientRef && typeof recipientRef === 'object' ? recipientRef : this.resolveBotReference(recipientRef);
     const clean = this.sanitizeManagerMessage(message);
@@ -950,381 +667,6 @@ export class Game {
   getBotZone(bot) { return bot.zoneSpec || (bot.zoneId ? this.zones.find(z => z.id === bot.zoneId) : null); }
   zoneLabel(zone) { if (!zone) return 'anywhere'; if (zone.kind === 'nearby') return zone.name || `${zone.radius || DEFAULT_NEARBY_RADIUS}px nearby around bot`; if (zone.kind === 'radius') { const s = zone.centerStructureId ? this.structures.find(st => st.id === zone.centerStructureId) : null; return zone.name || `${zone.radius || DEFAULT_RESOURCE_RADIUS}px around ${s?.name || 'point'}`; } return zone.name || zone.id; }
 
-  getBotProgram(bot) {
-    const tpl = PROGRAM_TEMPLATES[bot.program] || PROGRAM_TEMPLATES.idle;
-    if (bot.program === 'taught_loop' && bot.taughtLoop?.length) {
-      return { ...tpl, repeat: bot.taughtLoopRepeat !== false, steps: clone(bot.taughtLoop), parameters: { source: bot.customTemplateName ? `template: ${bot.customTemplateName}` : 'teach by doing recorder' }, resolvedSteps: clone(bot.taughtLoop) };
-    }
-    const targetSawbench = bot.targetStructureId ? this.structures.find(s => s.id === bot.targetStructureId) : null;
-    const sourceSawbench = bot.sourceStructureId ? this.structures.find(s => s.id === bot.sourceStructureId) : null;
-    const targetFactory = bot.targetFactoryId ? this.structures.find(s => s.id === bot.targetFactoryId) : null;
-    const targetWorkbench = bot.targetWorkbenchId ? this.structures.find(s => s.id === bot.targetWorkbenchId) : null;
-    const sourcePalette = bot.sourcePaletteId ? this.structures.find(s => s.id === bot.sourcePaletteId) : null;
-    const zone = this.getBotZone(bot);
-    return {
-      ...tpl,
-      parameters: {
-        targetSawbench: targetSawbench ? { id: targetSawbench.ref, name: targetSawbench.name } : null,
-        sourceSawbench: sourceSawbench ? { id: sourceSawbench.ref, name: sourceSawbench.name } : null,
-        targetFactory: targetFactory ? { id: targetFactory.ref, name: targetFactory.name } : null,
-        targetWorkbench: targetWorkbench ? { id: targetWorkbench.ref, name: targetWorkbench.name } : null,
-        sourcePalette: sourcePalette ? { id: sourcePalette.ref, name: sourcePalette.name, storageType: sourcePalette.storageType, stored: sourcePalette.stored } : null,
-        itemType: bot.pickupItemType || null,
-        zone: zone ? { id: zone.id || null, name: this.zoneLabel(zone), kind: zone.kind, rect: zone.kind === 'rect' ? { x: Math.round(zone.x), y: Math.round(zone.y), w: Math.round(zone.w), h: Math.round(zone.h) } : undefined, radius: zone.kind === 'radius' ? { x: Math.round(zone.x || 0), y: Math.round(zone.y || 0), r: Math.round(zone.radius || DEFAULT_RESOURCE_RADIUS) } : undefined } : null
-      },
-      resolvedSteps: tpl.steps.map(step => this.resolveStepSlots(step, bot))
-    };
-  }
-  resolveStepSlots(step, bot) {
-    const zone = this.getBotZone(bot);
-    const targetSawbench = bot.targetStructureId ? this.structures.find(s => s.id === bot.targetStructureId) : null;
-    const sourceSawbench = bot.sourceStructureId ? this.structures.find(s => s.id === bot.sourceStructureId) : null;
-    const targetFactory = bot.targetFactoryId ? this.structures.find(s => s.id === bot.targetFactoryId) : null;
-    const targetWorkbench = bot.targetWorkbenchId ? this.structures.find(s => s.id === bot.targetWorkbenchId) : null;
-    const sourcePalette = bot.sourcePaletteId ? this.structures.find(s => s.id === bot.sourcePaletteId) : null;
-    const out = { ...step };
-    for (const [k, v] of Object.entries(out)) {
-      if (v === '$zone') out[k] = zone ? this.zoneLabel(zone) : 'anywhere';
-      if (v === '$targetSawbench') out[k] = targetSawbench?.name || 'nearest sawbench';
-      if (v === '$sourceSawbench') out[k] = sourceSawbench?.name || 'nearest sawbench with planks';
-      if (v === '$targetFactory') out[k] = targetFactory?.name || 'nearest factory';
-      if (v === '$targetWorkbench') out[k] = targetWorkbench?.name || 'nearest tool bench';
-      if (v === '$sourcePalette') out[k] = sourcePalette?.name || 'ground items';
-      if (v === '$itemType') out[k] = bot.pickupItemType || 'log';
-    }
-    return out;
-  }
-  normalizeUseHeldItemDslStep(raw, priorSteps = []) {
-    const rawKind = raw.targetKind ?? raw.targetType ?? raw.useOn ?? raw.resourceKind ?? raw.resourceType ?? raw.resource ?? raw.objectKind ?? raw.object ?? raw.target ?? raw.structureType;
-    const kind = String(rawKind || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
-    const aliases = {
-      tree: 'chop_tree', trees: 'chop_tree', wood: 'chop_tree', log_source: 'chop_tree',
-      hemp: 'chop_hemp', hemp_plant: 'chop_hemp',
-      stone: 'mine_stone', rock: 'mine_stone', rocks: 'mine_stone', stone_deposit: 'mine_stone', stone_node: 'mine_stone',
-      dirt: 'dig_hole', ground_to_dig: 'dig_hole', dig_spot: 'dig_hole', open_dirt: 'dig_hole',
-      hole: 'plant_seed', dug_hole: 'plant_seed', planting_hole: 'plant_seed',
-      structure: 'deposit_to_structure', building: 'deposit_to_structure', sawbench: 'deposit_to_structure', workbench: 'deposit_to_structure', factory: 'deposit_to_structure', item_palette: 'deposit_to_structure', palette: 'deposit_to_structure', storage: 'deposit_to_structure',
-      ground: 'drop_item', floor: 'drop_item', zone: 'drop_item', drop_zone: 'drop_item'
-    };
-    const op = aliases[kind];
-    if (!op) return { error: 'use_held_item requires targetKind tree/hemp/stone_deposit/dig_spot/dug_hole/structure/ground' };
-    const step = { ...raw, op };
-    if (op === 'deposit_to_structure' && !step.type && !step.itemType && !step.item && !step.resource) {
-      const previousPickup = [...priorSteps].reverse().find(prev => ['pick_up', 'pick_up_from_storage', 'pick_up_specific'].includes(prev.op) && prev.type);
-      if (previousPickup?.type) step.type = previousPickup.type;
-    }
-    return { step };
-  }
-  validateDslProgram(candidate) {
-    const program = candidate?.program || candidate;
-    const errors = [];
-    const details = [];
-    const recordError = (message, detail = null) => {
-      errors.push(message);
-      if (detail) details.push({ message, ...detail });
-    };
-    const resolveKnownItemType = rawValue => {
-      const type = this.normalizeItemType(rawValue, null);
-      return ITEM_TYPES.includes(type) ? type : null;
-    };
-    const resolveStrictZone = (rawValue, stepIndex, op) => {
-      const normalized = this.normalizeZoneSpec(rawValue);
-      if (normalized.zoneId || normalized.zoneSpec) return normalized;
-      recordError(`Step ${stepIndex}: ${op} references an unknown zone/location`, { code: 'unknown_zone_ref', field: 'zone', stepIndex, value: rawValue });
-      return { zoneId: null, zoneSpec: null };
-    };
-    const steps = Array.isArray(program?.steps) ? program.steps : null;
-    if (!steps) return { ok: false, error: 'DSL program must include a steps array' };
-    if (!steps.length) errors.push('DSL program needs at least one step');
-    if (steps.length > 24) errors.push('DSL program exceeds 24 step limit');
-    const hasLegacyLoopStep = steps.at(-1)?.op === 'loop';
-    const repeat = typeof program.repeat === 'boolean' ? program.repeat : hasLegacyLoopStep;
-    if (typeof program.repeat === 'boolean' && !program.repeat && hasLegacyLoopStep) {
-      recordError('program.repeat false conflicts with a final loop step', { code: 'repeat_conflict', field: 'program.repeat', stepIndex: 0, value: false });
-    }
-    const normalizedSteps = [];
-    const requireItemType = new Set(['pick_up', 'pick_up_from_storage', 'pick_up_specific', 'deposit_to_structure', 'deposit_to_player', 'take_from_player', 'deploy_building_kit', 'find_item', 'deliver_to_sawbench', 'deliver_to_workbench', 'deliver_to_factory', 'if_inventory']);
-    const zoneOps = new Set(['pick_up', 'drop_item', 'deploy_building_kit', 'find_item', 'find_nearest_tree', 'find_stone_deposit', 'find_hemp', 'find_dig_spot', 'find_dug_hole', 'chop_tree', 'search_tree', 'chop_hemp', 'search_hemp', 'mine_stone', 'dig_hole', 'plant_seed', 'guard_area']);
-    for (let index = 0; index < steps.length; index++) {
-      let raw = steps[index] || {};
-      let op = String(raw.op || '').trim();
-      if (op === 'use_held_item') {
-        const resolved = this.normalizeUseHeldItemDslStep(raw, normalizedSteps);
-        if (resolved.error) { recordError(`Step ${index + 1}: ${resolved.error}`, { code: 'invalid_use_held_item', field: 'targetKind', stepIndex: index + 1, value: raw.targetKind ?? raw.target ?? null }); continue; }
-        raw = resolved.step;
-        op = String(raw.op || '').trim();
-      }
-      if (!op || !ALLOWED_OPS.includes(op)) { recordError(`Step ${index + 1}: op ${op || '(missing)'} is not allowed`, { code: 'unknown_op', field: 'op', stepIndex: index + 1, value: op || null }); continue; }
-      if (raw.steps || raw.children) recordError(`Step ${index + 1}: nested steps are not allowed`, { code: 'nested_steps_not_allowed', field: 'steps', stepIndex: index + 1 });
-      if (op === 'loop') {
-        if (index !== steps.length - 1) recordError('loop is only allowed as the final step', { code: 'misplaced_loop', field: 'op', stepIndex: index + 1, value: 'loop' });
-        continue;
-      }
-      const step = { op };
-      if (requireItemType.has(op)) {
-        const rawType = raw.type || raw.itemType || raw.item || raw.resource;
-        if (!rawType) recordError(`Step ${index + 1}: ${op} requires type`, { code: 'missing_item_type', field: 'type', stepIndex: index + 1 });
-        else if (op === 'deploy_building_kit') {
-          const kitType = this.normalizeBuildingKitItemType(rawType);
-          if (!kitType) recordError(`Step ${index + 1}: deploy_building_kit requires a deployable building kit type`, { code: 'unknown_building_kit_type', field: 'type', stepIndex: index + 1, value: rawType });
-          else step.type = kitType;
-        } else {
-          const knownType = resolveKnownItemType(rawType);
-          if (!knownType) recordError(`Step ${index + 1}: unknown item type ${JSON.stringify(String(rawType))}`, { code: 'unknown_item_type', field: 'type', stepIndex: index + 1, value: rawType });
-          else step.type = knownType;
-        }
-      }
-      if (zoneOps.has(op) && (raw.zone || raw.zoneId || raw.zoneSpec || raw.area)) {
-        const normalizedZone = resolveStrictZone(raw.zone || raw.zoneId || raw.zoneSpec || raw.area, index + 1, op);
-        if (normalizedZone.zoneId) {
-          step.zoneId = normalizedZone.zoneId;
-          const zone = this.zones.find(z => z.id === normalizedZone.zoneId);
-          if (zone) step.zoneLabel = this.zoneLabel(zone);
-        }
-        if (normalizedZone.zoneSpec) {
-          step.zoneSpec = normalizedZone.zoneSpec;
-          step.zoneLabel = this.zoneLabel(normalizedZone.zoneSpec);
-        }
-      }
-      if (op === 'wait') step.seconds = clamp(Number(raw.seconds ?? raw.duration ?? 1), 0.1, 30);
-      if (op === 'equip_item') {
-        const rawType = raw.type || raw.itemType || raw.item || raw.weapon;
-        const type = this.normalizeWeaponItemType(rawType);
-        if (!type) recordError(`Step ${index + 1}: equip_item supports only sword, shield, or bow weaponry`, { code: 'unknown_equipment_type', field: 'type', stepIndex: index + 1, value: rawType });
-        else step.type = type;
-      }
-      if (op === 'guard_area') {
-        const radiusValue = Number(raw.radius ?? raw.range ?? raw.distance);
-        if (Number.isFinite(radiusValue)) step.radius = clamp(radiusValue, 40, MAX_NEARBY_RADIUS);
-        if (!step.zoneSpec && !step.zoneId && Number.isFinite(radiusValue)) {
-          step.zoneSpec = { kind: 'nearby', radius: step.radius, name: `${Math.round(step.radius)}px nearby around bot` };
-          step.zoneLabel = this.zoneLabel(step.zoneSpec);
-        }
-      }
-      if (op === 'patrol_route') {
-        const points = this.normalizePatrolPoints(raw.points ?? raw.route ?? raw.checkpoints);
-        if (points.length < 2) errors.push(`Step ${index + 1}: patrol_route requires at least two points`);
-        else step.points = points;
-        step.radius = clamp(Number(raw.radius ?? raw.range ?? raw.distance ?? DEFAULT_NEARBY_RADIUS), 40, MAX_NEARBY_RADIUS);
-      }
-      if (op === 'craft_smithery') {
-        const rawRecipe = raw.recipe || raw.type || raw.item || raw.itemType;
-        const recipe = this.normalizeSmitheryRecipe(rawRecipe);
-        if (!recipe) recordError(`Step ${index + 1}: craft_smithery supports sword/wooden_sword or shield/wooden_shield`, { code: 'unknown_recipe', field: 'recipe', stepIndex: index + 1, value: rawRecipe });
-        else step.recipe = recipe;
-      }
-      if (op === 'craft_bowmaker') {
-        const rawRecipe = raw.recipe || raw.type || raw.item || raw.itemType;
-        const recipe = this.normalizeBowmakerRecipe(rawRecipe);
-        if (!recipe) recordError(`Step ${index + 1}: craft_bowmaker supports only bow`, { code: 'unknown_recipe', field: 'recipe', stepIndex: index + 1, value: rawRecipe });
-        else step.recipe = recipe;
-      }
-      if (op === 'craft_arrowmaker') {
-        const rawRecipe = raw.recipe || raw.type || raw.item || raw.itemType;
-        const recipe = this.normalizeArrowmakerRecipe(rawRecipe);
-        if (!recipe) recordError(`Step ${index + 1}: craft_arrowmaker supports only arrow_pack`, { code: 'unknown_recipe', field: 'recipe', stepIndex: index + 1, value: rawRecipe });
-        else step.recipe = recipe;
-      }
-      if (op === 'if_inventory') {
-        const goto = Number(raw.goto);
-        if (!Number.isInteger(goto) || goto < 0 || goto >= steps.length) errors.push(`Step ${index + 1}: if_inventory goto must be a valid zero-based step index`);
-        else step.goto = goto;
-      }
-      if (op === 'assign_template') {
-        const botRef = raw.botId ?? raw.bot ?? raw.targetBotId ?? raw.target ?? raw.botName;
-        const targetBot = this.resolveBotReference(botRef);
-        const templateName = String(raw.templateName || raw.template || raw.name || '').trim();
-        if (!targetBot) recordError(`Step ${index + 1}: assign_template requires an existing bot`, { code: 'unknown_bot_ref', field: 'bot', stepIndex: index + 1, value: botRef });
-        else Object.assign(step, { botId: targetBot.id, botName: this.botDisplayName?.(targetBot) || targetBot.name || `Bot ${targetBot.id}` });
-        if (!templateName) recordError(`Step ${index + 1}: assign_template requires templateName`, { code: 'missing_template_name', field: 'templateName', stepIndex: index + 1 });
-        else {
-          step.templateName = templateName;
-          const template = this.findCustomTemplate(templateName);
-          if (!template) recordError(`Step ${index + 1}: template ${templateName} not found`, { code: 'unknown_template_name', field: 'templateName', stepIndex: index + 1, value: templateName });
-        }
-      }
-      if (op === 'rename_bot') {
-        const normalizedName = this.normalizeBotDisplayName(raw.name ?? raw.newName ?? raw.displayName ?? raw.label, { minLength: 2, maxLength: 32 });
-        if (!normalizedName) errors.push(`Step ${index + 1}: rename_bot requires a 2-32 character name`);
-        else step.name = normalizedName;
-        const targetRaw = raw.target ?? raw.bot ?? raw.botId ?? raw.targetBotId;
-        const selfTarget = targetRaw == null || targetRaw === '' || ['self', 'itself', 'this bot'].includes(String(targetRaw).trim().toLowerCase());
-        if (!selfTarget) {
-          const targetBot = this.resolveBotReference(targetRaw);
-          if (!targetBot) recordError(`Step ${index + 1}: rename_bot target must be an existing bot`, { code: 'unknown_bot_ref', field: 'target', stepIndex: index + 1, value: targetRaw });
-          else Object.assign(step, { botId: targetBot.id, target: targetBot.name || `Bot ${targetBot.id}`, targetName: this.botDisplayName?.(targetBot) || targetBot.name || `Bot ${targetBot.id}` });
-        }
-      }
-      if (op === 'promote_to_manager') {
-        const targetRaw = raw.target ?? raw.bot ?? raw.botId ?? raw.targetBotId;
-        const selfTarget = targetRaw == null || targetRaw === '' || ['self', 'itself', 'this bot'].includes(String(targetRaw).trim().toLowerCase());
-        if (!selfTarget) {
-          const targetBot = this.resolveBotReference(targetRaw);
-          if (!targetBot) recordError(`Step ${index + 1}: promote_to_manager target must be an existing bot`, { code: 'unknown_bot_ref', field: 'target', stepIndex: index + 1, value: targetRaw });
-          else Object.assign(step, { botId: targetBot.id, target: targetBot.name || `Bot ${targetBot.id}`, targetName: this.botDisplayName?.(targetBot) || targetBot.name || `Bot ${targetBot.id}` });
-        }
-        step.knowledgePacks = this.normalizeManagerKnowledgePacks(raw.knowledgePacks ?? raw.packs ?? raw.loadout, DEFAULT_MANAGER_KNOWLEDGE_PACKS);
-      }
-      if (op === 'delegate_to_manager') {
-        const message = this.sanitizeManagerMessage(raw.message ?? raw.text ?? raw.prompt ?? raw.instruction);
-        if (!message) recordError(`Step ${index + 1}: delegate_to_manager requires message`, { code: 'missing_message', field: 'message', stepIndex: index + 1 });
-        else step.message = message;
-        const recipientRaw = raw.recipient ?? raw.manager ?? raw.target ?? raw.bot ?? raw.botId;
-        const managerBot = this.resolveBotReference(recipientRaw);
-        if (!managerBot) recordError(`Step ${index + 1}: delegate_to_manager recipient must be an existing manager bot`, { code: 'unknown_bot_ref', field: 'recipient', stepIndex: index + 1, value: recipientRaw });
-        else if (!this.isManagerBot(managerBot)) recordError(`Step ${index + 1}: delegate_to_manager recipient must be a manager bot`, { code: 'bot_not_manager', field: 'recipient', stepIndex: index + 1, value: recipientRaw });
-        else Object.assign(step, { recipient: managerBot.name || `Bot ${managerBot.id}`, recipientBotId: managerBot.id, recipientName: this.botDisplayName?.(managerBot) || managerBot.name || `Bot ${managerBot.id}` });
-      }
-      if (op === 'follow') {
-        const targetRaw = raw.targetRef ?? raw.target ?? raw.follow ?? raw.player ?? raw.bot ?? 'me';
-        const placeholder = typeof targetRaw === 'string' && targetRaw.startsWith('$');
-        const target = placeholder ? null : this.resolveActorReference(targetRaw);
-        if (!placeholder && !target) recordError(`Step ${index + 1}: follow requires an existing target actor`, { code: 'unknown_actor_ref', field: 'target', stepIndex: index + 1, value: targetRaw });
-        step.target = String(targetRaw || 'me');
-        step.distance = clamp(Number(raw.distance ?? raw.spacing ?? DEFAULT_FOLLOW_DISTANCE), 18, 220);
-        if (target) Object.assign(step, { targetRef: target.ref || (target === this.player ? 'player:local' : null), targetName: this.actorLabel(target) });
-      }
-      if (op === 'attack') {
-        const rawType = raw.type ?? raw.monsterType ?? raw.kind ?? null;
-        const targetRaw = raw.targetRef ?? raw.target ?? raw.enemy ?? raw.monster ?? raw.targetName ?? null;
-        const genericTargetTypes = new Set(['monster', 'monsters', 'enemy', 'enemies', 'hostile', 'hostiles', 'night monster', 'night monsters', 'passive monster', 'passive monsters']);
-        const targetText = String(targetRaw || '').toLowerCase().replace(/[_-]+/g, ' ').trim();
-        step.type = this.normalizeAttackType(rawType || (genericTargetTypes.has(targetText) ? targetText : 'monster'));
-        const radiusValue = Number(raw.radius ?? raw.range ?? raw.distance);
-        const zoneInput = raw.zone ?? raw.zoneId ?? raw.zoneSpec ?? raw.area ?? raw.location ?? (Number.isFinite(radiusValue) ? { kind: 'nearby', radius: radiusValue } : null);
-        if (zoneInput) {
-          const normalizedZone = resolveStrictZone((typeof zoneInput === 'string' && /\bnearby\b/i.test(zoneInput) && Number.isFinite(radiusValue)) ? { kind: 'nearby', radius: radiusValue } : zoneInput, index + 1, op);
-          if (normalizedZone.zoneId) {
-            step.zoneId = normalizedZone.zoneId;
-            const zone = this.zones.find(z => z.id === normalizedZone.zoneId);
-            if (zone) step.zoneLabel = this.zoneLabel(zone);
-          }
-          if (normalizedZone.zoneSpec) {
-            step.zoneSpec = normalizedZone.zoneSpec;
-            if (step.zoneSpec.kind === 'nearby' && Number.isFinite(radiusValue)) {
-              step.zoneSpec.radius = clamp(radiusValue, 40, MAX_NEARBY_RADIUS);
-              step.zoneSpec.name = `${Math.round(step.zoneSpec.radius)}px nearby around bot`;
-            }
-            step.zoneLabel = this.zoneLabel(step.zoneSpec);
-          }
-        }
-        if (Number.isFinite(radiusValue)) step.radius = clamp(radiusValue, 40, MAX_NEARBY_RADIUS);
-        if (targetRaw && !genericTargetTypes.has(targetText)) {
-          const placeholder = typeof targetRaw === 'string' && targetRaw.startsWith('$');
-          const target = placeholder ? null : this.resolveActorReference(targetRaw);
-          if (target && this.isHostileTarget(target)) Object.assign(step, { target: String(targetRaw), targetRef: target.ref, targetName: this.actorLabel(target) });
-          else if (!placeholder) recordError(`Step ${index + 1}: attack target must resolve to an existing hostile actor`, { code: 'unknown_actor_ref', field: 'target', stepIndex: index + 1, value: targetRaw });
-        }
-      }
-      if (op === 'pick_up_from_storage' || op === 'move_to_structure' || op === 'deposit_to_structure' || op === 'craft_smithery' || op === 'craft_bowmaker' || op === 'craft_arrowmaker' || op === 'disassemble_building_to_kit') {
-        const sourceRaw = raw.sourceStructureId ?? raw.sourceId ?? raw.source;
-        const targetRaw = raw.structureId ?? raw.targetStructureId ?? raw.targetId ?? raw.target ?? raw.structureName;
-        const wantedType = op === 'pick_up_from_storage' ? 'item_palette' : op === 'craft_smithery' ? 'smithery' : op === 'craft_bowmaker' ? 'bowmaker' : op === 'craft_arrowmaker' ? 'arrowmaker' : (raw.structureType || null);
-        const lookup = op === 'pick_up_from_storage' ? (sourceRaw ?? targetRaw) : targetRaw;
-        const placeholder = typeof lookup === 'string' && lookup.startsWith('$');
-        const structureId = placeholder ? null : this.normalizeStructureId(lookup, wantedType) || ((op === 'craft_smithery' || op === 'craft_bowmaker' || op === 'craft_arrowmaker') ? null : this.normalizeStructureId(lookup, null));
-        const structure = structureId ? this.structures.find(s => s.id === structureId) : null;
-        if (!placeholder && lookup != null && lookup !== '' && !structure) recordError(`Step ${index + 1}: ${op} requires an existing ${wantedType || 'structure'} target/source`, { code: 'unknown_structure_ref', field: op === 'pick_up_from_storage' ? 'source' : 'target', stepIndex: index + 1, value: lookup });
-        if (!placeholder && op === 'disassemble_building_to_kit' && !this.canDisassembleStructure(structure)) recordError(`Step ${index + 1}: disassemble_building_to_kit requires a disassemblable building`, { code: 'structure_not_disassemblable', field: 'target', stepIndex: index + 1, value: lookup });
-        if (structure) Object.assign(step, { structureId: structure.id, structureName: structure.name, structureType: structure.type, target: structure.name });
-        else if (placeholder) Object.assign(step, { target: lookup, structureType: wantedType || raw.structureType || null });
-      }
-      normalizedSteps.push(step);
-    }
-    let held = null;
-    for (let index = 0; index < normalizedSteps.length; index++) {
-      const step = normalizedSteps[index];
-      if (step.op === 'loop') break;
-      if (step.op === 'pick_up' || step.op === 'pick_up_from_storage' || step.op === 'pick_up_specific' || step.op === 'take_from_player') {
-        if (held && held !== step.type) errors.push(`Step ${index + 1}: cannot pick up ${itemLabel(step.type)} while already holding ${itemLabel(held)}`);
-        held = step.type;
-      }
-      if (step.op === 'deposit_to_structure' || step.op === 'deposit_to_player' || step.op === 'deploy_building_kit') {
-        if (!held) errors.push(`Step ${index + 1}: ${step.op} requires a prior pick_up step for ${itemLabel(step.type)}`);
-        else if (held !== step.type) errors.push(`Step ${index + 1}: holds ${itemLabel(held)} but ${step.op} needs ${itemLabel(step.type)}`);
-        held = null;
-      }
-      if (step.op === 'drop_item') {
-        if (!held) errors.push(`Step ${index + 1}: drop_item requires a prior pick_up step for something to drop`);
-        held = null;
-      }
-      if (step.op === 'disassemble_building_to_kit') {
-        if (held) errors.push(`Step ${index + 1}: disassemble_building_to_kit needs empty hands, but holds ${itemLabel(held)}`);
-        const kitType = buildingKitItemTypeFor(step.structureType);
-        if (kitType) held = kitType;
-      }
-      if (step.op === 'plant_seed') {
-        if (held && held !== 'tree_seed') errors.push(`Step ${index + 1}: plant_seed requires tree_seed, not ${itemLabel(held)}`);
-        if (held === 'tree_seed') held = null;
-      }
-    }
-    const normalizedProgram = { id: program.id || 'custom_loop', name: program.name || 'Generated DSL Loop', repeat: !!repeat, steps: normalizedSteps };
-    return errors.length ? { ok: false, error: errors.join('; '), errors, details, program: normalizedProgram } : { ok: true, program: normalizedProgram, normalizedProgram, details };
-  }
-
-  assignCustomDslProgram({ botId, assignee = null, program, reason = '' }) {
-    let bot = botId != null ? this.findBot(botId) : null;
-    if (!bot && assignee?.strategy === 'any_eligible') {
-      bot = this.findAnyEligibleWorkerBot();
-      if (!bot) return { ok: false, error: 'No idle standard worker bot is available for assignee any_eligible' };
-    }
-    if (!bot) return { ok: false, error: `Bot ${botId} not found` };
-    if (assignee?.strategy === 'any_eligible') {
-      if (!this.isStandardWorkerBot(bot)) return { ok: false, error: `${this.botDisplayName?.(bot) || `Bot ${bot.id}`} is not a standard worker bot` };
-      if (!this.isIdleStandardWorkerBot(bot)) return { ok: false, error: `${this.botDisplayName?.(bot) || `Bot ${bot.id}`} is not idle` };
-    }
-    const checked = this.validateDslProgram(program);
-    if (!checked.ok) return { ok: false, error: checked.error, validation: checked };
-    bot.paused = false;
-    bot.program = 'taught_loop';
-    bot.state = 'taught_loop';
-    bot.message = reason || `Generated DSL: ${checked.program.name}`;
-    bot.customTemplateName = '';
-    bot.taughtLoop = clone(checked.program.steps);
-    bot.taughtLoopRepeat = checked.program.repeat !== false;
-    bot.target = null; bot.targetItemId = null; bot.targetItemPurpose = null; bot.targetHoleId = null; bot.timer = 0; bot.runtime = { pc: 0, memory: {}, wait: 0 };
-    this.addFloat(`Bot ${bot.id}: generated DSL`, bot.x, bot.y - 22, '#d3a95f');
-    this.syncTeachUi?.();
-    // Campaign quest 4: bot taught via DSL
-    this.onBotProgramAssigned?.(bot);
-    return { ok: true, bot, program: checked.program, steps: clone(bot.taughtLoop) };
-  }
-
-  assignBotProgram({ botId, program, targetStructureId = null, sourceStructureId = null, sourcePaletteId = null, itemType = null, targetFactoryId = null, targetWorkbenchId = null, zoneId = null, zone = null, reason = '' }) {
-    const bot = this.findBot(botId); if (!bot) return { ok: false, error: `Bot ${botId} not found` };
-    if (!PROGRAMS.includes(program)) return { ok: false, error: `Program ${program} not allowed` };
-    const anyTargetId = this.normalizeStructureId(targetStructureId, null);
-    const anyTarget = anyTargetId ? this.structures.find(s => s.id === anyTargetId) : null;
-    const sawTarget = this.normalizeStructureId(anyTarget?.type === 'sawbench' ? anyTarget.id : targetStructureId, 'sawbench');
-    const sawSource = this.normalizeStructureId(sourceStructureId, 'sawbench');
-    const paletteSource = this.normalizeStructureId(sourcePaletteId || (anyTarget?.type === 'item_palette' ? anyTarget.id : null) || (program === 'pickup_item' ? sourceStructureId : null), 'item_palette');
-    const factoryTarget = this.normalizeStructureId(targetFactoryId || (anyTarget?.type === 'factory' ? anyTarget.id : null) || (program === 'build_bots' ? targetStructureId : null), 'factory');
-    const workbenchTarget = this.normalizeStructureId(targetWorkbenchId || (anyTarget?.type === 'workbench' ? anyTarget.id : null) || (program === 'craft_axes' ? targetStructureId : null), 'workbench');
-    const normalizedItemType = this.normalizeItemType(itemType, 'log');
-    const normalizedZone = this.normalizeZoneSpec(zone || zoneId);
-    const taughtLoop = program === 'taught_loop' ? clone(this.recordedLoop.length ? this.recordedLoop : this.recorder.steps) : null;
-    if (program === 'taught_loop' && !taughtLoop.length) return { ok: false, error: 'No recorded loop to assign' };
-    bot.paused = false; bot.program = program; bot.state = program; bot.message = reason || `Assigned ${program}`;
-    bot.customTemplateName = '';
-    bot.taughtLoop = taughtLoop;
-    bot.taughtLoopRepeat = true;
-    bot.target = null; bot.targetItemId = null; bot.targetItemPurpose = null; bot.targetHoleId = null; bot.timer = 0; bot.runtime = { pc: 0, memory: {}, wait: 0 };
-    bot.targetStructureId = sawTarget;
-    bot.sourceStructureId = sawSource;
-    bot.sourcePaletteId = paletteSource;
-    bot.pickupItemType = normalizedItemType;
-    bot.targetFactoryId = factoryTarget;
-    bot.targetWorkbenchId = workbenchTarget;
-    bot.zoneId = normalizedZone.zoneId;
-    bot.zoneSpec = normalizedZone.zoneSpec;
-    const targetLabel = ['haul_planks', 'build_bots'].includes(program) && factoryTarget ? this.structures.find(s => s.id === factoryTarget)?.name : sawTarget ? this.structures.find(s => s.id === sawTarget)?.name : factoryTarget ? this.structures.find(s => s.id === factoryTarget)?.name : workbenchTarget ? this.structures.find(s => s.id === workbenchTarget)?.name : paletteSource ? this.structures.find(s => s.id === paletteSource)?.name : '';
-    const sourceLabel = sawSource && sawSource !== sawTarget ? this.structures.find(s => s.id === sawSource)?.name : '';
-    const zoneLabel = this.zoneLabel(this.getBotZone(bot));
-    this.addFloat(`Bot ${bot.id}: ${program}`, bot.x, bot.y - 22, '#d3a95f');
-    // Campaign quest 4: bot taught via built-in program
-    this.onBotProgramAssigned?.(bot);
-    return { ok: true, bot, targetLabel, sourceLabel, zoneLabel };
-  }
 
   moveToward(entity, tx, ty, dt, speed = entity.speed || 100, close = 14) { const d = distXY(entity.x, entity.y, tx, ty); if (d <= close) return true; const dx = (tx - entity.x) / d, dy = (ty - entity.y) / d; entity.facingX = dx; entity.facingY = dy; entity.x += dx * speed * dt; entity.y += dy * speed * dt; return false; }
   releaseReservation(bot) { for (const i of this.items) if (i.reservedBy === bot.id) i.reservedBy = null; for (const h of this.holes) if (h.reservedBy === bot.id) h.reservedBy = null; for (const t of this.trees) if (t.searchReservedBy === bot.id) t.searchReservedBy = null; bot.targetItemId = null; bot.targetItemPurpose = null; bot.targetHoleId = null; }
@@ -1366,113 +708,6 @@ export class Game {
     return this.paused;
   }
 
-  beginCampaignArrival() {
-    const scene = getCampaignArrivalScene();
-    if (!scene) return null;
-    const points = scene.path || [];
-    if (points.length >= 2) {
-      const start = this.sampleCampaignArrivalPath(points, 0);
-      const zoom = this.camera.zoom || 1;
-      const viewW = this.W / zoom;
-      const viewH = this.H / zoom;
-      this.camera.x = clamp(start.x - viewW / 2, -Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2), Math.max(0, this.map.width - viewW) + Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2));
-      this.camera.y = clamp(start.y - viewH / 2, -Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2), Math.max(0, this.map.height - viewH) + Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2));
-    }
-    this.campaignArrival = {
-      active: true,
-      sceneId: scene.id,
-      startedAt: performance.now(),
-      durationMs: scene.durationMs || 4600
-    };
-    this.setPaused(true);
-    return this.campaignArrival;
-  }
-
-  updateCampaignArrivalState(now = performance.now()) {
-    if (!this.campaignArrival?.active) return null;
-    const scene = getCampaignArrivalScene(this.campaignArrival.sceneId);
-    const durationMs = Math.max(1, Number(this.campaignArrival.durationMs || scene?.durationMs || 4600));
-    const startedAt = Number(this.campaignArrival.startedAt || now);
-    const progress = clamp((now - startedAt) / durationMs, 0, 1);
-    this.campaignArrival.progress = progress;
-    const points = scene?.path || [];
-    if (points.length >= 2) {
-      const state = this.sampleCampaignArrivalPath(points, progress);
-      const zoom = this.camera.zoom || 1;
-      const viewW = this.W / zoom;
-      const viewH = this.H / zoom;
-      const leadX = Number(scene?.cameraFollow?.offsetX || 0);
-      const leadY = Number(scene?.cameraFollow?.offsetY || 0);
-      const targetX = clamp(state.x - (viewW / 2) + leadX, -Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2), Math.max(0, this.map.width - viewW) + Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2));
-      const targetY = clamp(state.y - (viewH / 2) + leadY, -Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2), Math.max(0, this.map.height - viewH) + Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2));
-      const smoothing = clamp(Number(scene?.cameraFollow?.smoothing ?? 0.14), 0.01, 1);
-      this.camera.x += (targetX - this.camera.x) * smoothing;
-      this.camera.y += (targetY - this.camera.y) * smoothing;
-    }
-    if (progress >= 1) {
-      this.campaignArrival.active = false;
-      this.campaignArrival.completedAt = now;
-      const zoom = this.camera.zoom || 1;
-      const viewW = this.W / zoom;
-      const viewH = this.H / zoom;
-      this.camera.x = clamp(CAMPAIGN_START.x - viewW / 2, -Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2), Math.max(0, this.map.width - viewW) + Math.min(viewW * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.width / 2));
-      this.camera.y = clamp(CAMPAIGN_START.y - viewH / 2, -Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2), Math.max(0, this.map.height - viewH) + Math.min(viewH * CAMERA_EDGE_VIEWPORT_PADDING_RATIO, this.map.height / 2));
-      // Van arrival: no longer drops the assembler automatically.
-      // The van is now the interactable "unpack" progression gate.
-      // Quest 1 begins on arrival — prompt the player to unpack the van.
-      if (!this.campaignArrival.arrivalDialogueShown) {
-        this.campaignArrival.arrivalDialogueShown = true;
-        this.triggerDialogue('arrival_1');
-        // Start quest 1 after a short delay (let arrival dialogue show first)
-        const self = this;
-        setTimeout(() => {
-          if (self.campaignQuest?.active && self.campaignQuest.currentQuest === 1 && !self.campaignQuest.completedQuests.includes(1)) {
-            self.triggerDialogue('quest1_van_prompt');
-          }
-        }, 3500);
-      }
-      this.setPaused(false);
-    }
-    return this.campaignArrival;
-  }
-
-  sampleCampaignArrivalPath(points, progress) {
-    const segments = [];
-    let total = 0;
-    for (let i = 0; i < points.length - 1; i += 1) {
-      const a = points[i];
-      const b = points[i + 1];
-      if (!a || !b) continue;
-      const ax = a.x ?? a[0] ?? 0;
-      const ay = a.y ?? a[1] ?? 0;
-      const bx = b.x ?? b[0] ?? 0;
-      const by = b.y ?? b[1] ?? 0;
-      const length = Math.hypot(bx - ax, by - ay);
-      if (length <= 0) continue;
-      segments.push({ ax, ay, bx, by, length, angle: Math.atan2(by - ay, bx - ax) });
-      total += length;
-    }
-    if (!segments.length || total <= 0) {
-      const first = points[0] || {};
-      return { x: first.x ?? first[0] ?? 0, y: first.y ?? first[1] ?? 0, angle: 0 };
-    }
-    const target = total * clamp(progress, 0, 1);
-    let traveled = 0;
-    for (const segment of segments) {
-      const next = traveled + segment.length;
-      if (target <= next) {
-        const local = segment.length ? (target - traveled) / segment.length : 0;
-        return {
-          x: segment.ax + ((segment.bx - segment.ax) * local),
-          y: segment.ay + ((segment.by - segment.ay) * local),
-          angle: segment.angle
-        };
-      }
-      traveled = next;
-    }
-    const last = segments[segments.length - 1];
-    return { x: last.bx, y: last.by, angle: last.angle };
-  }
 
   resetSoloWorld() {
     this.resetWorldCollections();
@@ -1562,217 +797,6 @@ export class Game {
     return this.exportSave();
   }
 
-  exportSave() {
-    return {
-      schema: 'orchestrator-grove-save-v1',
-      savedAt: new Date().toISOString(),
-      worldTime: this.worldTime || 0,
-      dayNight: this.getDayNightState(),
-      fogOfWar: serializeFogOfWar(this.fogOfWar),
-      nightSpawns: clone(this.nightSpawns || {}),
-      mode: this.gameMode || (this.multiplayer?.enabled ? 'multiplayer' : 'solo'),
-      map: clone(this.map),
-      camera: clone(this.camera),
-      player: clone(this.player),
-      assistant: clone(this.assistant),
-      multiplayer: clone(this.multiplayer),
-      mapFeatures: clone(this.mapFeatures || []),
-      recorder: clone(this.recorder),
-      recordedLoop: clone(this.recordedLoop),
-      customTemplates: clone(this.customTemplates || []),
-      botTeams: clone(this.botTeams),
-      zones: clone(this.zones),
-      idleDepot: clone(this.idleDepot),
-      trees: clone(this.trees), hempPlants: clone(this.hempPlants), rocks: clone(this.rocks), holes: clone(this.holes), items: clone(this.items), bots: clone(this.bots), structures: clone(this.structures), monsters: clone(this.monsters), projectiles: clone(this.projectiles),
-      counters: { nextItemId: this.nextItemId, nextRockId: this.nextRockId, nextHoleId: this.nextHoleId, nextTreeId: this.nextTreeId, nextHempId: this.nextHempId, nextMonsterId: this.nextMonsterId, nextProjectileId: this.nextProjectileId, nextBotId: this.nextBotId, nextStructureId: this.nextStructureId, nextZoneId: this.nextZoneId, nextBotTeamId: this.nextBotTeamId, nextCustomTemplateId: this.nextCustomTemplateId },
-      settings: { maxBots: this.maxBots, targetFps: this.targetFps }
-    };
-  }
-
-  loadSave(payload) {
-    if (!payload || payload.schema !== 'orchestrator-grove-save-v1') throw new Error('Unsupported save format');
-    this.map = { ...WORLD_MAP_SIZE, ...(payload.map || {}) };
-    this.gameMode = payload.mode || (payload.multiplayer?.enabled ? 'multiplayer' : 'test');
-    this.camera = { x: 0, y: 0, speed: 520, fastMultiplier: 2.35, zoom: 1, minZoom: CAMERA_MIN_ZOOM, maxZoom: CAMERA_MAX_ZOOM, ...(payload.camera || {}) };
-    this.player = { x: 480, y: 410, r: 13, speed: 170, target: null, targetQueue: [], inventory: null, equipment: createEquipment(), attackCooldown: 0, hp: 10, maxHp: 10, ...(payload.player || {}) };
-    ensureEquipment(this.player);
-    this.assistant = { x: 452, y: 392, ...(payload.assistant || {}) };
-    this.multiplayer = { enabled: false, sessionId: null, role: 'solo', playerId: 'p1', status: 'Solo prototype', players: {}, winner: null, syncTimer: 0, ...(payload.multiplayer || {}) };
-    this.worldTime = Number(payload.worldTime || 0);
-    this.fogOfWar = normalizeFogOfWar(payload.fogOfWar || {}, { cellSize: FOG_CELL_SIZE });
-    this.nightSpawns = { active: false, timer: 1.5, spawnedThisNight: 0, ...(payload.nightSpawns || {}) };
-    this.mapFeatures = clone(payload.mapFeatures || []);
-    this.recorder = { recording: false, steps: [], lastAssignedBotId: null, targetBotId: null, status: '', ...(payload.recorder || {}) };
-    this.recordedLoop = clone(payload.recordedLoop || []);
-    this.customTemplates = clone(payload.customTemplates || []);
-    this.nextCustomTemplateId = Math.max(1, ...this.customTemplates.map(template => Number(template.numericId || String(template.id || '').replace(/^template:/, '')) || 0)) + 1;
-    this.botTeams = clone(payload.botTeams || []);
-    this.nextBotTeamId = Math.max(1, ...this.botTeams.map(team => Number(team.numericId || String(team.id || '').replace(/^team:/, '')) || 0)) + 1;
-    this.zones = clone(payload.zones || DEFAULT_WORLD_ZONES);
-    this.idleDepot = { x: 115, y: 245, label: 'idle depot', ...(payload.idleDepot || {}) };
-    this.trees = clone(payload.trees || []); this.hempPlants = clone(payload.hempPlants || []); this.rocks = clone(payload.rocks || []); this.holes = clone(payload.holes || []); this.items = clone(payload.items || []); this.bots = clone(payload.bots || []); this.structures = clone(payload.structures || []); this.monsters = clone(payload.monsters || []); this.projectiles = clone(payload.projectiles || []); this.floaters = [];
-    for (const bot of this.bots) { ensureEquipment(bot); bot.name = bot.name || `Bot ${bot.id}`; bot.kind = bot.kind === 'dog' ? 'dog' : 'bot'; bot.status = bot.status === 'manager' ? 'manager' : 'worker'; bot.taughtLoopRepeat = bot.taughtLoopRepeat !== false; bot.managerKnowledgePacks = this.normalizeManagerKnowledgePacks(bot.managerKnowledgePacks || bot.knowledgePacks || [], bot.status === 'manager' ? DEFAULT_MANAGER_KNOWLEDGE_PACKS : []); bot.knowledgePacks = bot.kind === 'dog' ? (Array.isArray(bot.knowledgePacks) && bot.knowledgePacks.length ? bot.knowledgePacks : ['dog_fetch']) : (Array.isArray(bot.knowledgePacks) ? bot.knowledgePacks : bot.managerKnowledgePacks); bot.dogFetchMemory = this.normalizeDogFetchMemory(bot.dogFetchMemory); bot.dogFetchState = this.normalizeDogFetchState(bot.dogFetchState); if (bot.teamId && !this.findBotTeam(bot.teamId)) bot.teamId = null; }
-    const counters = payload.counters || {};
-    this.nextItemId = Number(counters.nextItemId || 1); this.nextRockId = Number(counters.nextRockId || 1); this.nextHoleId = Number(counters.nextHoleId || 1); this.nextTreeId = Number(counters.nextTreeId || 1); this.nextHempId = Number(counters.nextHempId || 1); this.nextMonsterId = Number(counters.nextMonsterId || 1); this.nextProjectileId = Number(counters.nextProjectileId || 1); this.nextBotId = Number(counters.nextBotId || 1); this.nextStructureId = Number(counters.nextStructureId || 1); this.nextZoneId = Number(counters.nextZoneId || 1); this.nextBotTeamId = Number(counters.nextBotTeamId || this.nextBotTeamId || 1); this.nextCustomTemplateId = Number(counters.nextCustomTemplateId || this.nextCustomTemplateId || 1);
-    if (payload.settings?.maxBots) this.maxBots = Number(payload.settings.maxBots);
-    if (payload.settings?.targetFps) this.targetFps = Number(payload.settings.targetFps);
-    this.placementType = null; this.zoneDraft = null; this.zoneDrag = null; this.justDrewZone = false; this.justDraggedZone = false;
-    this.clampCamera();
-    this.syncBuildUi(); this.syncTeachUi?.(); this.syncZonesUi?.(); this.syncTemplateDrawerUi?.(); this.syncBotDrawerUi?.(); this.updateHover();
-    return this.getState();
-  }
-
-  startLocalAiMatch({ sessionId = `local-ai-${Date.now().toString(36)}`, playerId = 'p1' } = {}) {
-    const role = 'local_ai';
-    const localStart = MULTIPLAYER_STARTS.p1;
-    this.resetWorldCollections();
-    this.gameMode = 'local_ai';
-    this.map = { ...WORLD_MAP_SIZE };
-      this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.targetQueue = []; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.ammunition = 0; this.player.hp = this.player.maxHp || 10; this.player.facingX = 1; this.player.facingY = 0;
-      this.assistant.x = localStart.x - 30; this.assistant.y = localStart.y + 24; this.assistant.facingX = 1; this.assistant.facingY = 0;
-    this.camera.x = localStart.x - (this.W / (this.camera.zoom || 1)) / 2;
-    this.camera.y = localStart.y - (this.H / (this.camera.zoom || 1)) / 2;
-    this.clampCamera();
-
-    const p1 = { ...MULTIPLAYER_STARTS.p1, label: 'Player' };
-    const p2 = { ...MULTIPLAYER_STARTS.p2, label: 'Enemy AI' };
-    this.multiplayer = { enabled: true, sessionId, role, playerId, mapMode: 'local_ai', status: `Local vs AI ${sessionId}`, players: { p1, p2 }, winner: null, syncTimer: 0, aiWave: { enabled: true, enemyOwnerId: 'p2', targetOwnerId: 'p1', elapsed: 0, spawnTimer: MONSTER_WAVE_CONFIG.spawnEverySeconds, waveIndex: 0, lastWaveSize: 0 } };
-
-    const throne1 = this.addStructure('throne', p1.throneX, p1.throneY);
-    Object.assign(throne1, { name: 'bottom-left throne', ownerId: 'p1', ownerLabel: 'Player', hp: THRONE_HP, maxHp: THRONE_HP });
-    const throne2 = this.addStructure('throne', p2.throneX, p2.throneY);
-    Object.assign(throne2, { name: 'top-right throne', ownerId: 'p2', ownerLabel: 'Enemy AI', hp: THRONE_HP, maxHp: THRONE_HP });
-    this.buildMultiplayerLane();
-    const homeSide = 1;
-    this.idleDepot = { x: throne1.x + homeSide * 86, y: throne1.y + 10, label: 'own throne' };
-
-    [[720,1880],[920,2050],[1180,1740],[2440,520],[2680,380],[2940,690],[1720,1040],[1940,1260]].forEach(([x,y]) => this.spawnTree(x, y));
-    [[820,1760],[1050,1940],[2380,620],[2820,760],[1840,1120]].forEach(([x,y]) => this.spawnHemp(x, y));
-    [[940,1660],[1240,1900],[2280,720],[2800,560],[1780,1260]].forEach(([x,y]) => this.spawnStoneDeposit(x, y));
-    this.addStructure('sawbench', localStart.x + 120, localStart.y - 120);
-    this.addStructure('workbench', localStart.x + 230, localStart.y - 120);
-    this.createBot(this.idleDepot.x - homeSide * 22, this.idleDepot.y - 24, 'idle', true);
-    this.createBot(this.idleDepot.x + homeSide * 18, this.idleDepot.y + 18, 'idle', true);
-    this.spawnStarterDog(localStart.x + 28, localStart.y + 34);
-    this.spawnItem('crude_axe', localStart.x + 95, localStart.y + 80, 2);
-    this.spawnItem('stick', localStart.x + 130, localStart.y + 86, 4);
-    this.spawnItem('stone', localStart.x + 160, localStart.y + 75, 2);
-    this.syncBuildUi(); this.syncZonesUi?.(); this.updateHover();
-    return this.getMultiplayerSnapshot();
-  }
-
-  startMultiplayerSession({ sessionId = `grove-${Date.now().toString(36)}`, role = 'host', playerId = 'p1', players = null } = {}) {
-    const localStart = MULTIPLAYER_STARTS[playerId] || MULTIPLAYER_STARTS.p1;
-    this.resetWorldCollections();
-    this.gameMode = 'online_lakes';
-    this.map = { ...WORLD_MAP_SIZE };
-    this.mapFeatures = clone(ONLINE_MULTIPLAYER_FEATURES);
-      this.player.x = localStart.x; this.player.y = localStart.y; this.player.target = null; this.player.targetQueue = []; this.player.inventory = null; this.player.equipment = createEquipment(); this.player.ammunition = 0; this.player.hp = this.player.maxHp || 10; this.player.facingX = 1; this.player.facingY = 0;
-      this.assistant.x = localStart.x - 30; this.assistant.y = localStart.y + 24; this.assistant.facingX = 1; this.assistant.facingY = 0;
-    this.camera.x = localStart.x - (this.W / (this.camera.zoom || 1)) / 2;
-    this.camera.y = localStart.y - (this.H / (this.camera.zoom || 1)) / 2;
-    this.clampCamera();
-
-    const p1 = { ...MULTIPLAYER_STARTS.p1, label: 'Player 1', ...(players?.p1 || {}) };
-    const p2 = { ...MULTIPLAYER_STARTS.p2, label: 'Player 2', ...(players?.p2 || {}) };
-    this.multiplayer = { enabled: true, sessionId, role, playerId, mapMode: 'online_lakes', status: `${role === 'host' ? 'Hosting' : 'Joined'} online lake camp ${sessionId}`, players: { p1, p2 }, winner: null, syncTimer: 0, aiWave: { enabled: false }, mapFeatures: clone(this.mapFeatures) };
-
-    const camper = this.mapFeatures.find(feature => feature.type === 'camper_van' && feature.ownerId === playerId) || localStart;
-    const homeSide = playerId === 'p2' ? -1 : 1;
-    this.idleDepot = { x: camper.x + homeSide * 86, y: camper.y + 12, label: 'camper van' };
-
-    [[720,1880],[940,2020],[1180,1740],[2460,520],[2700,390],[2940,690],[1720,1040],[1940,1260]].forEach(([x,y]) => this.spawnTree(x, y));
-    [[820,1760],[1050,1940],[2380,620],[2820,760],[1840,1120]].forEach(([x,y]) => this.spawnHemp(x, y));
-    [[940,1660],[1240,1900],[2280,720],[2800,560],[1780,1260]].forEach(([x,y]) => this.spawnStoneDeposit(x, y));
-    this.addStructure('sawbench', localStart.x + (playerId === 'p1' ? 120 : -120), localStart.y - (playerId === 'p1' ? 120 : -80));
-    this.addStructure('workbench', localStart.x + (playerId === 'p1' ? 230 : -230), localStart.y - (playerId === 'p1' ? 120 : -80));
-    this.createBot(this.idleDepot.x - homeSide * 22, this.idleDepot.y - 24, 'idle', true);
-    this.createBot(this.idleDepot.x + homeSide * 18, this.idleDepot.y + 18, 'idle', true);
-    this.spawnStarterDog(localStart.x + 28, localStart.y + 34);
-    this.spawnItem('crude_axe', localStart.x + 95, localStart.y + 80, 2);
-    this.spawnItem('stick', localStart.x + 130, localStart.y + 86, 4);
-    this.spawnItem('stone', localStart.x + 160, localStart.y + 75, 2);
-    this.syncBuildUi(); this.syncZonesUi?.(); this.updateHover();
-    return this.getMultiplayerSnapshot();
-  }
-  isEnemyThrone(s) { return !!(this.multiplayer?.enabled && s?.type === 'throne' && s.ownerId && s.ownerId !== this.multiplayer.playerId && (s.hp || 0) > 0); }
-  damageThrone(s, damage = THRONE_ATTACK_DAMAGE) {
-    if (!s || s.type !== 'throne' || (s.hp || 0) <= 0) return false;
-    s.hp = Math.max(0, (s.hp || s.maxHp || THRONE_HP) - damage);
-    this.addFloat(`${s.name} -${damage} HP`, s.x, s.y - 55, s.ownerId === 'p1' ? '#80a9c9' : '#c86b5f');
-    this.emitSound('hit', { cooldownKey: `throne:${s.id}`, minGapMs: 150 });
-    if (s.hp <= 0) {
-      this.multiplayer.winner = s.ownerId === 'p1' ? 'p2' : 'p1';
-      this.multiplayer.status = `${this.multiplayer.winner === this.multiplayer.playerId ? 'Victory' : 'Defeat'}: ${s.name} destroyed`;
-      this.addFloat(this.multiplayer.status, this.player.x, this.player.y - 45, '#fff4d0');
-      this.emitSound('victory', { cooldownKey: 'throne-victory', minGapMs: 1000 });
-    }
-    if (typeof this.onMultiplayerState === 'function') this.onMultiplayerState(this.getLocalPlayerNetState());
-    return true;
-  }
-  getLocalPlayerNetState() {
-    return { sessionId: this.multiplayer?.sessionId, playerId: this.multiplayer?.playerId, x: Math.round(this.player.x), y: Math.round(this.player.y), hp: this.player.hp, maxHp: this.player.maxHp, inventory: this.player.inventory, equipment: this.equipmentSummary(this.player), thrones: this.structures.filter(s => s.type === 'throne').map(s => ({ id: s.id, ownerId: s.ownerId, hp: s.hp, maxHp: s.maxHp })), winner: this.multiplayer?.winner || null };
-  }
-  applyRemoteMultiplayerState(state = {}) {
-    if (!this.multiplayer?.enabled || !state.playerId || state.playerId === this.multiplayer.playerId) return false;
-    const current = this.multiplayer.players[state.playerId] || { id: state.playerId, label: state.playerId };
-    this.multiplayer.players[state.playerId] = { ...current, x: Number(state.x ?? current.x), y: Number(state.y ?? current.y), hp: Number(state.hp ?? current.hp ?? 10), maxHp: Number(state.maxHp ?? current.maxHp ?? 10), inventory: state.inventory || null, equipment: state.equipment || current.equipment || null, disconnected: false, lastSeenAt: Date.now() };
-    for (const remoteThrone of state.thrones || []) {
-      const local = this.structures.find(s => s.type === 'throne' && s.ownerId === remoteThrone.ownerId);
-      if (local) local.hp = remoteThrone.hp;
-    }
-    if (state.winner) this.multiplayer.winner = state.winner;
-    return true;
-  }
-  updateMultiplayer(dt) {
-    if (!this.multiplayer?.enabled) return;
-    const local = this.multiplayer.players[this.multiplayer.playerId] || MULTIPLAYER_STARTS[this.multiplayer.playerId] || MULTIPLAYER_STARTS.p1;
-    this.multiplayer.players[this.multiplayer.playerId] = { ...local, x: Math.round(this.player.x), y: Math.round(this.player.y), hp: this.player.hp, maxHp: this.player.maxHp, inventory: this.player.inventory || null, equipment: this.equipmentSummary(this.player) };
-    this.multiplayer.syncTimer = (this.multiplayer.syncTimer || 0) + dt;
-    if (this.multiplayer.syncTimer >= 0.12) {
-      this.multiplayer.syncTimer = 0;
-      if (typeof this.onMultiplayerState === 'function') this.onMultiplayerState(this.getLocalPlayerNetState());
-    }
-  }
-  getMultiplayerSnapshot() {
-    return { ...(this.multiplayer || {}), players: { ...(this.multiplayer?.players || {}) }, mapFeatures: clone(this.mapFeatures || this.multiplayer?.mapFeatures || []), thrones: this.structures.filter(s => s.type === 'throne').map(s => ({ id: s.id, ref: s.ref, name: s.name, ownerId: s.ownerId, ownerLabel: s.ownerLabel, hp: s.hp, maxHp: s.maxHp, x: Math.round(s.x), y: Math.round(s.y) })), towers: this.structures.filter(s => s.type === 'defensetower' && s.ownerId).map(s => ({ id: s.id, ref: s.ref, name: s.name, ownerId: s.ownerId, ownerLabel: s.ownerLabel, hp: s.hp, maxHp: s.maxHp, x: Math.round(s.x), y: Math.round(s.y), range: s.rangedAttack?.range, damage: s.rangedAttack?.damage })) };
-  }
-  addMultiplayerTower(ownerId, point) {
-    const tower = this.addStructure('defensetower', point.x, point.y);
-    Object.assign(tower, { name: point.name, ownerId, ownerLabel: ownerId === 'p1' ? 'Player 1' : 'Enemy AI', hp: 20, maxHp: 20 });
-    return tower;
-  }
-  buildMultiplayerLane() {
-    for (const point of MULTIPLAYER_LANE_TOWERS.p1) this.addMultiplayerTower('p1', point);
-    for (const point of MULTIPLAYER_LANE_TOWERS.p2) this.addMultiplayerTower('p2', point);
-  }
-  spawnEnemyWave(ownerId = 'p2', targetOwnerId = 'p1') {
-    const ai = this.multiplayer?.aiWave;
-    const source = this.structures.find(s => s.type === 'throne' && s.ownerId === ownerId);
-    const target = this.structures.find(s => s.type === 'throne' && s.ownerId === targetOwnerId);
-    if (!source || !target) return [];
-    const waveIndex = (ai.waveIndex || 0) + 1;
-    const size = Math.min(MONSTER_WAVE_CONFIG.maxWaveSize, 1 + Math.floor((ai.elapsed || 0) / MONSTER_WAVE_CONFIG.extraMonsterEverySeconds));
-    ai.waveIndex = waveIndex; ai.lastWaveSize = size;
-    const spawned = [];
-    for (let i = 0; i < size; i++) {
-      const offset = (i - (size - 1) / 2) * 28;
-      spawned.push(this.spawnMonster(source.x - 58 - offset, source.y + 72 + offset, { name: `AI creep ${waveIndex}.${i + 1}`, type: 'lane_creep', kind: 'lane_creep', ownerId, ownerLabel: 'Enemy AI', hostile: true, passive: false, speed: 50, hp: 10, maxHp: 10, roamRadius: 9999, avoidRadius: 0, aggroRange: 155, laneTargetRef: target.ref, autoAttack: MONSTER_MELEE_ATTACK }));
-    }
-    this.addFloat(`Enemy wave ${waveIndex}: ${size}`, source.x, source.y + 86, '#c86b5f');
-    return spawned;
-  }
-  updateAiWaves(dt) {
-    const ai = this.multiplayer?.aiWave;
-    if (!this.multiplayer?.enabled || !ai?.enabled || this.multiplayer.winner) return;
-    ai.elapsed = (ai.elapsed || 0) + dt;
-    ai.spawnTimer = (ai.spawnTimer ?? MONSTER_WAVE_CONFIG.spawnEverySeconds) - dt;
-    while (ai.spawnTimer <= 0) {
-      this.spawnEnemyWave(ai.enemyOwnerId || 'p2', ai.targetOwnerId || 'p1');
-      ai.spawnTimer += MONSTER_WAVE_CONFIG.spawnEverySeconds;
-    }
-  }
-  exportMultiplayerSave() { return { schema: 'orchestrator-grove-multiplayer-session-v1', exportedAt: new Date().toISOString(), session: this.getMultiplayerSnapshot(), state: this.getState() }; }
 
   update(dt) {
     if (this.paused) { this.updateCampaignArrivalState(); this.updateFogOfWar(); this.updateUI(dt); this.updateDialogue(); return; }
@@ -1797,13 +821,25 @@ export class Game {
     const eq = ensureEquipment(this.player);
     eq.rangedAttack.cooldownRemaining = Math.max(0, (eq.rangedAttack.cooldownRemaining || 0) - dt);
     this.player.attackCooldown = Math.max(0, (this.player.attackCooldown || 0) - dt);
+    // ── Player combat overlay (Patrick: auto-attack nearby enemies ALWAYS) ──
+    // Runs every tick BEFORE movement/target logic. The player auto-attacks any
+    // hostile within PLAYER_AUTO_ENGAGE_RANGE, even while moving or working.
+    // When actively attacking (enemy in melee range), the player's movement/work
+    // is paused this tick; when the enemy dies or flees, normal activity resumes.
+    const playerEngaged = this.updateActorAutoAttack(this.player, dt, { searchRange: PLAYER_AUTO_ENGAGE_RANGE });
+    if (playerEngaged) {
+      // Check if we're in melee range (actually hitting) vs just chasing.
+      // If chasing (out of melee range but within search), allow movement toward
+      // the enemy but skip the normal target/work processing.
+      const playerTarget = this.findTargetByRef(this.player.autoAttack?.targetRef);
+      const inMeleeRange = playerTarget && this.targetDistance(this.player, playerTarget) <= (this.player.autoAttack?.range || 52);
+      if (inMeleeRange) return; // hitting — pause everything else
+      // Otherwise the auto-attack moveToward handles chasing; skip normal target this tick.
+      return;
+    }
     const target = this.player.target;
     if (!target) {
       if (this.advancePlayerTargetQueue()) return;
-      // ── Player auto-engage when idle (#3) ──
-      // When the player has no target/action, auto-detect nearby enemies and engage.
-      // Uses a generous search range so the player defends themselves when threatened.
-      this.updateActorAutoAttack(this.player, dt, { searchRange: PLAYER_AUTO_ENGAGE_RANGE });
       return;
     }
     if (target.started && ['search_tree', 'search_hemp', 'chop_hemp', 'chop_tree', 'mine_stone', 'structure_processing', 'deploy_loose_building_kit', 'deploy_building_kit', 'disassemble_building_to_kit'].includes(target.action)) {
@@ -1919,10 +955,15 @@ export class Game {
   updateBot(bot, dt) {
     if (bot.paused) { bot.state = 'paused'; bot.message = `Paused ${bot.program} workflow.`; return; }
     if (this.updateBotProductionBusy(bot)) return;
-    if (bot.program === 'idle') {
+    // ── Combat overlay (Patrick: aggressive auto-attack, even while working a loop) ──
+    // Runs BEFORE the program dispatch. When combatEngaged is true the program/loop step
+    // is skipped this tick — the bot fights instead. When the attack disengages (enemy
+    // killed / fled / toggled passive), combatEngaged flips false and the loop resumes
+    // from where it left off (runtime.pc is preserved across the pause).
+    this.updateBotCombatOverlay(bot, dt);
+    if (bot.combatEngaged) { bot.state = 'combat'; bot.message = `Engaged: ${bot.autoAttack?.targetRef || 'target'}.`; return; }
+    if (bot.program === 'idle' && bot.combatMode !== 'passive') {
       if (this.updateActorAutoAttack(bot, dt, { searchRange: IDLE_BOT_AUTO_ATTACK_RANGE })) return;
-    } else {
-      this.updateActorAutoAttack(bot, dt);
     }
     bot.state = bot.program;
     if (bot.program === 'chop_wood') return this.programChopWood(bot, dt);
@@ -2282,194 +1323,6 @@ export class Game {
     return true;
   }
 
-  // ===========================================================================
-  // CAMPAIGN QUEST SYSTEM (9-quest tutorial)
-  // ===========================================================================
-
-  /**
-   * Check if a world point is near the camper van (unpack interaction zone).
-   * The van is at this.idleDepot.
-   */
-  isNearVan(x, y, radius = 80) {
-    // Use actual van feature bounds (126×62) for tighter interaction area.
-    // Find the camper_van map feature near idleDepot for precise rect hit-testing.
-    const feature = (this.mapFeatures || []).find(f => f.type === 'camper_van');
-    if (feature) {
-      const hw = (feature.w || 126) / 2 + 16; // small padding for easy clicking
-      const hh = (feature.h || 62) / 2 + 16;
-      return Math.abs(x - feature.x) <= hw && Math.abs(y - feature.y) <= hh;
-    }
-    // Fallback to radius-based if feature not found
-    const van = this.idleDepot;
-    if (!van) return false;
-    return distXY(x, y, van.x, van.y) <= radius;
-  }
-
-  /**
-   * Unpack the camper van. Each unpack advances the quest progression gate
-   * and drops the next quest item. Only callable once per quest milestone.
-   * Returns true if unpack succeeded, false if nothing to unpack.
-   */
-  unpackVan() {
-    if (!this.campaignQuest?.active) return false;
-    const q = this.campaignQuest;
-    const van = this.idleDepot;
-    if (!van) return false;
-    const unpackIndex = q.vanUnpackCount; // 0-based: 0=first, 1=second, etc.
-
-    // Map unpack index → which quest this unpack serves and what it drops
-    // Unpack 0 → Quest 1: crude_axe
-    // Unpack 1 → Quest 3: bot
-    // Unpack 2 → Quest 5: item_palette_kit (storage building kit)
-    // Unpack 3 → Quest 7: crude_shovel
-    const unpackMapping = [
-      { quest: 1, type: 'item', item: 'crude_axe', dialogue: 'quest1_axe_dropped' },
-      { quest: 3, type: 'bot', dialogue: 'quest3_bot_dropped' },
-      { quest: 5, type: 'item', item: 'item_palette_kit', dialogue: 'quest5_storage_dropped' },
-      { quest: 7, type: 'item', item: 'crude_shovel', dialogue: 'quest7_shovel_dropped' },
-    ];
-
-    if (unpackIndex >= unpackMapping.length) {
-      this.addFloat('The van is empty — nothing left to unpack.', van.x, van.y - 30, '#c7b683');
-      return false;
-    }
-
-    const entry = unpackMapping[unpackIndex];
-    // Only allow unpack if the player is on (or past) the expected quest
-    if (q.currentQuest < entry.quest) {
-      this.addFloat(`Nothing to unpack yet — complete the current task first.`, van.x, van.y - 30, '#c7b683');
-      return false;
-    }
-
-    const dropX = van.x + 60 + rand(-10, 10);
-    const dropY = van.y + 30 + rand(-8, 8);
-
-    q.vanUnpackCount++;
-
-    if (entry.type === 'item') {
-      this.spawnItem(entry.item, dropX, dropY, 1);
-      this.addFloat(`Unpacked: ${itemLabel(entry.item)}`, van.x, van.y - 45, '#9abf8f');
-    } else if (entry.type === 'bot') {
-      const bot = this.createBot(dropX, dropY, 'idle', true);
-      if (bot) this.addFloat('Unpacked: helper bot', van.x, van.y - 45, '#9abf8f');
-    }
-
-    this.emitSound('drop', { cooldownKey: 'van:unpack', minGapMs: 200 });
-    this.triggerDialogue(entry.dialogue);
-    this.checkCampaignQuest();
-    return true;
-  }
-
-  /**
-   * Central quest completion checker. Called after relevant game actions.
-   * Checks the current quest's conditions and advances when met.
-   */
-  checkCampaignQuest() {
-    if (!this.campaignQuest?.active) return;
-    const q = this.campaignQuest;
-
-    const completeQuest = (n, nextDialogueId) => {
-      if (q.completedQuests.includes(n)) return;
-      q.completedQuests.push(n);
-      q.currentQuest = n + 1;
-      if (nextDialogueId) {
-        // Slight delay so the completion dialogue doesn't overlap with action floats
-        const self = this;
-        setTimeout(() => self.triggerDialogue(nextDialogueId), 800);
-      }
-      if (q.currentQuest > 9) {
-        q.active = false;
-      }
-    };
-
-    switch (q.currentQuest) {
-      case 1:
-        // Quest 1: unpack the van (axe drops). Completed by unpacking.
-        if (q.vanUnpackCount >= 1) {
-          completeQuest(1, 'quest2_start');
-        }
-        break;
-      case 2:
-        // Quest 2: pick up axe, chop a tree, drop axe
-        if (q.quest2AxePickedUp && q.quest2TreeChopped && q.quest2AxeDropped) {
-          completeQuest(2, 'quest2_complete');
-        }
-        break;
-      case 3:
-        // Quest 3: unpack van again (bot drops). Completed by unpacking.
-        if (q.vanUnpackCount >= 2) {
-          completeQuest(3, 'quest4_teach_prompt');
-        }
-        break;
-      case 4:
-        // Quest 4: teach bot to chop (teach-by-doing). When a bot finishes
-        // a chop action on its own, we consider it taught. Simplified:
-        // when player opens a bot teach menu and assigns a program.
-        // We auto-complete when any bot has a non-idle program assigned
-        // and has chopped at least one tree (tracked via treesChopped by bots).
-        // For simplicity, complete when the player has taught any bot a program.
-        if (q.quest4BotTaught) {
-          completeQuest(4, null); // quest5_storage triggers on unpack
-        }
-        break;
-      case 5:
-        // Quest 5: unpack van (storage kit), player places it
-        if (q.vanUnpackCount >= 3 && q.quest5StoragePlaced) {
-          completeQuest(5, 'quest6_start');
-        }
-        break;
-      case 6:
-        // Quest 6: store 10 logs in the storage building
-        if (q.logsStored >= 10) {
-          completeQuest(6, 'quest6_complete');
-        }
-        break;
-      case 7:
-        // Quest 7: unpack van (shovel drops). Completed by unpacking.
-        if (q.vanUnpackCount >= 4) {
-          completeQuest(7, 'quest8_start');
-        }
-        break;
-      case 8:
-        // Quest 8: dig 5 holes and drop the shovel
-        if (q.holesDug >= 5 && !this.player.inventory) {
-          completeQuest(8, 'quest8_complete');
-        }
-        break;
-      case 9:
-        // Quest 9: plant 5 seeds (or at least as many holes as were dug)
-        if (q.seedsPlanted >= 5) {
-          completeQuest(9, 'quest9_complete');
-        }
-        break;
-    }
-  }
-
-  /**
-   * Called when a bot program is assigned (teach-by-doing). Hook from teach system.
-   */
-  onBotProgramAssigned(bot) {
-    if (!this.campaignQuest?.active) return;
-    const q = this.campaignQuest;
-    if (q.currentQuest === 4 && bot && bot.program && bot.program !== 'idle') {
-      q.quest4BotTaught = true;
-      this.checkCampaignQuest();
-    }
-  }
-
-  /**
-   * Called when a storage structure is deployed/placed.
-   */
-  onStoragePlaced() {
-    if (!this.campaignQuest?.active) return;
-    const q = this.campaignQuest;
-    if (q.currentQuest === 5) {
-      q.quest5StoragePlaced = true;
-      if (!q.completedQuests.includes(5)) this.triggerDialogue('quest5_storage_placed');
-      this.checkCampaignQuest();
-    }
-  }
-
   interact() {
     const s = this.structures.find(st => rectDistance(this.player.x,this.player.y,st)<45);
     if (this.player.inventory?.type === 'crude_hammer' && this.manualDemolishStructure(s)) return;
@@ -2508,519 +1361,6 @@ export class Game {
 
 
 
-
-
-  renderBotDrawerCard(bot) {
-    const team = this.botTeam(bot);
-    const name = this.botDisplayName(bot);
-    const color = this.teamColor(team?.color || '#101413');
-    const teamText = team ? team.name : 'No team';
-    const roleLabel = this.isDogBot(bot) ? 'dog' : (bot.status === 'manager' ? 'manager' : 'worker');
-    return `<article class="bot-card bot-team-card" draggable="true" data-bot-card data-bot-id="${bot.id}" style="--team-color:${escapeHtml(color)}"><button type="button" class="bot-badge bot-card-menu-button" data-open-bot-menu="${bot.id}" aria-label="Open ${escapeHtml(name)} menu">#${bot.id}</button><div class="bot-card-body"><div class="bot-card-topline"><label class="bot-name-edit">Name <input data-bot-name-input="${bot.id}" value="${escapeHtml(name)}" maxlength="32" /></label><button type="button" class="bot-card-inline-action" data-open-bot-menu="${bot.id}">Open menu</button></div><p><span class="program">${escapeHtml(bot.program)}</span> · ${escapeHtml(teamText)} · ${escapeHtml(roleLabel)}</p><p>${escapeHtml(bot.message)}</p></div></article>`;
-  }
-
-  renderBotDrawerTeam(team, bots) {
-    const color = this.teamColor(team.color);
-    const body = bots.length ? bots.map(bot => this.renderBotDrawerCard(bot)).join('') : '<p class="empty">Drop bot cards here to assign this team.</p>';
-    return `<section class="bot-team-section" data-team-dropzone data-team-id="${escapeHtml(team.id)}" style="--team-color:${escapeHtml(color)}"><header><span class="team-color-dot" aria-hidden="true"></span><b>${escapeHtml(team.name)}</b><small>${bots.length} bot${bots.length === 1 ? '' : 's'}</small><label class="team-color-edit">Color <input type="color" data-team-color-input="${escapeHtml(team.id)}" value="${escapeHtml(color)}"></label></header><div class="bot-team-cards">${body}</div></section>`;
-  }
-
-  syncBotDrawerUi(force = false) {
-    const list = this.dom.botList;
-    if (!list || (this.botDrawerDragging && !force)) return;
-    const active = document.activeElement;
-    if (!force && active?.matches?.('[data-bot-name-input]')) return;
-    const query = String(this.botSearchQuery || this.dom.botSearch?.value || '').trim().toLowerCase();
-    const matches = bot => !query || this.botDisplayName(bot).toLowerCase().includes(query);
-    const bots = this.bots.filter(matches);
-    const sections = this.botTeams.map(team => this.renderBotDrawerTeam(team, bots.filter(bot => bot.teamId === team.id)));
-    const unassigned = bots.filter(bot => !this.findBotTeam(bot.teamId));
-    const unassignedBody = unassigned.length ? unassigned.map(bot => this.renderBotDrawerCard(bot)).join('') : `<p class="empty">${query ? 'No unassigned bots match this search.' : 'No unassigned bots.'}</p>`;
-    const emptySearch = query && !bots.length ? '<p class="empty bot-search-empty">No bots match that name.</p>' : '';
-    const teamHint = this.botTeams.length ? '' : '<p class="empty bot-team-hint">Create a team above, then drag bot cards into it.</p>';
-    list.innerHTML = `${emptySearch}${teamHint}${sections.join('')}<section class="bot-team-section bot-team-unassigned" data-team-dropzone data-team-id=""><header><span class="team-color-dot" aria-hidden="true"></span><b>No team</b><small>${unassigned.length} bot${unassigned.length === 1 ? '' : 's'}</small></header><div class="bot-team-cards">${unassignedBody}</div></section>`;
-  }
-
-  bindBotDrawerControls() {
-    this.dom.botSearch?.addEventListener('input', () => { this.botSearchQuery = this.dom.botSearch.value; this.syncBotDrawerUi(); });
-    this.dom.botTeamForm?.addEventListener('submit', event => {
-      event.preventDefault();
-      const team = this.createBotTeam(this.dom.botTeamName?.value, this.dom.botTeamColor?.value);
-      if (this.dom.botTeamName) this.dom.botTeamName.value = '';
-      if (this.dom.botTeamColor) this.dom.botTeamColor.value = team.color;
-    });
-    this.dom.botList?.addEventListener('change', event => {
-      const nameInput = event.target.closest('[data-bot-name-input]');
-      if (nameInput) { this.setBotName(nameInput.dataset.botNameInput, nameInput.value); return; }
-      const colorInput = event.target.closest('[data-team-color-input]');
-      if (colorInput) this.setBotTeamColor(colorInput.dataset.teamColorInput, colorInput.value);
-    });
-    this.dom.botList?.addEventListener('keydown', event => {
-      const input = event.target.closest('[data-bot-name-input]');
-      if (input && event.key === 'Enter') { event.preventDefault(); input.blur(); this.setBotName(input.dataset.botNameInput, input.value); }
-    });
-    this.dom.botList?.addEventListener('click', event => {
-      const button = event.target.closest('[data-open-bot-menu]');
-      if (!button) return;
-      event.preventDefault();
-      event.stopPropagation();
-      const card = button.closest('[data-bot-card]');
-      const bot = this.findBot(Number(button.dataset.openBotMenu || card?.dataset.botId || 0));
-      if (!bot || !card) return;
-      const rect = card.getBoundingClientRect();
-      this.showBotMenu(bot, rect.right - 8, rect.top + Math.min(rect.height * 0.5, 40), { refreshEdit: true });
-    });
-    this.dom.botList?.addEventListener('dragstart', event => {
-      const card = event.target.closest('[data-bot-card]');
-      if (!card) return;
-      this.botDrawerDragging = true;
-      event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', card.dataset.botId);
-      card.classList.add('is-dragging');
-    });
-    this.dom.botList?.addEventListener('dragend', event => {
-      event.target.closest('[data-bot-card]')?.classList.remove('is-dragging');
-      this.botDrawerDragging = false;
-      this.dom.botList?.querySelectorAll('.is-drop-target').forEach(el => el.classList.remove('is-drop-target'));
-      this.syncBotDrawerUi(true);
-    });
-    this.dom.botList?.addEventListener('dragover', event => {
-      const zone = event.target.closest('[data-team-dropzone]');
-      if (!zone) return;
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'move';
-      zone.classList.add('is-drop-target');
-    });
-    this.dom.botList?.addEventListener('dragleave', event => {
-      const zone = event.target.closest('[data-team-dropzone]');
-      if (zone && !zone.contains(event.relatedTarget)) zone.classList.remove('is-drop-target');
-    });
-    this.dom.botList?.addEventListener('drop', event => {
-      const zone = event.target.closest('[data-team-dropzone]');
-      if (!zone) return;
-      event.preventDefault();
-      const botId = event.dataTransfer.getData('text/plain');
-      this.assignBotToTeam(botId, zone.dataset.teamId || null);
-      this.botDrawerDragging = false;
-      zone.classList.remove('is-drop-target');
-      this.syncBotDrawerUi(true);
-    });
-  }
-
-  editableBotProgramFrom(bot) {
-    const current = this.getBotProgram(bot);
-    const steps = clone(current.resolvedSteps || current.steps || []);
-    return {
-      id: current.id || `${bot.program || 'bot'}_editable`,
-      name: current.name || `Bot ${bot.id} editable loop`,
-      description: current.description || 'Editable bot DSL program from the bot context menu.',
-      steps
-    };
-  }
-
-  ensureBotMenuEdit(bot, { refresh = false } = {}) {
-    const nextProgram = this.editableBotProgramFrom(bot);
-    const sameBot = this.botMenuEdit?.botId === bot.id;
-    const shouldRefresh = refresh || !sameBot || JSON.stringify(this.botMenuEdit?.program || null) !== JSON.stringify(nextProgram);
-    if (shouldRefresh) {
-      this.botMenuEdit = {
-        botId: bot.id,
-        program: nextProgram,
-        status: sameBot ? this.botMenuEdit.status : '',
-        nameStatus: sameBot ? this.botMenuEdit.nameStatus : '',
-        nameEditing: sameBot ? this.botMenuEdit.nameEditing : false,
-        nameDraft: sameBot ? this.botMenuEdit.nameDraft : ''
-      };
-    }
-    return this.botMenuEdit;
-  }
-
-  renderBotProgramEditSteps(steps = []) {
-    if (!steps.length) return '<li class="empty">No DSL steps yet.</li>';
-    return steps.map((step, index) => this.renderStepCard(step, index, { mode: 'bot-edit' })).join('');
-  }
-
-  syncBotMenuEditSurface(root) {
-    const edit = this.botMenuEdit;
-    if (root) this.botMenuEditRoot = root;
-    if (!root || !edit) return;
-    const json = root.querySelector('[data-bot-json-editor]');
-    if (json && document.activeElement !== json) json.value = JSON.stringify(edit.program, null, 2);
-    const list = root.querySelector('[data-bot-program-steps]');
-    if (list) list.innerHTML = this.renderBotProgramEditSteps(edit.program.steps || []);
-    const status = root.querySelector('[data-bot-edit-status]');
-    if (status) status.textContent = edit.status || 'Edit JSON, or adjust the DSL cards and accept them.';
-  }
-
-  setBotMenuEditSteps(steps, status = 'DSL cards edited. Accept card flow to activate.') {
-    if (!this.botMenuEdit) return false;
-    const nextSteps = clone(steps || []);
-    for (const step of nextSteps) step.text = this.stepText(step);
-    this.botMenuEdit.program = { ...this.botMenuEdit.program, steps: nextSteps };
-    if (status !== null) this.botMenuEdit.status = status;
-    return true;
-  }
-
-  updateBotMenuEditStep(index, patch) {
-    if (!this.botMenuEdit) return false;
-    const steps = clone(this.botMenuEdit.program.steps || []);
-    const step = steps[index];
-    if (!step) return false;
-    Object.assign(step, patch);
-    if (patch.type === '') delete step.type;
-    if (patch.name === '') delete step.name;
-    if (patch.target === '') { delete step.target; delete step.botId; delete step.botName; delete step.targetName; }
-    if (patch.recipient === '') { delete step.recipient; delete step.recipientBotId; delete step.recipientName; }
-    if (patch.message === '') delete step.message;
-    step.text = this.stepText(step);
-    return this.setBotMenuEditSteps(steps);
-  }
-
-  moveBotMenuEditStep(index, delta) {
-    if (!this.botMenuEdit) return false;
-    const steps = clone(this.botMenuEdit.program.steps || []);
-    const to = index + delta;
-    if (index < 0 || to < 0 || index >= steps.length || to >= steps.length) return false;
-    [steps[index], steps[to]] = [steps[to], steps[index]];
-    return this.setBotMenuEditSteps(steps);
-  }
-
-  deleteBotMenuEditStep(index) {
-    if (!this.botMenuEdit) return false;
-    const steps = clone(this.botMenuEdit.program.steps || []);
-    if (index < 0 || index >= steps.length) return false;
-    steps.splice(index, 1);
-    return this.setBotMenuEditSteps(steps);
-  }
-
-  addBotMenuEditLoopStep() {
-    if (!this.botMenuEdit) return false;
-    const steps = clone(this.botMenuEdit.program.steps || []);
-    if (steps.some(step => step.op === 'loop')) this.botMenuEdit.status = 'This DSL already has a loop step.';
-    else {
-      steps.push({ op: 'loop', text: 'loop' });
-      this.setBotMenuEditSteps(steps);
-    }
-    return true;
-  }
-
-  saveBotMenuJson(bot, text) {
-    this.ensureBotMenuEdit(bot);
-    let parsed;
-    try { parsed = JSON.parse(text); }
-    catch (err) { this.botMenuEdit.status = `JSON error: ${err.message}`; return { ok: false, error: err.message }; }
-    const program = parsed?.program || parsed;
-    const checked = this.validateDslProgram(program);
-    if (!checked.ok) { this.botMenuEdit.status = `Validation failed: ${checked.error}`; return checked; }
-    const nextProgram = { ...program, id: checked.program.id, name: checked.program.name, steps: checked.program.steps };
-    const res = this.assignCustomDslProgram({ botId: bot.id, program: nextProgram, reason: 'Edited from bot menu JSON.' });
-    this.botMenuEdit = { botId: bot.id, program: clone(res.program || nextProgram), status: res.ok ? `Saved JSON and refreshed Bot ${bot.id}.` : `Save failed: ${res.error}` };
-    return res;
-  }
-
-  acceptBotMenuDslCards(bot) {
-    const edit = this.ensureBotMenuEdit(bot);
-    const checked = this.validateDslProgram(edit.program);
-    if (!checked.ok) { edit.status = `Validation failed: ${checked.error}`; return checked; }
-    const res = this.assignCustomDslProgram({ botId: bot.id, program: { ...edit.program, steps: checked.program.steps }, reason: 'Accepted DSL card flow from bot menu.' });
-    this.botMenuEdit = { botId: bot.id, program: clone(res.program || checked.program), status: res.ok ? `Accepted card flow and refreshed Bot ${bot.id}.` : `Accept failed: ${res.error}` };
-    return res;
-  }
-
-  bindBotProgramEditControls(el, bot, x, y) {
-    el.querySelector('[data-save-json]')?.addEventListener('click', () => {
-      const res = this.saveBotMenuJson(bot, el.querySelector('[data-bot-json-editor]')?.value || '{}');
-      if (res.ok) this.showBotMenu(bot, x, y);
-      else this.syncBotMenuEditSurface(el);
-    });
-    el.querySelector('[data-accept-dsl-cards]')?.addEventListener('click', () => {
-      const res = this.acceptBotMenuDslCards(bot);
-      if (res.ok) this.showBotMenu(bot, x, y);
-      else this.syncBotMenuEditSurface(el);
-    });
-    el.querySelector('[data-add-loop-step]')?.addEventListener('click', () => { this.addBotMenuEditLoopStep(); this.syncBotMenuEditSurface(el); });
-    el.addEventListener('click', event => {
-      const location = event.target.closest('[data-bot-step-location]');
-      if (location) {
-        const index = Number(location.dataset.botStepLocation);
-        if (Number.isFinite(index)) this.beginTeachLocationEdit(index, 'select_zone', 'bot-edit');
-        return;
-      }
-      const button = event.target.closest('[data-bot-step-up], [data-bot-step-down], [data-bot-step-delete]');
-      if (!button) return;
-      const index = Number(button.dataset.botStepUp ?? button.dataset.botStepDown ?? button.dataset.botStepDelete);
-      if (!Number.isFinite(index)) return;
-      if ('botStepUp' in button.dataset) this.moveBotMenuEditStep(index, -1);
-      else if ('botStepDown' in button.dataset) this.moveBotMenuEditStep(index, 1);
-      else this.deleteBotMenuEditStep(index);
-      this.syncBotMenuEditSurface(el);
-    });
-    el.addEventListener('change', event => {
-      const op = event.target.closest('[data-bot-step-op]');
-      const type = event.target.closest('[data-bot-step-type]');
-      const name = event.target.closest('[data-bot-step-name]');
-      const target = event.target.closest('[data-bot-step-target]');
-      const packs = event.target.closest('[data-bot-step-packs]');
-      const recipient = event.target.closest('[data-bot-step-recipient]');
-      const message = event.target.closest('[data-bot-step-message]');
-      const locationMenu = event.target.closest('select[data-bot-step-location-menu]');
-      if (op) this.updateBotMenuEditStep(Number(op.dataset.botStepOp), { op: op.value });
-      if (type) this.updateBotMenuEditStep(Number(type.dataset.botStepType), { type: type.value.trim() });
-      if (name) this.updateBotMenuEditStep(Number(name.dataset.botStepName), { name: name.value.trim() });
-      if (target) this.updateBotMenuEditStep(Number(target.dataset.botStepTarget), { target: target.value.trim() });
-      if (packs) this.updateBotMenuEditStep(Number(packs.dataset.botStepPacks), { knowledgePacks: this.normalizeManagerKnowledgePacks(packs.value) });
-      if (recipient) this.updateBotMenuEditStep(Number(recipient.dataset.botStepRecipient), { recipient: recipient.value.trim() });
-      if (message) this.updateBotMenuEditStep(Number(message.dataset.botStepMessage), { message: this.sanitizeManagerMessage(message.value) });
-      if (locationMenu) {
-        const index = Number(locationMenu.dataset.botStepLocationMenu);
-        const mode = locationMenu.value;
-        locationMenu.value = '';
-        if (Number.isFinite(index) && mode) this.beginTeachLocationEdit(index, mode, 'bot-edit');
-      }
-      if (op || type || name || target || packs || recipient || message || locationMenu) this.syncBotMenuEditSurface(el);
-    });
-    el.addEventListener('dragstart', event => {
-      const card = event.target.closest('[data-bot-step-index]');
-      if (!card) return;
-      this.draggedBotProgramStepIndex = Number(card.dataset.botStepIndex);
-      event.dataTransfer?.setData('text/plain', String(this.draggedBotProgramStepIndex));
-    });
-    el.addEventListener('dragover', event => { if (event.target.closest('[data-bot-step-index]')) event.preventDefault(); });
-    el.addEventListener('drop', event => {
-      const card = event.target.closest('[data-bot-step-index]');
-      const from = Number(event.dataTransfer?.getData('text/plain') || this.draggedBotProgramStepIndex);
-      const to = Number(card?.dataset.botStepIndex);
-      if (!Number.isFinite(from) || !Number.isFinite(to) || from === to || !this.botMenuEdit) return;
-      event.preventDefault();
-      const steps = clone(this.botMenuEdit.program.steps || []);
-      const [moved] = steps.splice(from, 1);
-      steps.splice(to, 0, moved);
-      this.setBotMenuEditSteps(steps);
-      this.syncBotMenuEditSurface(el);
-    });
-  }
-
-  renderManagerPackControls(bot) {
-    const catalog = this.managerKnowledgePackCatalog || {};
-    const selected = new Set(bot.managerKnowledgePacks?.length ? bot.managerKnowledgePacks : DEFAULT_MANAGER_KNOWLEDGE_PACKS);
-    const ids = Object.keys(catalog).length ? Object.keys(catalog) : DEFAULT_MANAGER_KNOWLEDGE_PACKS;
-    return ids.map(id => {
-      const pack = catalog[id] || { id, name: id };
-      return `<label class="manager-pack-option"><input type="checkbox" data-manager-pack="${escapeHtml(id)}"${selected.has(id) ? ' checked' : ''}> ${escapeHtml(pack.name || id)}</label>`;
-    }).join('');
-  }
-
-  showBotMenu(bot, x, y, { refreshEdit = false } = {}) {
-    if (this.isDogBot(bot)) {
-      this.showDogPopup(bot, bot.inventory ? 'reward' : 'progress');
-      return;
-    }
-    const el = this.dom.botMenu;
-    const edit = this.ensureBotMenuEdit(bot, { refresh: refreshEdit });
-    const tpl = JSON.stringify(edit.program, null, 2);
-    const steps = this.activeTeachSteps();
-    const teachSteps = this.renderTeachSteps(steps);
-    const editSteps = this.renderBotProgramEditSteps(edit.program.steps || []);
-    const recordLabel = this.recorder.recording ? 'Stop recording' : 'Start recording';
-    const assignDisabled = (this.recordedLoop.length || this.recorder.steps.length) ? '' : ' disabled';
-    const hasWorkflow = !!bot.program && bot.program !== 'idle';
-    const stopLabel = bot.paused ? 'Resume workflow' : 'Stop workflow';
-    const displayName = this.botDisplayName(bot);
-    const statusLabel = this.isManagerBot(bot) ? 'manager' : ((this.isDogBot(bot) || bot.program === 'dog_fetch') ? 'dog' : (bot.status || 'worker'));
-    const promoteButton = this.isManagerBot(bot) ? '' : '<button type="button" data-promote-manager>Promote to Manager</button>';
-    const managerSection = this.isManagerBot(bot) ? `<section class="manager-menu" data-manager-section><b>Manager controls</b><p>Status: <code>manager</code> · Known packs: <span data-manager-pack-summary>${escapeHtml((bot.managerKnowledgePacks || []).join(', ') || 'none')}</span></p><div class="manager-pack-list">${this.renderManagerPackControls(bot)}</div><label class="manager-message-input">Message manager <textarea data-manager-message rows="3" placeholder="make bot 2 chop trees"></textarea></label><button type="button" data-send-manager-message>Send to Manager</button><p class="manager-message-status" data-manager-status></p></section>` : '';
-    const dogPackSummary = `<span>${escapeHtml((bot.knowledgePacks || []).join(', ') || 'dog_fetch')}</span>`;
-    const dogSection = (() => {
-      if (!this.isDogBot(bot) && bot.program !== 'dog_fetch') return '';
-      const fetchedType = bot.inventory?.type ? itemLabel(bot.inventory.type) : '';
-      const praiseCount = bot.inventory?.type ? (bot.dogFetchMemory?.praiseCounts?.[bot.inventory.type] || 0) : 0;
-      const dogControls = bot.inventory
-        ? `<div class="dog-reward-buttons" data-dog-reward-buttons><button type="button" class="dog-reward-button is-yes" data-dog-praise aria-label="Praise dog and take item">&#10003;</button><button type="button" class="dog-reward-button is-no" data-dog-reject aria-label="Reject fetched item">&#10007;</button></div><p class="dog-reward-hint">Right now: ${escapeHtml(fetchedType)} · praises ${praiseCount}/${DOG_FETCH_PRAISE_TARGET}</p>`
-        : `<label class="dog-fetch-input"><span>Fetch command</span><input data-dog-fetch-command placeholder="go fetch me a stick" value="${escapeHtml(edit.dogCommandDraft || '')}"></label><button type="button" data-dog-fetch-submit>Fetch</button><p class="dog-reward-hint">Dog pack: pick up + follow. Assigned pack: ${dogPackSummary}</p>`;
-      return `<section class="dog-menu" data-dog-section><b>Dog fetch</b><p>Status: <code>dog</code> · Assigned pack: ${dogPackSummary}</p>${dogControls}</section>`;
-    })();
-    const nameStatus = edit.nameStatus ? `<p class="bot-menu-name-status" data-bot-name-status>${escapeHtml(edit.nameStatus)}</p>` : '';
-    const nameEditor = edit.nameEditing ? `<label class="bot-menu-name-edit">Bot name <input data-menu-bot-name value="${escapeHtml(edit.nameDraft || displayName)}" maxlength="32"></label>` : '';
-    const workflowButton = hasWorkflow ? `<button data-stop-workflow>${stopLabel}</button>` : '';
-    el.innerHTML = `<div class="bot-menu-title"><div class="bot-menu-title-row"><b>${escapeHtml(displayName)}</b><button type="button" data-edit-bot-name aria-label="Edit bot name">Edit</button></div>${nameStatus}${nameEditor}</div><button data-close>×</button><p>${escapeHtml(bot.message)}</p><p><b>Status:</b> ${escapeHtml(statusLabel)}</p><p><b>Program:</b> ${escapeHtml(bot.program)}</p><p><b>Ref:</b> <code>${escapeHtml(bot.ref)}</code></p>${promoteButton}${managerSection}${dogSection}${workflowButton}<section class="teach-menu"><b>Teach by doing</b><p>${escapeHtml(this.recorder.recording ? `Recording ${this.recorder.steps.length} steps for Bot ${this.recorder.targetBotId || bot.id}…` : this.recorder.status)}</p><ol class="teach-steps menu-teach-steps">${teachSteps}</ol><button data-teach-record>${recordLabel}</button><button data-assign-taught${assignDisabled}>Assign to ${escapeHtml(displayName)}</button></section><section class="bot-program-editor"><b>Assigned JSON</b><p data-bot-edit-status>${escapeHtml(edit.status || 'Edit JSON, or adjust the DSL cards and accept them.')}</p><textarea data-bot-json-editor spellcheck="false">${escapeHtml(tpl)}</textarea><button type="button" data-save-json>Save JSON + refresh Bot ${bot.id}</button><div class="bot-card-flow-head"><b>DSL card flow</b><button type="button" data-add-loop-step>Add loop</button></div><ol class="teach-steps bot-program-steps" data-bot-program-steps>${editSteps}</ol><button type="button" data-accept-dsl-cards>Accept card flow + refresh Bot ${bot.id}</button></section><button data-add>Add bot to chat</button>`;
-    this.placeMenu(el,x,y);
-    this.bindTeachStepControls(el.querySelector('.menu-teach-steps'));
-    this.bindBotProgramEditControls(el, bot, x, y);
-    el.querySelector('[data-close]').onclick=()=>this.hideMenus();
-    el.querySelector('[data-promote-manager]')?.addEventListener('click', event => {
-      event.stopPropagation();
-      this.promoteBotToManager(bot, bot.managerKnowledgePacks?.length ? bot.managerKnowledgePacks : (this.getDefaultManagerKnowledgePacks?.() || DEFAULT_MANAGER_KNOWLEDGE_PACKS));
-      this.showBotMenu(bot, x, y, { refreshEdit: true });
-    });
-    el.querySelectorAll('[data-manager-pack]')?.forEach(input => input.addEventListener('change', () => {
-      const ids = [...el.querySelectorAll('[data-manager-pack]:checked')].map(box => box.dataset.managerPack);
-      this.setManagerKnowledgePacks(bot.id, ids);
-      const summary = el.querySelector('[data-manager-pack-summary]');
-      if (summary) summary.textContent = (bot.managerKnowledgePacks || []).join(', ') || 'none';
-    }));
-    el.querySelector('[data-send-manager-message]')?.addEventListener('click', () => {
-      const text = el.querySelector('[data-manager-message]')?.value || '';
-      const res = this.delegateMessageToManager(bot, bot.id, text, { throttleKey: `manual:${bot.id}:${this.sanitizeManagerMessage(text)}` });
-      const status = el.querySelector('[data-manager-status]');
-      if (status) status.textContent = res.ok ? `Sent to ${this.botDisplayName(bot)}.` : res.error;
-    });
-    el.querySelector('[data-dog-fetch-submit]')?.addEventListener('click', () => {
-      const text = el.querySelector('[data-dog-fetch-command]')?.value || '';
-      const res = this.setDogFetchCommand(bot, text);
-      if (res.ok) this.showBotMenu(bot, x, y, { refreshEdit: true });
-    });
-    el.querySelector('[data-dog-fetch-command]')?.addEventListener('keydown', event => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        const text = el.querySelector('[data-dog-fetch-command]')?.value || '';
-        const res = this.setDogFetchCommand(bot, text);
-        if (res.ok) this.showBotMenu(bot, x, y, { refreshEdit: true });
-      }
-    });
-    el.querySelector('[data-dog-praise]')?.addEventListener('click', () => {
-      const res = this.praiseDogFetch(bot);
-      if (res.ok) this.showBotMenu(bot, x, y, { refreshEdit: true });
-    });
-    el.querySelector('[data-dog-reject]')?.addEventListener('click', () => {
-      const res = this.rejectDogFetch(bot);
-      if (res.ok) this.showBotMenu(bot, x, y, { refreshEdit: true });
-    });
-    el.querySelector('[data-edit-bot-name]')?.addEventListener('click', () => this.beginBotMenuNameEdit(bot, x, y));
-    el.querySelector('[data-menu-bot-name]')?.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); this.saveBotMenuName(bot, x, y, el.querySelector('[data-menu-bot-name]')?.value || ''); } });
-    el.querySelector('[data-add]').onclick=()=>{this.chat.insertAtCursor(`Bot ${bot.id} `);};
-    el.querySelector('[data-stop-workflow]')?.addEventListener('click',()=>{ bot.paused = !bot.paused; bot.message = bot.paused ? `Paused ${bot.program} workflow.` : `Resumed ${bot.program} workflow.`; this.showBotMenu(bot, x, y); });
-    el.querySelector('[data-teach-record]').onclick=()=>{ this.recorder.recording ? this.stopTeachRecording() : this.startTeachRecording(bot.id); this.showBotMenu(bot, x, y); };
-    el.querySelector('[data-assign-taught]')?.addEventListener('click',()=>{ this.assignRecordedLoopToBot(bot.id); this.showBotMenu(bot, x, y, { refreshEdit: true }); });
-    if (edit.nameEditing) requestAnimationFrame(() => {
-      const input = el.querySelector('[data-menu-bot-name]');
-      if (!input) return;
-      input.focus();
-      input.select();
-    });
-  }
-  showStructureMenu(s, x, y) {
-    const el = this.dom.structureMenu;
-    const processing = s.processing ? `<br>processing ${escapeHtml(s.processing.label)} · ${Math.max(0, s.processing.remaining).toFixed(1)}s left` : '';
-    const storage = (s.type === 'throne' ? `<br>owner ${s.ownerLabel || s.ownerId || 'none'} · HP ${Math.max(0, s.hp || 0)}/${s.maxHp || THRONE_HP}` : s.type === 'defensetower' ? `<br>range ${s.rangedAttack?.range || DEFENSE_TOWER_ATTACK.range} · damage ${s.rangedAttack?.damage || 1} · cooldown ${s.rangedAttack?.cooldown || 1}s${s.rangedAttack?.targetRef ? ` · target ${s.rangedAttack.targetRef}` : ''}` : STORAGE_STRUCTURE_TYPES.includes(s.type) ? `<br>locked type ${s.storageType || 'empty/unlocked'} · stored ${s.stored || 0}/${s.capacity || 0}` : s.type === 'workbench' ? `<br>sticks ${s.sticks||0} · stones ${s.stones||0} · output ${escapeHtml(itemLabel(workbenchRecipe(s)))} · made A${s.axes||0} P${s.pickaxes||0} S${s.shovels||0} H${s.hammers||0}` : s.type === 'smithery' ? `<br>sticks ${s.sticks||0} · planks ${s.planks||0} · mode ${escapeHtml(itemLabel(smitheryRecipe(s)))} · made swords ${s.swords||0} shields ${s.shields||0}` : s.type === 'bowmaker' ? `<br>sticks ${s.sticks||0}/2 · hemp ${s.hemps||0}/3 · made bows ${s.bows||0}` : s.type === 'arrowmaker' ? `<br>sticks ${s.sticks||0}/1 · stones ${s.stones||0}/1 · arrow packs ${s.arrow_packs||0}` : s.type === 'factory' ? `<br>logs ${s.logs||0} · planks ${s.planks||0} · poles ${s.poles||0} · seeds ${s.tree_seeds||0}` : s.type === 'assembler' ? `<br>planks ${s.planks||0}/2 · poles ${s.poles||0}/1 · output ${escapeHtml(itemLabel(assemblerRecipe(s)))}` : `<br>logs ${s.logs||0} · planks ${s.planks||0} · poles ${s.poles||0}`) + processing;
-    const insertButton = STORAGE_STRUCTURE_TYPES.includes(s.type) ? '<button data-insert-nearby>Insert nearby item</button>' : '<button data-add-radius>Add small radius</button>';
-    const demolishButton = this.canDemolishStructure(s) ? '<button data-demolish-structure>Demolish with hammer</button>' : '';
-    const disassembleButton = this.canDisassembleStructure(s) ? '<button data-disassemble-structure>Disassemble into kit</button>' : '';
-    const selectedRecipe = workbenchRecipe(s);
-    const selector = s.type === 'workbench' ? `<section class="tool-selector" aria-label="Tool bench output"><b>Produce:</b> ${WORKBENCH_TOOL_RECIPES.map(type => `<button type="button" data-select-tool="${type}"${type === selectedRecipe ? ' aria-pressed="true" class="is-active"' : ' aria-pressed="false"'}>${escapeHtml(itemLabel(type))}</button>`).join('')}</section>` : s.type === 'smithery' ? `<section class="tool-selector" aria-label="Smithery production mode"><b>Production mode:</b> <button type="button" data-switch-smithery>${escapeHtml(itemLabel(smitheryRecipe(s)))} (switch)</button></section>` : s.type === 'assembler' ? `<section class="tool-selector" aria-label="Assembler building kit output"><b>Assemble:</b> ${BUILDING_KIT_ITEM_TYPES.map(type => `<button type="button" data-select-kit="${type}"${type === assemblerRecipe(s) ? ' aria-pressed="true" class="is-active"' : ' aria-pressed="false"'}>${escapeHtml(itemLabel(type))}</button>`).join('')}</section>` : '';
-    const info = STRUCTURE_INFO[s.type] || 'Building.';
-    const visibleType = BUILDING_TYPES[s.type]?.category || s.type;
-    el.innerHTML = `<b>${escapeHtml(s.name)}</b><button data-close>×</button><p>${escapeHtml(s.label)} · type <code>${escapeHtml(visibleType)}</code> · ref <code>${escapeHtml(s.ref)}</code>${storage}<br><b>Info:</b> ${escapeHtml(info)}<br><b>Recipe:</b> ${escapeHtml(structureRecipeText(s))}</p>${selector}${demolishButton}${disassembleButton}<button data-add-name>Add name</button><button data-add-ref>Add ref</button>${insertButton}`;
-    this.placeMenu(el,x,y);
-    el.querySelector('[data-close]').onclick=()=>this.hideMenus();
-    el.querySelectorAll('[data-select-tool]').forEach(btn => btn.addEventListener('click', () => {
-      if (this.setWorkbenchRecipe(s, btn.dataset.selectTool)) this.showStructureMenu(s, x, y);
-    }));
-    el.querySelectorAll('[data-select-kit]').forEach(btn => btn.addEventListener('click', () => {
-      if (this.setAssemblerRecipe(s, btn.dataset.selectKit)) this.showStructureMenu(s, x, y);
-    }));
-    el.querySelector('[data-switch-smithery]')?.addEventListener('click', () => {
-      if (this.switchSmitheryRecipe(s)) this.showStructureMenu(s, x, y);
-    });
-    el.querySelector('[data-demolish-structure]')?.addEventListener('click', () => { this.queuePlayerDemolishStructure(s) || this.manualDemolishStructure(s); this.hideMenus(); });
-    el.querySelector('[data-disassemble-structure]')?.addEventListener('click', () => { this.queuePlayerDisassembleStructure(s); this.hideMenus(); });
-    el.querySelector('[data-add-name]').onclick=()=>{this.chat.insertAtCursor(s.name); this.hideMenus();};
-    el.querySelector('[data-add-ref]').onclick=()=>{this.chat.insertAtCursor(s.ref); this.hideMenus();};
-    el.querySelector('[data-add-radius]')?.addEventListener('click',()=>{this.chat.insertAtCursor(`small area around ${s.name}`); this.hideMenus();});
-    el.querySelector('[data-insert-nearby]')?.addEventListener('click',()=>{this.acceptNearestItemForPalette(s); this.hideMenus();});
-  }
-  showBuildingKitItemMenu(item, x, y) {
-    const el = this.dom.structureMenu;
-    const kitType = this.normalizeBuildingKitItemType(item?.type);
-    const buildingType = buildingTypeFromKitItem(kitType);
-    const buildingLabel = BUILDING_TYPES[buildingType]?.label || buildingType || 'building';
-    el.innerHTML = `<b>${escapeHtml(itemLabel(kitType || item?.type || 'kit'))}</b><button data-close>×</button><p>Building kit item · ref <code>${escapeHtml(item?.ref || '')}</code><br>Deploys into ${escapeHtml(buildingLabel)}.</p><button data-kit-pickup>Pick up kit</button><button data-kit-deploy>Deploy here</button>`;
-    this.placeMenu(el, x, y);
-    el.querySelector('[data-close]').onclick = () => this.hideMenus();
-    el.querySelector('[data-kit-pickup]')?.addEventListener('click', () => { this.queuePlayerItemPickup(item); this.hideMenus(); });
-    el.querySelector('[data-kit-deploy]')?.addEventListener('click', () => { this.queuePlayerDeployLooseKit(item); this.hideMenus(); });
-  }
-  showTreeMenu(tree, x, y) {
-    const el = this.dom.structureMenu;
-    const displayName = this.treeDisplayName(tree);
-    const searchState = tree.searchReservedBy ? `reserved by ${tree.searchReservedBy}` : 'unreserved';
-    const hpLine = tree.stump ? 'stump' : `HP ${Math.max(0, tree.hp || 0)}/${tree.maxHp || 1}`;
-    el.innerHTML = `<b>${escapeHtml(displayName)}</b><button data-close>×</button><p>Resource type <code>tree</code> · ref <code>${escapeHtml(tree.ref || `tree:${tree.id}`)}</code><br>${escapeHtml(hpLine)} · stage ${escapeHtml(tree.growthStage || 'grown_tree')}<br>search ${escapeHtml(searchState)}</p><button data-add-tree-name>Add name</button><button data-add-tree-ref>Add ref</button><button data-add-tree-radius>Add small radius</button>`;
-    this.placeMenu(el, x, y);
-    el.querySelector('[data-close]').onclick = () => this.hideMenus();
-    el.querySelector('[data-add-tree-name]')?.addEventListener('click', () => {
-      this.chat.insertAtCursor(displayName);
-      this.hideMenus();
-    });
-    el.querySelector('[data-add-tree-ref]')?.addEventListener('click', () => {
-      this.chat.insertAtCursor(tree.ref || `tree:${tree.id}`);
-      this.hideMenus();
-    });
-    el.querySelector('[data-add-tree-radius]')?.addEventListener('click', () => {
-      this.chat.insertAtCursor(`small area around ${displayName}`);
-      this.hideMenus();
-    });
-  }  showHoleMenu(hole, x, y) {
-    const el = this.dom.structureMenu;
-    const canPlant = this.player.inventory?.type === 'tree_seed' && !hole.planted;
-    el.innerHTML = `<b>${escapeHtml(hole.planted ? 'planted hole' : 'dug hole')}</b><button data-close>×</button><p>Resource type <code>dug_hole</code> · ref <code>${escapeHtml(hole.ref || `hole:${hole.id}`)}</code><br>${hole.planted ? 'already planted' : 'open for tree seed'}${hole.reservedBy ? ` · reserved by ${escapeHtml(String(hole.reservedBy))}` : ''}</p>${canPlant ? '<button data-plant-seed>Plant tree seed</button>' : ''}<button data-add-hole-name>Add name</button><button data-add-hole-ref>Add ref</button><button data-add-hole-radius>Add small radius</button>`;
-    this.placeMenu(el, x, y);
-    el.querySelector('[data-close]').onclick = () => this.hideMenus();
-    el.querySelector('[data-plant-seed]')?.addEventListener('click', () => {
-      this.queuePlayerPlantSeedAtHole(hole);
-      this.hideMenus();
-    });
-    el.querySelector('[data-add-hole-name]')?.addEventListener('click', () => {
-      this.chat.insertAtCursor(hole.planted ? 'planted hole' : 'dug hole');
-      this.hideMenus();
-    });
-    el.querySelector('[data-add-hole-ref]')?.addEventListener('click', () => {
-      this.chat.insertAtCursor(hole.ref || `hole:${hole.id}`);
-      this.hideMenus();
-    });
-    el.querySelector('[data-add-hole-radius]')?.addEventListener('click', () => {
-      this.chat.insertAtCursor(`small area around ${hole.ref || `hole:${hole.id}`}`);
-      this.hideMenus();
-    });
-  }
-  syncZonesUi() {
-    const list = this.dom.zoneList;
-    if (!list) return;
-    if (!this.zones.length) { list.innerHTML = '<p class="empty">No zones yet.</p>'; return; }
-    list.innerHTML = this.zones.map(z => `<div class="zone-card${z.hidden ? ' is-hidden' : ''}" data-zone-id="${escapeHtml(z.id)}"><div><b>${escapeHtml(z.name)}</b><p>${escapeHtml(z.id)} · ${escapeHtml(z.kind === 'radius' ? `radius ${Math.round(z.radius || DEFAULT_RESOURCE_RADIUS)}px` : `${Math.round(z.w || 0)}×${Math.round(z.h || 0)}`)}${z.hidden ? ' · hidden' : ''}</p></div><div class="zone-card-actions"><button type="button" data-rename-zone="${escapeHtml(z.id)}">Rename</button><button type="button" data-toggle-zone-hidden="${escapeHtml(z.id)}">${z.hidden ? 'Show' : 'Hide'}</button><button type="button" data-add-zone-name="${escapeHtml(z.id)}">Add name</button></div></div>`).join('');
-    list.querySelectorAll('[data-rename-zone]').forEach(btn => btn.addEventListener('click', () => this.promptRenameZone(this.zones.find(z => z.id === btn.dataset.renameZone))));
-    list.querySelectorAll('[data-toggle-zone-hidden]').forEach(btn => btn.addEventListener('click', () => { const z = this.zones.find(zone => zone.id === btn.dataset.toggleZoneHidden); if (z) this.setZoneHidden(z, !z.hidden); }));
-    list.querySelectorAll('[data-add-zone-name]').forEach(btn => btn.addEventListener('click', () => { const z = this.zones.find(zone => zone.id === btn.dataset.addZoneName); if (z) this.chat.insertAtCursor(z.name); }));
-  }
-  promptRenameZone(z) { const next = z ? window.prompt('Rename zone', z.name) : null; if (next != null) this.renameZone(z, next); }
-  renameZone(z, name) {
-    const next = String(name || '').trim();
-    if (!z || !next) return false;
-    z.name = next;
-    this.syncZonesUi();
-    { const p = this.zoneAnchorPoint(z); this.addFloat(`Renamed ${z.id} to ${z.name}`, p.x, p.y - 8, '#d3a95f'); }
-    return true;
-  }
-  setZoneHidden(z, hidden) {
-    if (!z) return false;
-    z.hidden = Boolean(hidden);
-    if (z.hidden && this.mouse.hoverZone === z) this.mouse.hoverZone = null;
-    this.syncZonesUi();
-    { const p = this.zoneAnchorPoint(z); this.addFloat(`${z.hidden ? 'Hid' : 'Showed'} ${z.name}`, p.x, p.y - 8, z.hidden ? '#c7b683' : '#9abf8f'); }
-    return true;
-  }
-  showZoneMenu(z, x, y) {
-    const el = this.dom.structureMenu;
-    const text = this.zoneText(z);
-    const size = z.kind === 'radius' ? `radius ${Math.round(z.radius || DEFAULT_RESOURCE_RADIUS)} px` : `${Math.round(z.w || 0)}×${Math.round(z.h || 0)} px`;
-    el.innerHTML = `<b>${escapeHtml(z.name)}</b><button data-close>×</button><p>Zone ref <code>${escapeHtml(z.id)}</code><br>${escapeHtml(size)}<br><code>${escapeHtml(text)}</code></p><button data-add-rect>Add zone coords</button><button data-add-name>Add zone name</button><button data-add-ref>Add zone ref</button><button data-rename-zone>Rename</button><button data-hide-zone>Hide zone</button>`;
-    this.placeMenu(el,x,y);
-    el.querySelector('[data-close]').onclick=()=>this.hideMenus();
-    el.querySelector('[data-add-rect]').onclick=()=>{this.chat.insertAtCursor(text); this.hideMenus();};
-    el.querySelector('[data-add-name]').onclick=()=>{this.chat.insertAtCursor(z.name); this.hideMenus();};
-    el.querySelector('[data-add-ref]').onclick=()=>{this.chat.insertAtCursor(z.id); this.hideMenus();};
-    el.querySelector('[data-rename-zone]').onclick=()=>{this.promptRenameZone(z); this.showZoneMenu(z, x, y);};
-    el.querySelector('[data-hide-zone]').onclick=()=>{this.setZoneHidden(z, true); this.hideMenus();};
-  }
   hideMenus(){ this.dom.botMenu.hidden=true; this.dom.structureMenu.hidden=true; this.closeDogPopup(); }
 
   syncBuildUi() { if (!this.dom.buildStatus) return; this.dom.buildStatus.textContent = this.placementType ? `Click map to place ${BUILDING_TYPES[this.placementType].label}.` : 'Choose a building, then click the map.'; for (const b of this.dom.buildPanel.querySelectorAll('[data-build]')) b.classList.toggle('is-active', b.dataset.build === this.placementType); }
@@ -3043,7 +1383,7 @@ export class Game {
     ...this.rocks.map(r=>({ id:r.ref, numericId:r.id, kind:'resource', type:'stone_deposit', name:'stone deposit', x:Math.round(r.x), y:Math.round(r.y), hp:r.hp, maxHp:r.maxHp, depleted:!!r.depleted })),
     ...this.bots.map(b=>({ id:b.ref, numericId:b.id, kind:b.kind || 'bot', name:this.botDisplayName(b), status:b.status||'worker', managerKnowledgePacks:b.managerKnowledgePacks||[], knowledgePacks:b.knowledgePacks||b.managerKnowledgePacks||[], dogFetchMemory:b.dogFetchMemory ? clone(b.dogFetchMemory) : null, dogFetchState:b.dogFetchState ? clone(b.dogFetchState) : null, x:Math.round(b.x), y:Math.round(b.y), hp:b.hp, maxHp:b.maxHp, hostile:!!b.hostile, equipment:this.equipmentSummary(b), program:b.program, teamId:b.teamId||null, teamName:this.botTeam(b)?.name||null }))
   ]; }
-  getState(){ return { gameMode:this.gameMode||this.multiplayer?.mapMode||'test', map:{...this.map}, mapFeatures:clone(this.mapFeatures || []), campaignArrival:clone(this.campaignArrival || null), campaignQuest:this.campaignQuest?clone(this.campaignQuest):null, paused:!!this.paused, fps:Math.round(this.fps||0), targetFps:this.targetFps, dynamicShadowsEnabled:!!this.dynamicShadowsEnabled, lightingEffectsEnabled:this.lightingEffectsEnabled!==false, showFpsOverlay:this.showFpsOverlay!==false, dayNight:this.getDayNightState(), fogOfWar:getFogStats(this.fogOfWar), nightSpawns:clone(this.nightSpawns||{}), multiplayer:this.getMultiplayerSnapshot(), dialogue:this.getDialogueState(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,dead:!!this.player.dead,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),ammunition:Number(this.player.ammunition||0),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null,targetQueue:(this.player.targetQueue||[]).map(target=>({...target,x:Math.round(target.x),y:Math.round(target.y)}))}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), customTemplates:clone(this.customTemplates || []), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),kind:b.kind||'bot',status:b.status||'worker',managerKnowledgePacks:b.managerKnowledgePacks||[],knowledgePacks:b.knowledgePacks||b.managerKnowledgePacks||[],dogFetchMemory:b.dogFetchMemory?clone(b.dogFetchMemory):null,dogFetchState:b.dogFetchState?clone(b.dogFetchState):null,teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,customTemplateName:b.customTemplateName||'',paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),ammunition:Number(b.ammunition||0),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,label:s.label,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,hammers:s.hammers||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,arrow_packs:s.arrow_packs||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:z.kind==='rect'?Math.round(z.w):undefined,h:z.kind==='rect'?Math.round(z.h):undefined,radius:z.kind==='radius'?Math.round(z.radius||DEFAULT_RESOURCE_RADIUS):undefined})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, rendererBackend:this.renderer.backend || this.renderBackend?.kind || null, webgpuAvailable:this.renderer.webgpu, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
+  getState(){ return { gameMode:this.gameMode||this.multiplayer?.mapMode||'test', map:{...this.map}, mapFeatures:clone(this.mapFeatures || []), campaignArrival:clone(this.campaignArrival || null), campaignQuest:this.campaignQuest?clone(this.campaignQuest):null, paused:!!this.paused, fps:Math.round(this.fps||0), targetFps:this.targetFps, dynamicShadowsEnabled:!!this.dynamicShadowsEnabled, lightingEffectsEnabled:this.lightingEffectsEnabled!==false, showFpsOverlay:this.showFpsOverlay!==false, dayNight:this.getDayNightState(), fogOfWar:getFogStats(this.fogOfWar), nightSpawns:clone(this.nightSpawns||{}), multiplayer:this.getMultiplayerSnapshot(), dialogue:this.getDialogueState(), player:{x:Math.round(this.player.x),y:Math.round(this.player.y),hp:this.player.hp,maxHp:this.player.maxHp,dead:!!this.player.dead,inventory:this.player.inventory,equipment:this.equipmentSummary(this.player),ammunition:Number(this.player.ammunition||0),facingX:this.player.facingX||1,facingY:this.player.facingY||0,target:this.player.target?{...this.player.target,x:Math.round(this.player.target.x),y:Math.round(this.player.target.y)}:null,targetQueue:(this.player.targetQueue||[]).map(target=>({...target,x:Math.round(target.x),y:Math.round(target.y)}))}, assistant:{x:Math.round(this.assistant.x),y:Math.round(this.assistant.y),facingX:this.assistant.facingX||1,facingY:this.assistant.facingY||0}, recorder:this.getRecorderState(), customTemplates:clone(this.customTemplates || []), bots:this.bots.map(b=>({id:b.id,ref:b.ref,name:this.botDisplayName(b),kind:b.kind||'bot',status:b.status||'worker',managerKnowledgePacks:b.managerKnowledgePacks||[],knowledgePacks:b.knowledgePacks||b.managerKnowledgePacks||[],dogFetchMemory:b.dogFetchMemory?clone(b.dogFetchMemory):null,dogFetchState:b.dogFetchState?clone(b.dogFetchState):null,teamId:b.teamId||null,teamName:this.botTeam(b)?.name||null,teamColor:this.botTeam(b)?.color||null,x:Math.round(b.x),y:Math.round(b.y),program:b.program,customTemplateName:b.customTemplateName||'',paused:!!b.paused,message:b.message,inventory:b.inventory,equipment:this.equipmentSummary(b),ammunition:Number(b.ammunition||0),tool:b.tool,hp:b.hp,maxHp:b.maxHp,hostile:!!b.hostile,taughtLoop:b.taughtLoop?clone(b.taughtLoop):null,targetStructureId:b.targetStructureId,sourceStructureId:b.sourceStructureId,sourcePaletteId:b.sourcePaletteId,pickupItemType:b.pickupItemType,targetFactoryId:b.targetFactoryId,targetWorkbenchId:b.targetWorkbenchId,zoneId:b.zoneId,zone:this.getBotZone(b)?this.zoneLabel(this.getBotZone(b)):null,combatMode:b.combatMode||'aggressive',combatEngaged:!!b.combatEngaged,runtime:b.runtime?{pc:b.runtime.pc,wait:b.runtime.wait}:null})), structures:this.structures.map(s=>({id:s.id,ref:s.ref,name:s.name,label:s.label,type:s.type,logs:s.logs,planks:s.planks,poles:s.poles,sticks:s.sticks,stones:s.stones,tree_seeds:s.tree_seeds,axes:s.axes,pickaxes:s.pickaxes||0,shovels:s.shovels||0,hammers:s.hammers||0,swords:s.swords||0,shields:s.shields||0,hemps:s.hemps||0,bows:s.bows||0,arrow_packs:s.arrow_packs||0,workbenchRecipe:s.workbenchRecipe||null,smitheryRecipe:s.smitheryRecipe||null,rangedAttack:s.rangedAttack?{...s.rangedAttack}:null,storageType:s.storageType||null,stored:s.stored||0,capacity:s.capacity||0,processing:s.processing?{...s.processing}:null,x:Math.round(s.x),y:Math.round(s.y)})), projectiles:this.projectiles.map(p=>({...p,x:Math.round(p.x),y:Math.round(p.y)})), zones:this.zones.map(z=>({...z,x:Math.round(z.x),y:Math.round(z.y),w:z.kind==='rect'?Math.round(z.w):undefined,h:z.kind==='rect'?Math.round(z.h):undefined,radius:z.kind==='radius'?Math.round(z.radius||DEFAULT_RESOURCE_RADIUS):undefined})), hempPlants:this.hempPlants.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), monsters:this.monsters.map(m=>({...m,x:Math.round(m.x),y:Math.round(m.y),wanderTarget:m.wanderTarget?{x:Math.round(m.wanderTarget.x),y:Math.round(m.wanderTarget.y)}:null})), holes:this.holes.map(h=>({...h,x:Math.round(h.x),y:Math.round(h.y)})), botTeams:clone(this.botTeams), objectRegistry:this.getObjectRegistry(), stores:{sawbenchLogs:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.logs,0),sawbenchPlanks:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+s.planks,0),sawbenchPoles:this.structures.filter(s=>s.type==='sawbench').reduce((n,s)=>n+(s.poles||0),0),factoryLogs:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.logs||0),0),factoryPlanks:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+s.planks,0),factoryPoles:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.poles||0),0),factorySeeds:this.structures.filter(s=>s.type==='factory').reduce((n,s)=>n+(s.tree_seeds||0),0),looseLogs:this.countItems('log'),loosePlanks:this.countItems('plank'),loosePoles:this.countItems('pole'),looseSticks:this.countItems('stick'),looseStones:this.countItems('stone'),looseTreeSeeds:this.countItems('tree_seed'),looseAxes:this.countItems('crude_axe'),loosePickaxes:this.countItems('crude_pickaxe'),looseShovels:this.countItems('crude_shovel'),dugHoles:this.holes.length,stoneDeposits:this.rocks.filter(r=>!r.depleted).length,paletteItems:this.structures.filter(s=>s.type==='item_palette').reduce((n,s)=>n+(s.stored||0),0)}, hover:{bot:this.mouse.hoverBot?.id||null,structure:this.mouse.hoverStructure?.name||null,tree:this.mouse.hoverTree?.ref||null,hole:this.mouse.hoverHole?.ref||null,zone:this.mouse.hoverZone?.name||null}, placementType:this.placementType, zoneDrawing:!!this.zoneDraft?.active, renderer:this.renderer.text, rendererBackend:this.renderer.backend || this.renderBackend?.kind || null, webgpuAvailable:this.renderer.webgpu, maxBots:this.maxBots, dslTemplates:PROGRAM_TEMPLATES, asr:this.chat.asr ? {endpoint:this.chat.wsUrl(),recording:this.chat.asr.recording,segment:this.chat.asr.segment}:null }; }
 }
 
 installProductionSystem(Game, {
@@ -3179,6 +1519,87 @@ installHealthSystem(Game, {
 
 installDialogueSystem(Game, {
   dialogues: CAMPAIGN_DIALOGUES
+});
+
+installDogSystem(Game, {
+  DOG_FETCH_SEARCH_RADIUS,
+  DOG_FETCH_PRAISE_TARGET,
+  itemLabel
+});
+
+installMenuSystem(Game, {
+  BUILDING_TYPES,
+  BUILDING_KIT_ITEM_TYPES,
+  DEFAULT_MANAGER_KNOWLEDGE_PACKS,
+  DEFAULT_RESOURCE_RADIUS,
+  DEFENSE_TOWER_ATTACK,
+  DOG_FETCH_PRAISE_TARGET,
+  STORAGE_STRUCTURE_TYPES,
+  STRUCTURE_INFO,
+  THRONE_HP,
+  WORKBENCH_TOOL_RECIPES,
+  assemblerRecipe,
+  buildingTypeFromKitItem,
+  clone,
+  itemLabel,
+  smitheryRecipe,
+  structureRecipeText,
+  workbenchRecipe
+});
+
+installMultiplayerSystem(Game, {
+  MONSTER_MELEE_ATTACK,
+  MONSTER_WAVE_CONFIG,
+  MULTIPLAYER_LANE_TOWERS,
+  MULTIPLAYER_STARTS,
+  ONLINE_MULTIPLAYER_FEATURES,
+  THRONE_ATTACK_DAMAGE,
+  THRONE_HP,
+  WORLD_MAP_SIZE,
+  clone,
+  createEquipment
+});
+
+installDslProgramSystem(Game, {
+  ALLOWED_OPS,
+  DEFAULT_FOLLOW_DISTANCE,
+  DEFAULT_MANAGER_KNOWLEDGE_PACKS,
+  DEFAULT_NEARBY_RADIUS,
+  DEFAULT_RESOURCE_RADIUS,
+  ITEM_TYPES,
+  MAX_NEARBY_RADIUS,
+  PROGRAMS,
+  PROGRAM_TEMPLATES,
+  buildingKitItemTypeFor,
+  clamp,
+  clone,
+  itemLabel
+});
+
+installSaveSystem(Game, {
+  WORLD_MAP_SIZE,
+  CAMERA_MIN_ZOOM,
+  CAMERA_MAX_ZOOM,
+  FOG_CELL_SIZE,
+  DEFAULT_WORLD_ZONES,
+  DEFAULT_MANAGER_KNOWLEDGE_PACKS,
+  DEFAULT_BOT_COMBAT_MODE,
+  createFogOfWar,
+  normalizeFogOfWar,
+  serializeFogOfWar,
+  createEquipment,
+  ensureEquipment,
+  clone
+});
+
+installCampaignArrivalSystem(Game, {
+  CAMPAIGN_START,
+  getCampaignArrivalScene,
+  CAMERA_EDGE_VIEWPORT_PADDING_RATIO
+});
+
+installCampaignQuestSystem(Game, {
+  itemLabel
 });
 
 

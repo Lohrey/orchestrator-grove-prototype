@@ -1,4 +1,4 @@
-import { actionStepOpsForPack } from './action-steps.js?v=t_building_kits_0618';
+import { actionStepOpsForPack } from '../action-steps.js';
 
 export const ASSISTANT_KNOWLEDGE_PACKS = {
   starter_automation: {

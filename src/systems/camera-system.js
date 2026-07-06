@@ -2,7 +2,7 @@
 // Camera viewport, zoom, coordinate transforms.
 // Part of the Game class composition root — installed via installCameraSystem(Game, deps).
 
-import { clamp, canvasPoint } from '../utils.js?v=grove_pixi_fixes_0628';
+import { clamp, canvasPoint } from '../utils.js';
 
 export function installCameraSystem(Game, deps) {
   const {
@@ -64,15 +64,16 @@ export function installCameraSystem(Game, deps) {
       }
     },
     _updateIntegerScale() {
-      // Compute the integer scale factor from the live viewport and apply via CSS.
+      // Scale the canvas to fill the parent while preserving 16:9 aspect ratio.
       // The backing store stays 640×360; only the element's CSS size changes.
-      const rect = this.canvas.getBoundingClientRect();
+      // We use fractional scaling (not strict integer) so the canvas fills the
+      // available space. image-rendering: pixelated in CSS keeps pixels crisp.
       const parent = (this.canvas.parentElement || this.canvas).getBoundingClientRect();
-      const screenW = rect.width || parent.width || window.innerWidth;
-      const screenH = rect.height || parent.height || window.innerHeight;
-      const scale = Math.max(1, Math.min(Math.floor(screenW / 640), Math.floor(screenH / 360)));
-      this.canvas.style.width = `${640 * scale}px`;
-      this.canvas.style.height = `${360 * scale}px`;
+      const screenW = parent.width || window.innerWidth;
+      const screenH = parent.height || window.innerHeight;
+      const scale = Math.max(0.1, Math.min(screenW / 640, screenH / 360));
+      this.canvas.style.width = `${Math.round(640 * scale)}px`;
+      this.canvas.style.height = `${Math.round(360 * scale)}px`;
       this.canvas.style.marginLeft = 'auto';
       this.canvas.style.marginRight = 'auto';
       this.canvas.style.display = 'block';

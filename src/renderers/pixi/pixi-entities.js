@@ -9,23 +9,26 @@ import {
   parseColor,
   isBotHandTool,
   getTreeDrawRadius
-} from './pixi-layers.js?v=t_renderer_split_0627';
-import { getDepthAnchorY } from '../../depth-sort.js?v=t_da28d8dd';
-import { BUILDING_TYPES } from '../../data.js?v=t_building_kits_0618';
-import { itemLabel } from '../../visual-assets.js?v=t_building_kits_0618';
+} from './pixi-layers.js';
+import { getDepthAnchorY } from '../shared/depth-sort.js';
+import { BUILDING_TYPES } from '../../data.js';
+import { itemLabel } from '../../visual-assets.js';
 import {
   getCharacterAnimationFrame,
-  getCharacterFrameTexture
-} from './pixi-character-assets.js?v=grove_pixi_fixes_0628';
+  getCharacterFrameTexture,
+  isCustomWalkCycleReady,
+  getCustomWalkCycle,
+  getCustomWalkFrameIndex
+} from './pixi-character-assets.js';
 import {
   getBotPawnAssets,
   getBotPawnFrameTexture
-} from './pixi-character-assets.js?v=grove_pixi_fixes_0628';
+} from './pixi-character-assets.js';
 import {
   isDogSpriteReady,
   getDogSpriteAssets,
   getDogFrameTexture
-} from './pixi-dog-spritesheet.js?v=t_dog_spritesheet_0627';
+} from './pixi-dog-spritesheet.js';
 
 // ── Tiny Swords atlas (shared loader — Canvas2D + Pixi ready) ──────────
 // Import wired so the Pixi path can access the same atlas. Not yet used for
@@ -33,7 +36,7 @@ import {
 // TODO: When wiring Pixi sprites, use loadTinySwordsAtlas() to get the bitmap
 //   and atlas.getFrame('Pawn_Blue') / getSheetFrames('Pawn_Blue') to slice
 //   PIXI.Rectangle frame regions from the ImageBitmap-backed base texture.
-import { loadTinySwordsAtlas, getTinySwordsAtlas } from '../shared/tiny-swords-atlas.js?v=ts_fix2_0628';
+import { loadTinySwordsAtlas, getTinySwordsAtlas } from '../shared/tiny-swords-atlas.js';
 
 // ── Tree views ─────────────────────────────────────────────────────
 export function createTreeView(PIXI, tree, getNameTagTexture) {
@@ -369,9 +372,29 @@ export function updateBotView(container, bot, hover, getItemTexture, getToolText
   container.shadow.clear();
   fillPath(container.shadow, 0x000000, 0.26, path => path.ellipse(0, radius + 5, radius + 8, 5));
 
-  // ── Pawn sprite path (Tiny Swords atlas) ──
+  // ── Sprite path selection: custom walk-cycle → Tiny Swords → vector ──
   const pawnAssets = getBotPawnAssets();
-  if (pawnAssets && pawnAssets.ready && pawnAssets.textures.length > 0 && !hover) {
+  const customAssets = isCustomWalkCycleReady('bot') ? getCustomWalkCycle('bot') : null;
+  
+  if (customAssets && customAssets.textures.length > 0) {
+    // ── Custom 8-frame walk-cycle PNGs (Patrick's AI sprites) ──────────
+    container.sprite.visible = true;
+    container.body.visible = false;
+
+    const isMoving = !!(bot.target || bot.vx || bot.vy);
+    const now = performance.now();
+    const frameIdx = isMoving
+      ? getCustomWalkFrameIndex(now, (bot.id || 0) * 0.7)
+      : 0; // idle → frame 0
+    container.sprite.texture = customAssets.textures[frameIdx] || customAssets.textures[0];
+
+    // Scale + directional flip
+    const spriteScale = customAssets.scale;
+    container.sprite.scale.set(spriteScale);
+    container.sprite.scale.x = facingRight ? spriteScale : -spriteScale;
+    container.sprite.anchor.set(0.5, 0.8); // bottom-center anchor
+    container.sprite.position.set(0, customAssets.yOffset);
+  } else if (pawnAssets && pawnAssets.ready && pawnAssets.textures.length > 0 && !hover) {
     // Show sprite, hide vector body
     container.sprite.visible = true;
     container.body.visible = false;
@@ -439,9 +462,28 @@ function updateDogView(container, bot, hover, getItemTexture) {
   // Determine if dog is moving (has a target/destination)
   const isMoving = !!(bot.target || bot.dogFetchState || (bot.vx && bot.vy && (Math.abs(bot.vx) > 0.1 || Math.abs(bot.vy) > 0.1)));
 
-  // Try spritesheet rendering first
+  // Try custom 8-frame walk-cycle first, then golden retriever spritesheet,
+  // then vector fallback
+  const customDogAssets = isCustomWalkCycleReady('dog') ? getCustomWalkCycle('dog') : null;
+  const facingRight = (bot.facingX ?? 1) >= 0;
   const dogAssets = getDogSpriteAssets();
-  if (dogAssets && dogAssets.ready && dogAssets.textures.length > 0) {
+
+  if (customDogAssets && customDogAssets.textures.length > 0) {
+    // ── Custom 8-frame dog walk-cycle (Patrick's AI sprites) ──
+    container.sprite.visible = true;
+    container.body.visible = false;
+
+    const frameIdx = isMoving
+      ? getCustomWalkFrameIndex(now, (bot.id || 0) * 0.5)
+      : 0;
+    container.sprite.texture = customDogAssets.textures[frameIdx] || customDogAssets.textures[0];
+
+    const spriteScale = customDogAssets.scale;
+    container.sprite.scale.set(spriteScale);
+    container.sprite.scale.x = facingRight ? spriteScale : -spriteScale;
+    container.sprite.anchor.set(0.5, 0.8);
+    container.sprite.position.set(0, customDogAssets.yOffset);
+  } else if (dogAssets && dogAssets.ready && dogAssets.textures.length > 0) {
     // Show sprite, hide vector body
     container.sprite.visible = true;
     container.body.visible = false;
@@ -515,6 +557,28 @@ export function updateActorView(PIXI, view, actorState, getItemTexture, getToolT
   container.zIndex = actorState.zIndex || 0;
   container.shadow.clear();
   fillPath(container.shadow, 0x000000, 0.28, path => path.ellipse(0, radius + 5, radius + 8, 5));
+  
+  // ── Custom 8-frame walk-cycle priority for player ──
+  const customPlayerAssets = isCustomWalkCycleReady('player') ? getCustomWalkCycle('player') : null;
+  const playerFacingRight = (actorState.facingX ?? 1) >= 0;
+  
+  if (customPlayerAssets && customPlayerAssets.textures.length > 0) {
+    if (!container.character) {
+      container.character = new PIXI.Sprite(customPlayerAssets.textures[0]);
+      container.addChildAt(container.character, 1);
+    }
+    container.character.visible = true;
+    container.body.visible = false;
+    
+    const isMoving = actorState.action === 'run' || actorState.action === 'walk' || actorState.action === 'target';
+    const now = performance.now();
+    const frameIdx = isMoving ? getCustomWalkFrameIndex(now) : 0;
+    container.character.texture = customPlayerAssets.textures[frameIdx] || customPlayerAssets.textures[0];
+    container.character.scale.set(customPlayerAssets.scale);
+    container.character.scale.x = playerFacingRight ? customPlayerAssets.scale : -customPlayerAssets.scale;
+    container.character.anchor.set(0.5, 0.8);
+    container.character.position.set(0, customPlayerAssets.yOffset);
+  } else {
   const animation = getCharacterAnimationFrame(view.options.characterAssets, actorState);
   if (animation) {
     if (!container.character) {
@@ -556,6 +620,7 @@ export function updateActorView(PIXI, view, actorState, getItemTexture, getToolT
     container.shield.position.set(-18, -5);
     container.shield.scale.set(0.86);
   }
+  } // end else (non-custom-player path)
 }
 
 // ── Assistant view ─────────────────────────────────────────────────

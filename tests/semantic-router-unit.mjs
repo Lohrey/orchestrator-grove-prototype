@@ -5,7 +5,7 @@ import {
   createSemanticCatalogFingerprint,
   formatSemanticRouteSummary,
   selectSemanticLoadout
-} from '../src/semantic-router.js';
+} from '../src/assistant/semantic-router.js';
 
 const catalog = {
   starter_automation: {

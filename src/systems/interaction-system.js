@@ -2,7 +2,7 @@
 // Canvas event binding, tap/context handling, hover detection, and context menus.
 // Part of the Game class composition root — installed via installInteractionSystem(Game, deps).
 
-import { distXY, escapeHtml, canvasPoint } from '../utils.js?v=grove_pixi_fixes_0628';
+import { distXY, escapeHtml, canvasPoint } from '../utils.js';
 
 export function installInteractionSystem(Game, deps) {
   const {
@@ -50,7 +50,8 @@ export function installInteractionSystem(Game, deps) {
       const append = this.keys.has('shift');
       const friendlyBot = this.botAt(p.x, p.y);
       if (friendlyBot && !this.isHostileTarget(friendlyBot)) {
-        if (this.isDogBot(friendlyBot)) { this.showDogPopup(friendlyBot, friendlyBot.inventory ? 'reward' : 'progress'); return true; }
+        // Dog context menu opens on LEFT click only (handleCanvasTap), NOT on right-click.
+        if (this.isDogBot(friendlyBot)) { this.setPlayerDestination(p.x, p.y, {}, { append }); return true; }
         this.showBotMenu(friendlyBot, p.clientX, p.clientY, { refreshEdit: true });
         return true;
       }

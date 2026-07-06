@@ -69,7 +69,7 @@ def main():
     subprocess.run(["node", "--check", "game.js"], cwd=ROOT, check=True)
     subprocess.run(["node", "--check", "src/main.js"], cwd=ROOT, check=True)
     subprocess.run(["node", "--check", "src/world.js"], cwd=ROOT, check=True)
-    subprocess.run(["node", "--check", "src/canvas-renderer.js"], cwd=ROOT, check=True)
+    subprocess.run(["node", "--check", "src/renderers/canvas-renderer.js"], cwd=ROOT, check=True)
 
     errors = []
     with local_server() as port, sync_playwright() as p:

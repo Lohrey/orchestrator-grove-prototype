@@ -1,10 +1,10 @@
-import { ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT } from './assistant-pack-catalog.js?v=t_building_kits_0618';
+import { ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT } from './assistant-pack-catalog.js';
 import {
   estimateTokenCount,
   estimateValueTokenCount,
   formatAssistantLoadout,
   normalizeAssistantPackCatalog
-} from './assistant-knowledge.js?v=t_building_kits_0618';
+} from './assistant-knowledge.js';
 
 const CANONICAL_ITEM_TYPES = ['log', 'plank', 'pole', 'stick', 'stone', 'tree_seed', 'crude_axe', 'crude_pickaxe', 'crude_shovel', 'crude_hammer', 'hemp', 'hemp_seed', 'sawbench_kit', 'workbench_kit', 'factory_kit', 'item_palette_kit'];
 

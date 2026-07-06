@@ -6,7 +6,7 @@ import {
   defaultOllamaEndpoint,
   getDefaultProviderConfig,
   normalizeAssistantLoadout
-} from '../assistant.js?v=t_building_kits_0618';
+} from '../assistant/assistant.js';
 import { DEFAULT_BROWSER_STT_MODEL } from '../browser-stt.js';
 
 export function createProviderUi({ dom, game }) {

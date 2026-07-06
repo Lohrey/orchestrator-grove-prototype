@@ -14,7 +14,7 @@ import {
   getActionStepChainRows
 } from '../src/data.js';
 import { ACTION_STEP_ORDER, ACTION_STEP_REGISTRY, actionStepDetailsForOps, actionStepOpsForPack } from '../src/action-steps.js';
-import { ASSISTANT_PROTOCOL_KERNEL, buildOllamaPrompt, normalizeAssistantKnowledgePack, normalizeAssistantPackCatalog, summarizeAssistantLoadout } from '../src/assistant.js';
+import { ASSISTANT_PROTOCOL_KERNEL, buildOllamaPrompt, normalizeAssistantKnowledgePack, normalizeAssistantPackCatalog, summarizeAssistantLoadout } from '../src/assistant/assistant.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relativePath => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
@@ -175,10 +175,10 @@ for (const [op, step] of Object.entries(ACTION_STEPS)) {
   }
 }
 
-const assistantSource = read('src/assistant.js');
-const assistantKnowledgeSource = read('src/assistant-knowledge.js');
-const assistantPromptSource = read('src/assistant-prompt.js');
-const assistantPackCatalogSource = read('src/assistant-pack-catalog.js');
+const assistantSource = read('src/assistant/assistant.js');
+const assistantKnowledgeSource = read('src/assistant/assistant-knowledge.js');
+const assistantPromptSource = read('src/assistant/assistant-prompt.js');
+const assistantPackCatalogSource = read('src/assistant/assistant-pack-catalog.js');
 assert.match(assistantSource, /ASSISTANT_PROTOCOL_KERNEL/, 'assistant public API must expose the protocol kernel');
 assert.match(assistantSource, /compactCapabilities/, 'assistant public API must expose compact capability compilation');
 assert.match(assistantKnowledgeSource, /normalizeAssistantKnowledgePack/, 'knowledge-pack normalization must live in the assistant knowledge module');

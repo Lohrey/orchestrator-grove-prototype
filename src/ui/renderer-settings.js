@@ -1,5 +1,5 @@
 // src/ui/renderer-settings.js — renderer mode and quality settings UI helpers.
-// v=ui_fix_boot_0628
+// v=grove_webgl2_default_0706
 
 export function createRendererSettings({ dom, game, PERFORMANCE_PRESETS }) {
   const DEFAULT_RENDERER_SETTINGS = Object.freeze({ highResolution: true, antialias: true });
@@ -18,13 +18,22 @@ export function createRendererSettings({ dom, game, PERFORMANCE_PRESETS }) {
     });
   }
 
+  // Renderer mode selection is a 3-way choice (radio buttons in index.html):
+  //   - webgl2 (default, highest performance)
+  //   - pixi
+  //   - canvas2d (legacy fallback)
   function getRendererModeFromUi() {
-    return dom.useCanvas2dRenderer?.checked ? 'canvas2d' : 'pixi';
+    if (dom.rendererWebgl2?.checked) return 'webgl2';
+    if (dom.rendererPixi?.checked) return 'pixi';
+    if (dom.rendererCanvas2d?.checked) return 'canvas2d';
+    return 'webgl2';
   }
 
-  function syncRendererModeUi(mode = 'canvas2d') {
-    const normalized = String(mode || 'canvas2d').toLowerCase();
-    if (dom.useCanvas2dRenderer) dom.useCanvas2dRenderer.checked = normalized === 'canvas2d';
+  function syncRendererModeUi(mode = 'webgl2') {
+    const normalized = String(mode || 'webgl2').toLowerCase();
+    if (dom.rendererWebgl2) dom.rendererWebgl2.checked = normalized === 'webgl2';
+    if (dom.rendererPixi) dom.rendererPixi.checked = normalized === 'pixi';
+    if (dom.rendererCanvas2d) dom.rendererCanvas2d.checked = normalized === 'canvas2d';
     return normalized;
   }
 

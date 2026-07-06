@@ -1,4 +1,91 @@
-import { loadTinySwordsAtlas, getTinySwordsAtlas, TROOP_CELL } from '../shared/tiny-swords-atlas.js?v=ts_fix2_0628';
+import { loadTinySwordsAtlas, getTinySwordsAtlas, TROOP_CELL } from '../shared/tiny-swords-atlas.js';
+
+// ── Custom 8-frame walk-cycle PNGs (assets/sprites/processed/) ────────
+// These are Patrick's AI-generated sprites. They take priority over the
+// Tiny Swords atlas. If they fail to load, we fall through to Tiny Swords,
+// then to vector rendering.
+const CUSTOM_SPRITE_BASE = 'assets/sprites/processed';
+const CUSTOM_FRAME_COUNT = 8;
+const CUSTOM_FRAME_MS = 100; // ~10fps walk cycle
+
+let _customCharAssets = null; // { bot:{textures,scale,yOffset}, player:{...}, dog:{...} }
+
+/**
+ * Load custom 8-frame walk-cycle PNGs for bot, player, and dog.
+ * Creates PIXI textures from each 64×64 PNG.
+ * Returns an object with per-character texture arrays, or null on failure.
+ *
+ * @param {typeof import('../../../vendor/pixi/pixi.mjs')} PIXI
+ * @returns {Promise<{bot:{textures,scale,yOffset}, player:{...}, dog:{...}}|null>}
+ */
+export async function loadCustomWalkCycle(PIXI) {
+  if (_customCharAssets) return _customCharAssets;
+
+  const characters = ['bot', 'player', 'dog'];
+  const result = {};
+
+  for (const name of characters) {
+    const textures = [];
+    let allLoaded = true;
+    for (let i = 0; i < CUSTOM_FRAME_COUNT; i++) {
+      const src = `${CUSTOM_SPRITE_BASE}/${name}_${String(i).padStart(2, '0')}.png`;
+      try {
+        const texture = await PIXI.Assets.load(src);
+        textures.push(texture);
+      } catch (err) {
+        console.warn(`[character-assets] Custom ${name} walk-cycle failed (${src}), using fallback`);
+        allLoaded = false;
+        break;
+      }
+    }
+    if (allLoaded && textures.length === CUSTOM_FRAME_COUNT) {
+      // 64×64 sprites. Scale to roughly match Canvas2D draw size.
+      // Bot radius ~12 → draw ~31px. 64px sprite → scale ~0.5 → 32px.
+      // Player radius ~13 → draw ~39px. 64px sprite → scale ~0.6 → 38px.
+      // Dog radius ~12 → draw ~31px. 64px sprite → scale ~0.5 → 32px.
+      const scale = name === 'player' ? 0.6 : 0.5;
+      const yOffset = 2; // small offset so feet sit on shadow
+      result[name] = { textures, scale, yOffset, frameCount: CUSTOM_FRAME_COUNT, frameMs: CUSTOM_FRAME_MS };
+    }
+  }
+
+  if (Object.keys(result).length === 0) {
+    console.warn('[character-assets] No custom walk-cycle sprites loaded');
+    return null;
+  }
+
+  _customCharAssets = result;
+  console.info(`[character-assets] Loaded custom walk-cycle sprites for: ${Object.keys(result).join(', ')}`);
+  return _customCharAssets;
+}
+
+/**
+ * Check if custom walk-cycle sprites are loaded.
+ * @param {string} name - 'bot', 'player', or 'dog'
+ * @returns {boolean}
+ */
+export function isCustomWalkCycleReady(name) {
+  return !!(_customCharAssets && _customCharAssets[name]);
+}
+
+/**
+ * Get custom walk-cycle assets for a character.
+ * @param {string} name
+ * @returns {{textures:Array, scale:number, yOffset:number, frameCount:number, frameMs:number}|null}
+ */
+export function getCustomWalkCycle(name) {
+  return _customCharAssets?.[name] || null;
+}
+
+/**
+ * Get the walk frame index for a moving entity.
+ * @param {number} now - performance.now()
+ * @param {number} idOffset - per-entity desync offset
+ * @returns {number} frame index 0..7
+ */
+export function getCustomWalkFrameIndex(now, idOffset = 0) {
+  return Math.floor((now / CUSTOM_FRAME_MS + idOffset) % CUSTOM_FRAME_COUNT);
+}
 
 const CHARACTER_FRAME_SIZE = { width: 96, height: 80 };
 const CHARACTER_ANIMATION_NAMES = ['idle', 'run', 'attack1', 'attack2'];

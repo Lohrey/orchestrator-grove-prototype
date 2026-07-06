@@ -1,14 +1,14 @@
-import { BUILDING_TYPES } from '../data.js?v=t_building_kits_0618';
-import { getCampaignArrivalScene } from '../campaign-scenes.js?v=t_campaign_scenes_0623';
-import { getDepthAnchorY } from '../depth-sort.js?v=t_da28d8dd';
-import { clamp } from '../utils.js?v=grove_lighting_0628';
+import { BUILDING_TYPES } from '../data.js';
+import { getCampaignArrivalScene } from '../campaign-scenes.js';
+import { getDepthAnchorY } from './shared/depth-sort.js';
+import { clamp } from '../utils.js';
 import {
   drawBuildingAsset,
   drawBuildingPreviewAsset,
   drawHeldToolAsset,
   drawItemAsset,
   itemLabel
-} from '../visual-assets.js?v=t_building_kits_0618';
+} from '../visual-assets.js';
 import {
   LOOSE_ITEM_RENDER_MIN_ZOOM,
   DECORATIVE_DETAIL_RENDER_MIN_ZOOM,
@@ -24,15 +24,16 @@ import {
   isCampaignArrivalActive,
   getWorldViewBounds,
   getClippedMapView
-} from './pixi/pixi-layers.js?v=grove_lighting_0628';
-import { getRockOpacity, getTreeOpacity } from './shared/renderer-utils.js?v=grove_stone_transparency_0628';
+} from './pixi/pixi-layers.js';
+import { getRockOpacity, getTreeOpacity } from './shared/renderer-utils.js';
 import {
   loadCharacterAssets,
   inferPlayerAction,
-  loadBotPawnAssets
-} from './pixi/pixi-character-assets.js?v=grove_lighting_0628';
-import { loadDogSpriteSheet } from './pixi/pixi-dog-spritesheet.js?v=t_dog_spritesheet_0627';
-import { loadLpcTerrain } from './shared/lpc-terrain-loader.js?v=grove_tileset_0628';
+  loadBotPawnAssets,
+  loadCustomWalkCycle
+} from './pixi/pixi-character-assets.js';
+import { loadDogSpriteSheet } from './pixi/pixi-dog-spritesheet.js';
+import { loadLpcTerrain } from './shared/lpc-terrain-loader.js';
 import {
   buildTerrainBaseTexture,
   buildTerrainDetailTexture,
@@ -40,7 +41,7 @@ import {
   updateCampaignArrival,
   getBackdropTexture,
   renderMapFeature
-} from './pixi/pixi-terrain.js?v=t_renderer_split_0627';
+} from './pixi/pixi-terrain.js';
 import {
   createTreeView,
   updateTreeView,
@@ -65,18 +66,18 @@ import {
   createFloaterView,
   updateFloaterView,
   drawProjectile
-} from './pixi/pixi-entities.js?v=grove_stone_transparency_0628';
+} from './pixi/pixi-entities.js';
 import {
   updateOverlay,
   updatePlacementPreview,
   updatePlayerTarget,
   updateZoneDraft,
   updateHud
-} from './pixi/pixi-effects.js?v=grove_lighting_0628';
+} from './pixi/pixi-effects.js';
 import {
   createLightmapResources,
   updateLightmap
-} from './pixi/pixi-lighting.js?v=grove_lighting_0628';
+} from './pixi/pixi-lighting.js';
 
 export async function createPixiRenderer({ canvas, capture = false, settings = null }) {
   const PIXI = await import('../../vendor/pixi/pixi.mjs');
@@ -110,6 +111,11 @@ export async function createPixiRenderer({ canvas, capture = false, settings = n
   // use vector fallback until ready).
   loadBotPawnAssets(PIXI).catch(error => {
     console.warn('Bot pawn sprites failed to load; using vector fallback for bots.', error);
+  });
+
+  // Load custom 8-frame walk-cycle PNGs (Patrick's AI sprites)
+  loadCustomWalkCycle(PIXI).catch(error => {
+    console.warn('Custom walk-cycle sprites failed to load; using fallback rendering.', error);
   });
 
   // Load golden retriever spritesheet for dog entities (non-blocking, vector fallback used on failure)

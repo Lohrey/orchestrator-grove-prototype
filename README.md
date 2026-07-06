@@ -381,5 +381,5 @@ Cursor behavior:
 - `src/data.js` - parameterized program templates, allowed ops, default zones, building definitions
 - `src/utils.js` - geometry, canvas, escaping helpers
 - `src/chat.js` - cursor-aware chat input, variable insertion, Sherpa ASR mic client
-- `src/assistant.js` - mock parser, Ollama calls, slot/zone-aware tool-call validation
+- `src/assistant/assistant.js` - mock parser, Ollama calls, slot/zone-aware tool-call validation
 - `src/world.js` - Canvas world simulation, object registry, zones, bots, structures, menus, building placement

@@ -1,7 +1,7 @@
 // src/ui/chat-ui.js — chat message helpers and AI log formatting.
 // v=ui_fix_boot_0628
 
-import { estimateTokenCount, formatOllamaFinalPrompt } from '../assistant.js?v=t_building_kits_0618';
+import { estimateTokenCount, formatOllamaFinalPrompt } from '../assistant/assistant.js';
 
 export function createChatUi({ dom, parseJsonPreview, stringifyLog }) {
   function addChat(kind, html) {

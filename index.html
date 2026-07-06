@@ -14,9 +14,9 @@
       }
     }
   </script>
-  <link rel="stylesheet" href="styles.css?v=grove_ui_fix_0705" />
-  <link rel="stylesheet" href="styles-interactions.css?v=grove_ui_fix_0705" />
-  <link rel="stylesheet" href="ui-overlays/orchestrator-grove-prototype.css?v=grove_ui_fix_0705" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles-interactions.css" />
+  <link rel="stylesheet" href="ui-overlays/orchestrator-grove-prototype.css" />
 </head>
 <body>
   <main class="shell" aria-label="Orchestrator Grove fullscreen game">
@@ -506,10 +506,21 @@
           <input id="showFpsOverlay" type="checkbox" checked />
           Show FPS meter in top-right HUD
         </label>
-        <label class="checkline">
-          <input id="useCanvas2dRenderer" type="checkbox" checked />
-          Use Canvas 2D renderer <span class="small">(opt in for the legacy fallback renderer; reload required)</span>
-        </label>
+        <fieldset class="renderer-select">
+          <legend class="small">Renderer <span class="small">(reload required to switch)</span></legend>
+          <label class="checkline">
+            <input id="rendererWebgl2" type="radio" name="rendererMode" value="webgl2" checked />
+            WebGL2 <span class="small">(default — highest performance, custom walk-cycle sprites)</span>
+          </label>
+          <label class="checkline">
+            <input id="rendererPixi" type="radio" name="rendererMode" value="pixi" />
+            Pixi <span class="small">(WebGL via PixiJS; campaign cinematic available)</span>
+          </label>
+          <label class="checkline">
+            <input id="rendererCanvas2d" type="radio" name="rendererMode" value="canvas2d" />
+            Canvas 2D <span class="small">(legacy fallback; widest compatibility)</span>
+          </label>
+        </fieldset>
         <label class="checkline">
           <input id="pixiHighResolution" type="checkbox" checked />
           High-resolution Pixi output <span class="small">(uses device pixel ratio for sharper rendering)</span>
@@ -792,7 +803,7 @@ while (true) {
   <div id="dogPopup" class="entity-menu dog-popup" hidden></div>
   <div id="structureMenu" class="entity-menu" hidden></div>
 
-  <script type="module" src="ui-overlays/ui-overlays.js?v=grove_full_cache_0705"></script>
-  <script src="game.js?v=grove_full_cache_0705"></script>
+  <script type="module" src="ui-overlays/ui-overlays.js"></script>
+  <script src="game.js"></script>
 </body>
 </html>

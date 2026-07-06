@@ -14,17 +14,17 @@ import {
   fillPath,
   drawBarGraphic,
   drawRoundedRect
-} from './pixi-layers.js?v=t_renderer_split_0627';
+} from './pixi-layers.js';
 import {
   isLightEmittingStructure,
   structureLightRadius as getFogStructureLightRadius,
   drawFogOfWarOverlayScreen
-} from '../../fog-of-war.js?v=t_building_kits_0618';
+} from '../shared/fog-of-war.js';
 import {
   isPointCurrentlyVisible,
   isPointExplored,
   fogRevealSources as buildFogRevealSources
-} from '../../fog-of-war.js?v=t_building_kits_0618';
+} from '../shared/fog-of-war.js';
 
 const fogHelpers = { isPointCurrentlyVisible, isPointExplored };
 

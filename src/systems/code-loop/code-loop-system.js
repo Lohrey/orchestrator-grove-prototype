@@ -17,7 +17,7 @@
 //   wait     -> wait
 //   findNearest -> query, no state change
 
-import { CODE_LOOP_WORKER_SOURCE } from './code-loop-worker-source.js?v=code_loop_0630';
+import { CODE_LOOP_WORKER_SOURCE } from './code-loop-worker-source.js';
 
 let SESSION_SEQ = 0;
 

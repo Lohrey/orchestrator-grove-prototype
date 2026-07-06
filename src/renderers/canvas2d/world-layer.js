@@ -12,16 +12,16 @@ import {
   isBotHandTool,
   rectInView,
   roundedRect
-} from '../shared/renderer-utils.js?v=grove_stone_transparency_0628';
-import { clamp as clampUtil } from '../../utils.js?v=grove_pixi_fixes_0628';
-import { BUILDING_TYPES } from '../../data.js?v=t_building_kits_0618';
+} from '../shared/renderer-utils.js';
+import { clamp as clampUtil } from '../../utils.js';
+import { BUILDING_TYPES } from '../../data.js';
 import {
   drawBuildingAsset,
   drawItemAsset,
   itemLabel
-} from '../../visual-assets.js?v=t_building_kits_0618';
-import { getTinySwordsAtlas } from '../shared/tiny-swords-atlas.js?v=ts_fix2_0628';
-import { getWorldObjectSprite, getTreeSwaySprite, treeSpriteKey, rockSpriteKey, structureSpriteKey, getItemSprite } from '../shared/sprite-cache.js?v=grove_full_cache_0705';
+} from '../../visual-assets.js';
+import { getTinySwordsAtlas } from '../shared/tiny-swords-atlas.js';
+import { getWorldObjectSprite, getTreeSwaySprite, treeSpriteKey, rockSpriteKey, structureSpriteKey, getItemSprite } from '../shared/sprite-cache.js';
 
 export function drawZones(game, c, view) {
   c.save();
@@ -406,4 +406,4 @@ function leafBlob(c, x, y, r, color) {
   c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
 }
 
-import { lighten, darken } from '../shared/renderer-utils.js?v=grove_stone_transparency_0628';
+import { lighten, darken } from '../shared/renderer-utils.js';

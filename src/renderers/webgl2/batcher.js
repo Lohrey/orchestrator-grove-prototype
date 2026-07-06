@@ -14,7 +14,7 @@ import {
   INSTANCE_FLOATS,
   INSTANCE_BYTES,
   ATTRIB_LOCATIONS
-} from './shaders.js?v=t_webgl2_batcher_0628';
+} from './shaders.js';
 
 const MAX_BATCH = 10000; // max sprites per batch
 const BATCH_BUFFER_SIZE = MAX_BATCH * INSTANCE_BYTES;
@@ -136,12 +136,12 @@ export function createWebGL2Batcher(canvas) {
   let batchCount = 0;
   let currentTextureKey = null;
 
-  // Atlas texture
+  // Atlas texture — NEAREST filtering for crisp pixel-art (no smoothing).
   const atlasTexture = gl.createTexture();
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, atlasTexture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.uniform1i(uTexture, 0);

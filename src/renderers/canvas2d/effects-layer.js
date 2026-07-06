@@ -11,8 +11,8 @@ import {
   lightingEnabled,
   structureFogPoint,
   structureLightRadius
-} from '../shared/renderer-utils.js?v=t_renderer_split_0627';
-import { drawFogOfWarOverlay } from '../../fog-of-war.js?v=t_building_kits_0618';
+} from '../shared/renderer-utils.js';
+import { drawFogOfWarOverlay } from '../shared/fog-of-war.js';
 
 export function drawFloaters(game, c, view) {
   c.save();

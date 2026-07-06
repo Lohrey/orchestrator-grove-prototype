@@ -6,7 +6,7 @@ import {
   ASSISTANT_KNOWLEDGE_PACKS,
   DEFAULT_ASSISTANT_LOADOUT,
   getActionStepChainRows
-} from '../data.js?v=t_building_kits_0618';
+} from '../data.js';
 import {
   buildOllamaRequestBody,
   buildOpenAiCompatibleRequestBody,
@@ -15,10 +15,10 @@ import {
   normalizeAssistantLoadout,
   normalizeAssistantPackCatalog,
   summarizeAssistantLoadout
-} from '../assistant.js?v=t_building_kits_0618';
-import { createAssistantSemanticRouter } from '../assistant-router.js?v=t_building_kits_0618';
-import { formatSemanticRouteSummary } from '../semantic-router.js?v=t_building_kits_0618';
-import { escapeHtml } from '../utils.js?v=grove_pixi_fixes_0628';
+} from '../assistant/assistant.js';
+import { createAssistantSemanticRouter } from '../assistant/assistant-router.js';
+import { formatSemanticRouteSummary } from '../assistant/semantic-router.js';
+import { escapeHtml } from '../utils.js';
 
 export function createAssistantUi({ dom, formatTokenCount }) {
   const ASSISTANT_LOADOUT_KEY = 'orchestratorGrove.assistantLoadout.v1';

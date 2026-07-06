@@ -6,7 +6,7 @@
 // large and deeply interconnected with zone/structure/item normalization. The action-step
 // chain integrity test checks for these in the world.js + system files combined source.
 
-import { escapeHtml } from '../utils.js?v=grove_pixi_fixes_0628';
+import { escapeHtml } from '../utils.js';
 
 export function installTeachSystem(Game, deps) {
   const {

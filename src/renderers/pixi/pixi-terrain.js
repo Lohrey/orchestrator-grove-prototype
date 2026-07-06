@@ -8,10 +8,10 @@ import {
   fillAndStrokePath,
   drawRoundedRect,
   samplePolyline
-} from './pixi-layers.js?v=grove_tileset_0628';
-import { getCampaignArrivalScene } from '../../campaign-scenes.js?v=t_campaign_scenes_0623';
-import { loadLpcTerrain, getLpcTerrain, LPC_TILE_SIZE } from '../shared/lpc-terrain-loader.js?v=grove_tileset_0628';
-import { clamp } from '../../utils.js?v=grove_pixi_fixes_0628';
+} from './pixi-layers.js';
+import { getCampaignArrivalScene } from '../../campaign-scenes.js';
+import { loadLpcTerrain, getLpcTerrain, LPC_TILE_SIZE } from '../shared/lpc-terrain-loader.js';
+import { clamp } from '../../utils.js';
 
 export function buildTerrainBaseTexture(PIXI, renderState, { buildStaticTexture, createGraphicsLayer }) {
   const width = renderState.map.width;

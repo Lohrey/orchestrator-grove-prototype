@@ -6,3 +6,10 @@ export const IDLE_BOT_AUTO_ATTACK_RANGE = 500;
 export const MONSTER_MELEE_ATTACK = { range: 36, damage: 1, cooldown: 1.0 };
 export const PLAYER_ATTACK_COOLDOWN = 1.0; // 1 attack/second for player basic attack
 export const PLAYER_AUTO_ENGAGE_RANGE = 140; // auto-engage enemies within this range when idle
+// ── Bot combat toggle (Patrick: aggressive is DEFAULT) ──
+// Aggressive: auto-attack any enemy within this radius, EVEN WHILE working a loop.
+// Passive: never auto-attack (no self-defense either — sensible default per Patrick).
+export const BOT_COMBAT_MODES = ['aggressive', 'passive'];
+export const DEFAULT_BOT_COMBAT_MODE = 'aggressive';
+export const BOT_AGGRESSIVE_ENGAGE_RADIUS = 500; // auto-attack radius when aggressive
+export const BOT_AGGRESSIVE_DISENGAGE_RADIUS = 650; // drop pursuit beyond this distance

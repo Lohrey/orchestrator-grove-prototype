@@ -1,13 +1,13 @@
-import { PROGRAMS, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT } from './data.js?v=t_building_kits_0618';
+import { PROGRAMS, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT } from '../data.js';
 import {
   normalizeAssistantLoadout,
   summarizeAssistantLoadout
-} from './assistant-knowledge.js?v=t_building_kits_0618';
+} from './assistant-knowledge.js';
 import {
   buildOllamaRequestBody,
   buildOpenAiCompatibleRequestBody,
   isGemma412BModel
-} from './assistant-prompt.js?v=t_building_kits_0618';
+} from './assistant-prompt.js';
 
 export {
   estimateTokenCount,
@@ -17,7 +17,7 @@ export {
   normalizeAssistantLoadout,
   normalizeAssistantPackCatalog,
   summarizeAssistantLoadout
-} from './assistant-knowledge.js?v=t_building_kits_0618';
+} from './assistant-knowledge.js';
 export {
   ASSISTANT_PROTOCOL_KERNEL,
   buildOllamaKnowledge,
@@ -27,7 +27,7 @@ export {
   compactCapabilities,
   formatOllamaFinalPrompt,
   isGemma412BModel
-} from './assistant-prompt.js?v=t_building_kits_0618';
+} from './assistant-prompt.js';
 
 export const LOCAL_AI_PROVIDERS = {
   ollama: {

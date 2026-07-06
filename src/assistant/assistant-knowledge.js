@@ -1,5 +1,5 @@
-import { ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT } from './assistant-pack-catalog.js?v=t_building_kits_0618';
-import { actionStepDetailsForOps, normalizeActionStepAliasOverrides, validActionStepOps } from './action-steps.js?v=t_building_kits_0618';
+import { ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT } from './assistant-pack-catalog.js';
+import { actionStepDetailsForOps, normalizeActionStepAliasOverrides, validActionStepOps } from '../action-steps.js';
 
 function packCatalog(knowledgePacks = ASSISTANT_KNOWLEDGE_PACKS) {
   return knowledgePacks && typeof knowledgePacks === 'object' ? knowledgePacks : ASSISTANT_KNOWLEDGE_PACKS;

@@ -6,12 +6,12 @@ import {
   getLookOffset,
   isBotHandTool,
   roundedRect
-} from '../shared/renderer-utils.js?v=grove_full_cache_0705';
-import { createDepthDrawable } from '../../depth-sort.js?v=t_da28d8dd';
+} from '../shared/renderer-utils.js';
+import { createDepthDrawable } from '../shared/depth-sort.js';
 import {
   drawHeldToolAsset,
   drawMiniItemAsset
-} from '../../visual-assets.js?v=t_building_kits_0618';
+} from '../../visual-assets.js';
 import {
   getSpriteCache,
   isSpriteCacheReady,
@@ -20,9 +20,17 @@ import {
   monsterSpriteKey,
   getMonsterWobbleSprite,
   getBotWalkSprite,
+  getCharacterWalkFrame,
+  isCharacterSpriteReady,
   BOT_COLORS,
   SPRITE_SIZE
-} from '../shared/sprite-cache.js?v=grove_full_cache_0705';
+} from '../shared/sprite-cache.js';
+
+// ── Walk-cycle constants ──────────────────────────────────────────────
+// Character walk-cycle PNGs are 8 frames; the loader exposes them via
+// getCharacterWalkFrame(name, frameIndex). ~100ms per frame → 10fps cycle.
+// Desync per-entity via id * 0.7 so crowds don't step in lockstep.
+const WALK_FRAME_MS = 100;
 
 // ── Procedural offscreen-cached player & bot rendering ─────────────────
 // The buggy Tiny Swords spritesheet atlas path has been disabled for the
@@ -211,14 +219,71 @@ export function drawBot(game, c, b, now) {
   const inventoryIsHandTool = isBotHandTool(b.inventory?.type);
   const facingRight = (b.facingX ?? 1) >= 0;
   const handToolTypes = inventoryIsHandTool ? [b.inventory.type] : [];
+  const isMoving = !!(b.target || b.vx || b.vy);
+
+  // ── Character walk-cycle PNG path (8-frame, directional flip) ──────
+  // Preferred when the 8-frame PNGs are loaded. NEAREST filtering is set
+  // by `image-rendering: pixelated` on the canvas element (styles.css).
+  if (isCharacterSpriteReady('bot')) {
+    const frameIdx = isMoving
+      ? Math.floor((now / WALK_FRAME_MS + (b.id || 0) * 0.7) % 8)
+      : 0; // idle → frame 0 (rest pose)
+    const frame = getCharacterWalkFrame('bot', frameIdx);
+    if (frame) {
+      if (hover) {
+        c.fillStyle = 'rgba(255,244,208,.18)';
+        c.beginPath();
+        c.arc(b.x, b.y, SPRITE_SIZE / 2 + 4, 0, Math.PI * 2);
+        c.fill();
+      }
+      c.save();
+      c.imageSmoothingEnabled = false; // crisp pixel-art blit
+      // Flip horizontally to face movement direction
+      if (!facingRight) {
+        c.translate(b.x + SPRITE_SIZE / 2, b.y - SPRITE_SIZE / 2);
+        c.scale(-1, 1);
+        c.drawImage(frame, 0, 0);
+      } else {
+        c.drawImage(frame, b.x - SPRITE_SIZE / 2, b.y - SPRITE_SIZE / 2);
+      }
+      c.restore();
+      // Hover outline
+      if (hover) {
+        c.strokeStyle = '#fff4d0';
+        c.lineWidth = 3;
+        c.beginPath();
+        c.arc(b.x, b.y, SPRITE_SIZE / 2 + 2, 0, Math.PI * 2);
+        c.stroke();
+      }
+      // Overlay: id label + items (only when zoomed in)
+      const zoom = game.camera?.zoom || 1;
+      if (zoom >= 0.5) {
+        c.save();
+        c.fillStyle = '#06100d';
+        c.font = '800 10px system-ui';
+        c.textAlign = 'center';
+        c.fillText(b.id, b.x, b.y + 3);
+        if (b.inventory && !inventoryIsHandTool) drawMiniItem(c, b.x - 1, b.y - 24, b.inventory.type);
+        handToolTypes.slice(0, 2).forEach((type, index) => {
+          const side = (index === 0 ? 1 : -1) * (facingRight ? 1 : -1);
+          drawHeldToolAsset(c, b.x + side * (b.r + 8), b.y + 5 + index * 2, type);
+        });
+        if (b.equipment?.weapon) drawHeldToolAsset(c, b.x + 17, b.y - 5, b.equipment.weapon);
+        if (b.equipment?.shield) drawHeldToolAsset(c, b.x - 17, b.y - 7, b.equipment.shield);
+        drawAmmoBadge(c, b, b.x, b.y + b.r + 16);
+        c.restore();
+      }
+      if (hover) drawNameTag(c, b.name || `Bot ${b.id}`, b.x, b.y - SPRITE_SIZE / 2 - 12);
+      return;
+    }
+    // frame lookup failed → fall through to procedural path
+  }
 
   // ── Procedural sprite-cache path (offscreen pre-rendered vector body) ──
   const spriteCache = getSpriteCache();
   if (spriteCache) {
     const key = botSpriteKey(b);
     const colorIdx = BOT_COLORS.indexOf(b.color || BOT_COLORS[0]);
-    // Determine if bot is moving (has a target destination it's heading to)
-    const isMoving = !!(b.target || b.vx || b.vy);
     // Use walk-cycle frames when moving; static idle frame otherwise
     let sprite;
     if (isMoving && colorIdx >= 0) {
@@ -278,6 +343,42 @@ export function drawBot(game, c, b, now) {
 // Fast sprite-based dog bot drawing
 function drawDogBotSprite(game, c, b, now) {
   const hover = game.mouse.hoverBot === b;
+  const facingRight = (b.facingX ?? 1) >= 0;
+  const isMoving = !!(b.target || b.vx || b.vy);
+
+  // ── Character walk-cycle PNG path (8-frame, directional flip) ──────
+  if (isCharacterSpriteReady('dog')) {
+    const frameIdx = isMoving
+      ? Math.floor((now / WALK_FRAME_MS + (b.id || 0) * 0.7) % 8)
+      : 0;
+    const frame = getCharacterWalkFrame('dog', frameIdx);
+    if (frame) {
+      c.save();
+      c.imageSmoothingEnabled = false;
+      if (!facingRight) {
+        c.translate(b.x + SPRITE_SIZE / 2, b.y - SPRITE_SIZE / 2);
+        c.scale(-1, 1);
+        c.drawImage(frame, 0, 0);
+      } else {
+        c.drawImage(frame, b.x - SPRITE_SIZE / 2, b.y - SPRITE_SIZE / 2);
+      }
+      c.restore();
+      // Overlay: name + inventory
+      const zoom = game.camera?.zoom || 1;
+      if (zoom >= 0.5) {
+        c.save();
+        c.fillStyle = '#d7e8cf';
+        c.font = '800 9px system-ui';
+        c.textAlign = 'center';
+        c.fillText(b.name || 'Dog', b.x, b.y + (b.r || 12) + 14);
+        if (b.inventory) drawMiniItem(c, b.x, b.y - (b.r || 12) * 1.75, b.inventory.type);
+        c.restore();
+      }
+      return;
+    }
+  }
+
+  // ── Procedural sprite-cache path ──
   const spriteCache = getSpriteCache();
   const useSprite = spriteCache;
 
@@ -350,28 +451,56 @@ export function drawPlayerActor(game, c, now) {
   const breathe = Math.sin(now / 520) * .8;
   const hpRatio = Math.max(0, Math.min(1, (game.player.hp ?? 0) / Math.max(1, game.player.maxHp || 10)));
   const lowHp = hpRatio <= 0.3;
+  const facingRight = (game.player.facingX ?? 1) >= 0;
+  // Player is "moving" when it has an active movement target that isn't a
+  // processing task (target.started means it's working, not walking).
+  const isMoving = !!(game.player.target && !game.player.target.started);
 
-  // ── Procedural offscreen-cached path ──
-  // The buggy Tiny Swords Warrior/Knight atlas path is disabled. The procedural
-  // player body is pre-rendered to offscreen canvases at init (sprite-cache.js),
-  // one per cardinal facing direction + HP state, then blitted here via
-  // ctx.drawImage(). Falls back to per-frame vector drawing only if the cache
-  // is not yet ready.
-  const spriteCache = getSpriteCache();
-  const sprite = spriteCache ? spriteCache[playerSpriteKey(game.player)] : null;
-
-  if (sprite) {
-    c.drawImage(sprite, game.player.x - SPRITE_SIZE / 2, game.player.y - SPRITE_SIZE / 2 + breathe);
+  // ── Character walk-cycle PNG path (8-frame, directional flip) ──────
+  if (isCharacterSpriteReady('player')) {
+    const frameIdx = isMoving
+      ? Math.floor((now / WALK_FRAME_MS) % 8)
+      : 0;
+    const frame = getCharacterWalkFrame('player', frameIdx);
+    if (frame) {
+      c.imageSmoothingEnabled = false;
+      if (!facingRight) {
+        c.translate(game.player.x + SPRITE_SIZE / 2, game.player.y - SPRITE_SIZE / 2 + breathe);
+        c.scale(-1, 1);
+        c.drawImage(frame, 0, 0);
+      } else {
+        c.drawImage(frame, game.player.x - SPRITE_SIZE / 2, game.player.y - SPRITE_SIZE / 2 + breathe);
+      }
+      // Skip to overlay pass below (carried item, equipment, health bar)
+    } else {
+      // frame lookup failed → procedural fallback (below)
+      drawShadow(c, game.player.x, game.player.y + game.player.r + 5, game.player.r + 8, 5, .28);
+      const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
+      c.fillStyle = lowHp ? '#f5d8d4' : '#eef5ef';
+      c.strokeStyle = '#26322d';
+      c.lineWidth = 2;
+      c.beginPath(); c.arc(game.player.x, game.player.y + breathe, game.player.r + 1, 0, Math.PI * 2); c.fill(); c.stroke();
+      c.fillStyle = '#76b77f';
+      c.beginPath(); c.arc(game.player.x + look.x, game.player.y - 3 + breathe + look.y, 3, 0, Math.PI * 2); c.fill();
+    }
   } else {
-    // Fallback: vector drawing (source of truth for the procedural model)
-    drawShadow(c, game.player.x, game.player.y + game.player.r + 5, game.player.r + 8, 5, .28);
-    const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
-    c.fillStyle = lowHp ? '#f5d8d4' : '#eef5ef';
-    c.strokeStyle = '#26322d';
-    c.lineWidth = 2;
-    c.beginPath(); c.arc(game.player.x, game.player.y + breathe, game.player.r + 1, 0, Math.PI * 2); c.fill(); c.stroke();
-    c.fillStyle = '#76b77f';
-    c.beginPath(); c.arc(game.player.x + look.x, game.player.y - 3 + breathe + look.y, 3, 0, Math.PI * 2); c.fill();
+    // ── Procedural offscreen-cached path ──
+    const spriteCache = getSpriteCache();
+    const sprite = spriteCache ? spriteCache[playerSpriteKey(game.player)] : null;
+
+    if (sprite) {
+      c.drawImage(sprite, game.player.x - SPRITE_SIZE / 2, game.player.y - SPRITE_SIZE / 2 + breathe);
+    } else {
+      // Fallback: vector drawing (source of truth for the procedural model)
+      drawShadow(c, game.player.x, game.player.y + game.player.r + 5, game.player.r + 8, 5, .28);
+      const look = getLookOffset(game.player.facingX, game.player.facingY, 4);
+      c.fillStyle = lowHp ? '#f5d8d4' : '#eef5ef';
+      c.strokeStyle = '#26322d';
+      c.lineWidth = 2;
+      c.beginPath(); c.arc(game.player.x, game.player.y + breathe, game.player.r + 1, 0, Math.PI * 2); c.fill(); c.stroke();
+      c.fillStyle = '#76b77f';
+      c.beginPath(); c.arc(game.player.x + look.x, game.player.y - 3 + breathe + look.y, 3, 0, Math.PI * 2); c.fill();
+    }
   }
 
   // Overlay pass (always for player since it's important)
@@ -380,7 +509,8 @@ export function drawPlayerActor(game, c, now) {
   if (game.player.inventory) {
     const itemY = game.player.y - playerDrawSize / 2 - 12;
     drawMiniItem(c, game.player.x, itemY, game.player.inventory.type);
-    drawNameTag(c, game.player.inventory.type, game.player.x, itemY - 9);
+    // NOTE: held-in-hand items do NOT show a floating name label.
+    // Only LOOSE ground items show a name label on hover (see drawItem in world-layer.js).
   }
   if (game.player.equipment?.weapon) drawHeldToolAsset(c, game.player.x + 19, game.player.y - 5, game.player.equipment.weapon);
   if (game.player.equipment?.shield) drawHeldToolAsset(c, game.player.x - 18, game.player.y - 5, game.player.equipment.shield);

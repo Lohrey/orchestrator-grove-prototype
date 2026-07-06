@@ -32,7 +32,7 @@ def run_smoke(url: str) -> None:
         order = page.evaluate(
             """
             async () => {
-              const mod = await import(new URL('./src/depth-sort.js?v=t_da28d8dd', window.location.href).href);
+              const mod = await import(new URL('./src/renderers/shared/depth-sort.js', window.location.href).href);
               const drawn = [];
               const tree = { x: 400, y: 300, radius: 24 };
               const playerBehind = { x: 400, y: 268, r: 13 };

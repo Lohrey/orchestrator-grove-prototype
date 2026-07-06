@@ -3,8 +3,8 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, validateDslAssignments } from '../src/assistant.js';
-import { assignmentMatchesExpectation, normalizeAssignmentForEval, summarizeEvalRows } from '../src/assistant-eval.js';
+import { parseAssistantRequest, parseWithOllama, parseWithOpenAiCompatible, validateDslAssignments } from '../src/assistant/assistant.js';
+import { assignmentMatchesExpectation, normalizeAssignmentForEval, summarizeEvalRows } from '../src/assistant/assistant-eval.js';
 import { ASSISTANT_KNOWLEDGE_PACKS } from '../src/data.js';
 import { Game } from '../src/world.js';
 

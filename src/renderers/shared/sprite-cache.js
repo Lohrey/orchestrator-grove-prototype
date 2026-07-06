@@ -3,8 +3,9 @@
 // structures, and static objects. Falls back gracefully if
 // OffscreenCanvas/ImageBitmap unavailable.
 
-import { drawBuildingAsset, drawItemAsset } from '../../visual-assets.js?v=t_building_kits_0618';
-import { BUILDING_TYPES } from '../../data.js?v=t_building_kits_0618';
+import { drawBuildingAsset, drawItemAsset } from '../../visual-assets.js';
+import { BUILDING_TYPES } from '../../data.js';
+import { loadCharacterSprites, integrateIntoCache } from './character-sprite-loader.js';
 
 const SPRITE_SIZE = 64; // base sprite canvas size for bots/player/dog (power-of-2 grid)
 const SPRITE_HALF = SPRITE_SIZE / 2;
@@ -184,6 +185,124 @@ function drawPlayerBodyToCtx(ctx, radius, lowHp, facing = 'e') {
 // ── Monster sprite constants ──
 const MONSTER_SIZE = 64; // canvas size for monster sprites (power-of-2 grid, radius 18 + padding)
 const MONSTER_HALF = MONSTER_SIZE / 2;
+
+// ── King Blob sprite constants ──
+// King Blob is a boss monster — much larger (256×256 canvas, radius 56).
+// It has a golden crown, darker regal purple body, and menacing red eyes.
+const KING_BLOB_SIZE = 256;
+const KING_BLOB_HALF = KING_BLOB_SIZE / 2;
+const KING_BLOB_RADIUS = 56;
+
+// ── Draw King Blob body onto a ctx (simplified, no hover/health bar) ──
+// wobbleOffset shifts the body vertically for a pre-baked breathing animation.
+// Features: large dark-purple blob body, golden crown with red gems, red eyes,
+// fanged mouth. Much bigger and more intimidating than a standard monster.
+function drawKingBlobBodyToCtx(ctx, radius, wobbleOffset = 0) {
+  const cx = KING_BLOB_HALF;
+  const cy = KING_BLOB_HALF;
+  const r = radius;
+  // Shadow (fixed — does not wobble)
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + r * 0.75, r * 1.15, r * 0.36, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const by = cy + wobbleOffset;
+
+  // ── Body: regal dark purple gradient ──
+  const body = ctx.createRadialGradient(cx - r * 0.25, by - r * 0.35, 2, cx, by, r * 1.2);
+  body.addColorStop(0, '#7b2d8e');   // highlight: purple
+  body.addColorStop(0.45, '#4a1a5c'); // mid: dark purple
+  body.addColorStop(1, '#1a0820');    // edge: near-black purple
+  ctx.fillStyle = body;
+  ctx.strokeStyle = '#0a0410';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.ellipse(cx, by, r, r * 0.85, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // ── Crown: golden, sits on top of the blob ──
+  const crownBaseY = by - r * 0.78;
+  const crownW = r * 1.1;
+  const crownH = r * 0.42;
+  // Crown band
+  const crownGrad = ctx.createLinearGradient(cx - crownW / 2, crownBaseY, cx + crownW / 2, crownBaseY + crownH);
+  crownGrad.addColorStop(0, '#c8a02e');
+  crownGrad.addColorStop(0.5, '#ffd700');
+  crownGrad.addColorStop(1, '#c8a02e');
+  ctx.fillStyle = crownGrad;
+  ctx.strokeStyle = '#8b6914';
+  ctx.lineWidth = 2;
+  // Crown band rectangle
+  ctx.beginPath();
+  ctx.rect(cx - crownW / 2, crownBaseY + crownH * 0.5, crownW, crownH * 0.5);
+  ctx.fill();
+  ctx.stroke();
+  // Crown spikes (3 points)
+  const spikeW = crownW / 3;
+  for (let i = 0; i < 3; i++) {
+    const sx = cx - crownW / 2 + i * spikeW;
+    ctx.beginPath();
+    ctx.moveTo(sx, crownBaseY + crownH * 0.5);
+    ctx.lineTo(sx + spikeW / 2, crownBaseY);
+    ctx.lineTo(sx + spikeW, crownBaseY + crownH * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  // Red gems on crown (one per spike tip)
+  ctx.fillStyle = '#e8242a';
+  ctx.strokeStyle = '#7a0a0a';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {
+    const gx = cx - crownW / 2 + i * spikeW + spikeW / 2;
+    ctx.beginPath();
+    ctx.arc(gx, crownBaseY + 3, r * 0.07, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  // Center gem on the band (bigger)
+  ctx.fillStyle = '#e8242a';
+  ctx.beginPath();
+  ctx.arc(cx, crownBaseY + crownH * 0.75, r * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // ── Eyes: menacing red with glow ──
+  ctx.fillStyle = '#ff3333';
+  ctx.beginPath();
+  ctx.arc(cx - r * 0.3, by - r * 0.12, r * 0.12, 0, Math.PI * 2);
+  ctx.arc(cx + r * 0.3, by - r * 0.12, r * 0.12, 0, Math.PI * 2);
+  ctx.fill();
+  // Pupils
+  ctx.fillStyle = '#1a0000';
+  ctx.beginPath();
+  ctx.arc(cx - r * 0.3, by - r * 0.12, r * 0.05, 0, Math.PI * 2);
+  ctx.arc(cx + r * 0.3, by - r * 0.12, r * 0.05, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── Mouth: fanged grimace ──
+  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(cx, by + r * 0.2, r * 0.22, 0.15, Math.PI - 0.15);
+  ctx.stroke();
+  // Fangs
+  ctx.fillStyle = '#e8e8e8';
+  ctx.beginPath();
+  ctx.moveTo(cx - r * 0.1, by + r * 0.25);
+  ctx.lineTo(cx - r * 0.06, by + r * 0.38);
+  ctx.lineTo(cx - r * 0.02, by + r * 0.25);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + r * 0.02, by + r * 0.25);
+  ctx.lineTo(cx + r * 0.06, by + r * 0.38);
+  ctx.lineTo(cx + r * 0.1, by + r * 0.25);
+  ctx.closePath();
+  ctx.fill();
+}
 
 // ── Draw monster body onto a ctx (simplified, no hover/health bar) ──
 // wobbleOffset shifts the body vertically to bake a breathing/wobble
@@ -506,6 +625,28 @@ async function buildCache() {
     out[key + '_meta'] = { w: MONSTER_SIZE, h: MONSTER_SIZE, cx: MONSTER_HALF, cy: MONSTER_HALF, frames: MONSTER_WOBBLE_FRAMES };
   }
 
+  // ── King Blob boss sprite: 4 wobble frames at 256×256 ─────────────
+  // The King Blob is a boss monster — pre-rendered identically to other
+  // monsters but at a much larger canvas (256×256, radius 56). It has a
+  // golden crown, dark purple body, red eyes, and fangs.
+  // Keys:
+  //   monster_king_blob      → [frame0Bitmap, frame1Bitmap, frame2Bitmap, frame3Bitmap]
+  //   monster_king_blob_meta → { w, h, cx, cy, frames: 4 }
+  {
+    const KING_WOBBLE_FRAMES = 4;
+    const kingFrames = [];
+    for (let f = 0; f < KING_WOBBLE_FRAMES; f++) {
+      const phase = (f / KING_WOBBLE_FRAMES) * Math.PI * 2;
+      const wobbleOffset = Math.sin(phase) * 3; // slightly bigger amplitude for the boss
+      const { canvas } = preRender(ctx => {
+        drawKingBlobBodyToCtx(ctx, KING_BLOB_RADIUS, wobbleOffset);
+      }, KING_BLOB_SIZE, KING_BLOB_SIZE);
+      kingFrames.push(await toBitmap(canvas));
+    }
+    out['monster_king_blob'] = kingFrames;
+    out['monster_king_blob_meta'] = { w: KING_BLOB_SIZE, h: KING_BLOB_SIZE, cx: KING_BLOB_HALF, cy: KING_BLOB_HALF, frames: KING_WOBBLE_FRAMES };
+  }
+
   // ── Structure sprites: one static frame per building type ─────────
   // Pre-render each structure type to a single ImageBitmap so drawStructure
   // can blit instead of calling drawBuildingAsset every frame. The cached
@@ -555,6 +696,20 @@ async function buildCache() {
     }, ITEM_SIZE, ITEM_SIZE);
     out[key] = await toBitmap(canvas);
     out[key + '_meta'] = { w: ITEM_SIZE, h: ITEM_SIZE, cx: ITEM_HALF, cy: ITEM_HALF };
+  }
+
+  // ── Character walk-cycle PNGs (8 frames per character) ──────────────
+  // Loaded from assets/sprites/processed/. If loading fails (404, network
+  // error), the character falls back to the procedural sprites above —
+  // nothing is overwritten. integrateIntoCache() only adds char_<name>_walk
+  // keys when all 8 frames are available.
+  try {
+    await loadCharacterSprites();
+    integrateIntoCache(out);
+  } catch (err) {
+    // Loader handles per-character errors gracefully; this only fires if the
+    // loader module itself threw. Procedural sprites remain as fallback.
+    console.warn('[sprite-cache] Character sprite loader error (using procedural fallback):', err);
   }
 
   return out;
@@ -668,7 +823,7 @@ export function getTreeSwaySprite(key, frameIndex) {
 
 /**
  * Get a monster sprite key from its type.
- * Returns 'monster_default' or 'monster_night_monster'.
+ * Returns 'monster_default', 'monster_night_monster', or 'monster_king_blob'.
  */
 export function monsterSpriteKey(monster) {
   return `monster_${monster.type || 'default'}`;
@@ -727,6 +882,30 @@ export function getBotWalkSprite(colorIndex, frameIndex) {
   const sprite = frames[idx];
   if (!sprite) return null;
   return { sprite };
+}
+
+// ── Character walk-cycle PNG accessors ────────────────────────────────
+// These read the char_<name>_walk entries added by character-sprite-loader.js.
+// They return null when the 8-frame PNGs aren't loaded, so callers fall back
+// to the procedural sprite path.
+
+/**
+ * Get a specific walk-cycle frame (0..7) for a character ('bot'|'player'|'dog').
+ * Returns the Image/ImageBitmap or null if not loaded.
+ */
+export function getCharacterWalkFrame(name, frameIndex) {
+  if (!cache) return null;
+  const frames = cache[`char_${name}_walk`];
+  if (!Array.isArray(frames)) return null;
+  const idx = ((frameIndex | 0) + 8) % 8;
+  return frames[idx] || null;
+}
+
+/**
+ * Check whether the 8-frame walk cycle is available for a character.
+ */
+export function isCharacterSpriteReady(name) {
+  return !!(cache && cache[`char_${name}_ready`]);
 }
 
 export { SPRITE_SIZE, SPRITE_HALF, BOT_COLORS };

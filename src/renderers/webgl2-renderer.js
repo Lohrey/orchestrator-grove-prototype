@@ -11,8 +11,8 @@
 //    Canvas2D path skips entity sprite drawing but still runs background and
 //    overlay passes for parity.
 
-import { createWebGL2Batcher, isWebGL2Supported, MAX_BATCH } from './webgl2/batcher.js?v=t_webgl2_full_0705';
-import { createCanvas2dRenderer } from './canvas2d-renderer.js?v=t_webgl2_full_0705';
+import { createWebGL2Batcher, isWebGL2Supported, MAX_BATCH } from './webgl2/batcher.js';
+import { createCanvas2dRenderer } from './canvas2d-renderer.js';
 import {
   getSpriteCache,
   initSpriteCache,
@@ -22,9 +22,11 @@ import {
   rockSpriteKey,
   monsterSpriteKey,
   structureSpriteKey,
+  getCharacterWalkFrame,
+  isCharacterSpriteReady,
   BOT_COLORS,
   SPRITE_SIZE
-} from './shared/sprite-cache.js?v=t_webgl2_full_0705';
+} from './shared/sprite-cache.js';
 import {
   getWorldViewBounds,
   circleInView,
@@ -38,8 +40,9 @@ import {
   getRockOpacity,
   structureFogPoint,
   isCampaignArrivalActive
-} from './shared/renderer-utils.js?v=t_webgl2_full_0705';
-import { drawWorld } from '../canvas-renderer.js?v=t_webgl2_full_0705';
+} from './shared/renderer-utils.js';
+import { drawWorld } from './canvas-renderer.js';
+import { createDepthDrawable, sortDepthDrawables } from './shared/depth-sort.js';
 
 // ── Atlas builder ──────────────────────────────────────────────────────
 // Packs mixed-size sprites (32/64/256) into a single power-of-2 texture
@@ -352,10 +355,25 @@ export async function createWebGL2Renderer({ canvas }) {
       projectiles: visibleProjectiles
     };
 
-    // ── Render order (matches Canvas2D depth-sort ordering) ───────────
+    // ── Render order ───────────────────────────────────────────────────
+    // All sprite-cached entities are collected into depth drawables and
+    // Y-sorted by foot position (using depth-sort.js for parity with the
+    // Canvas2D path). This ensures entities lower on screen (higher foot Y)
+    // are drawn after (in front of) entities higher on screen, preventing
+    // transparent-rectangle overdraw when sprites overlap.
+    //
+    // Trees and rocks get a small layer bias so they sort behind actors at
+    // the same foot Y (matching the KIND_LAYER_BIAS in depth-sort.js).
+    const depthDrawables = [];
+    const pushDepth = (kind, entity, draw, options = {}) => {
+      depthDrawables.push(createDepthDrawable(kind, entity, draw, { ...options, order: depthDrawables.length }));
+    };
+
     // 1) Structures
     for (const structure of visibleStructures) {
-      drawWorldSprite(structure.x, structure.y, structureSpriteKey(structure), -1, 1);
+      pushDepth('structure', structure, () => {
+        drawWorldSprite(structure.x, structure.y, structureSpriteKey(structure), -1, 1);
+      });
     }
 
     // 2) Trees (with sway frame selection + occlusion opacity)
@@ -368,7 +386,9 @@ export async function createWebGL2Renderer({ canvas }) {
       // Sway frame: 500ms per step, per-tree offset
       const frameIndex = Math.floor((now / 500 + (tree.id || 0) * 0.7) % 4);
       const opacity = getTreeOpacity(game, tree, now, occluders);
-      drawWorldSprite(tree.x, tree.y, key, frameIndex, opacity);
+      pushDepth('tree', tree, () => {
+        drawWorldSprite(tree.x, tree.y, key, frameIndex, opacity);
+      });
     }
 
     // 3) Rocks (normal/depleted, with occlusion opacity)
@@ -377,20 +397,22 @@ export async function createWebGL2Renderer({ canvas }) {
       if (!fogStaticVisible(game, rock.x, rock.y)) continue;
       const key = rockSpriteKey(rock);
       const opacity = getRockOpacity(game, rock, now, occluders);
-      drawWorldSprite(rock.x, rock.y, key, -1, opacity);
+      pushDepth('rock', rock, () => {
+        drawWorldSprite(rock.x, rock.y, key, -1, opacity);
+      });
     }
 
-    // 4) Hemp plants (no sprite cache — drawn via Canvas2D overlay)
     // Hemp, holes, and projectiles are not in the sprite cache, so they
-    // remain drawn by the Canvas2D overlay pass. Items, trees, rocks,
-    // monsters, structures, bots, player, dog are all in the sprite cache.
+    // remain drawn by the Canvas2D overlay pass.
 
     // 5) Items (with zoom gate + bob animation)
     if (renderLooseGroundItems) {
       for (const item of visibleItems) {
         const bob = item._bob ?? Math.sin(now / 400 + item.bob) * 2;
         const key = `item_${item.type}`;
-        drawWorldSprite(item.x, item.y + bob, key, -1, 1);
+        pushDepth('item', item, () => {
+          drawWorldSprite(item.x, item.y + bob, key, -1, 1);
+        }, { sortOffsetY: bob + 10 });
       }
     }
 
@@ -399,20 +421,58 @@ export async function createWebGL2Renderer({ canvas }) {
       const key = monsterSpriteKey(monster);
       // Wobble frame: 400ms per step (matches Canvas2D), per-monster offset
       const frameIndex = Math.floor((now / 400 + (monster.id || 0) * 0.7) % 4);
-      drawWorldSprite(monster.x, monster.y, key, frameIndex, 1);
+      pushDepth('monster', monster, () => {
+        drawWorldSprite(monster.x, monster.y, key, frameIndex, 1);
+      });
     }
 
     // 7) Bots (walk cycle when moving, idle when not; zoom gate)
     if (renderBots) {
       for (const bot of visibleBots) {
+        const facingRight = (bot.facingX ?? 1) >= 0;
+        const isMoving = !!(bot.target || bot.vx || bot.vy);
+
+        // ── Character walk-cycle PNG path (8-frame) ──
+        if (isCharacterSpriteReady(bot.kind === 'dog' ? 'dog' : 'bot')) {
+          const charName = bot.kind === 'dog' ? 'dog' : 'bot';
+          const frameIdx = isMoving
+            ? Math.floor((now / 100 + (bot.id || 0) * 0.7) % 8)
+            : 0;
+          const walkKey = `char_${charName}_walk`;
+          const uv = getSpriteUV(walkKey, frameIdx);
+          if (uv) {
+            // Flip: WebGL2 batcher doesn't support per-sprite flip, so we
+            // swap u0/u1 when facing left. The atlas stores frames in
+            // Canvas2D orientation (v0=top), so this is a clean horizontal mirror.
+            pushDepth('bot', bot, () => {
+              if (facingRight) {
+                batcher.drawSprite(
+                  bot.x - (uv.cx ?? uv.w / 2), bot.y - (uv.cy ?? uv.h / 2),
+                  uv.w, uv.h, 0, uv.u0, uv.v0, uv.u1, uv.v1,
+                  [1, 1, 1, 1], [0, 0, 0, 0]
+                );
+              } else {
+                batcher.drawSprite(
+                  bot.x - (uv.cx ?? uv.w / 2), bot.y - (uv.cy ?? uv.h / 2),
+                  uv.w, uv.h, 0, uv.u1, uv.v0, uv.u0, uv.v1,
+                  [1, 1, 1, 1], [0, 0, 0, 0]
+                );
+              }
+            });
+            continue;
+          }
+        }
+
+        // ── Procedural fallback ──
         if (bot.kind === 'dog') {
           const key = botSpriteKey(bot); // dog_left / dog_right
-          drawWorldSprite(bot.x, bot.y, key, -1, 1);
+          pushDepth('bot', bot, () => {
+            drawWorldSprite(bot.x, bot.y, key, -1, 1);
+          });
           continue;
         }
         const key = botSpriteKey(bot);
         const colorIdx = BOT_COLORS.indexOf(bot.color || BOT_COLORS[0]);
-        const isMoving = !!(bot.target || bot.vx || bot.vy);
         let frameIndex = -1;
         if (isMoving && colorIdx >= 0) {
           // Walk-cycle frame key: bot_<i>_walk → UV key bot_<i>_walk_<f>
@@ -420,20 +480,68 @@ export async function createWebGL2Renderer({ canvas }) {
           const walkKey = `bot_${colorIdx}_walk`;
           const uv = getSpriteUV(walkKey, frameIndex);
           if (uv) {
-            drawWorldSprite(bot.x, bot.y, walkKey, frameIndex, 1);
+            pushDepth('bot', bot, () => {
+              drawWorldSprite(bot.x, bot.y, walkKey, frameIndex, 1);
+            });
             continue;
           }
         }
-        drawWorldSprite(bot.x, bot.y, key, -1, 1);
+        pushDepth('bot', bot, () => {
+          drawWorldSprite(bot.x, bot.y, key, -1, 1);
+        });
       }
     }
 
     // 8) Player (facing-based sprite selection)
     if (!campaignArrivalActive && game.player) {
       if (!view || circleInView(game.player.x, game.player.y, (game.player.r || 13) + 42, view)) {
-        const pKey = playerSpriteKey(game.player);
-        drawWorldSprite(game.player.x, game.player.y, pKey, -1, 1);
+        const facingRight = (game.player.facingX ?? 1) >= 0;
+        const isMoving = !!(game.player.target && !game.player.target.started);
+
+        // ── Character walk-cycle PNG path (8-frame) ──
+        if (isCharacterSpriteReady('player')) {
+          const frameIdx = isMoving ? Math.floor((now / 100) % 8) : 0;
+          const walkKey = 'char_player_walk';
+          const uv = getSpriteUV(walkKey, frameIdx);
+          if (uv) {
+            pushDepth('player', game.player, () => {
+              if (facingRight) {
+                batcher.drawSprite(
+                  game.player.x - (uv.cx ?? uv.w / 2), game.player.y - (uv.cy ?? uv.h / 2),
+                  uv.w, uv.h, 0, uv.u0, uv.v0, uv.u1, uv.v1,
+                  [1, 1, 1, 1], [0, 0, 0, 0]
+                );
+              } else {
+                batcher.drawSprite(
+                  game.player.x - (uv.cx ?? uv.w / 2), game.player.y - (uv.cy ?? uv.h / 2),
+                  uv.w, uv.h, 0, uv.u1, uv.v0, uv.u0, uv.v1,
+                  [1, 1, 1, 1], [0, 0, 0, 0]
+                );
+              }
+            });
+          } else {
+            // UV miss → procedural fallback
+            const pKey = playerSpriteKey(game.player);
+            pushDepth('player', game.player, () => {
+              drawWorldSprite(game.player.x, game.player.y, pKey, -1, 1);
+            });
+          }
+        } else {
+          // ── Procedural fallback ──
+          const pKey = playerSpriteKey(game.player);
+          pushDepth('player', game.player, () => {
+            drawWorldSprite(game.player.x, game.player.y, pKey, -1, 1);
+          });
+        }
       }
+    }
+
+    // ── Y-sort and draw all collected sprites ──────────────────────────
+    // sortDepthDrawables returns a new array (stable sort by sortY, then
+    // layer bias, then sortX, then insertion order). Sprites with lower
+    // foot Y draw first (behind); higher foot Y draw last (in front).
+    for (const drawable of sortDepthDrawables(depthDrawables)) {
+      drawable.draw();
     }
 
     // 9) Projectiles — not in sprite cache; Canvas2D overlay draws them.

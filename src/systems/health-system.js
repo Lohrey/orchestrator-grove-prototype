@@ -6,7 +6,7 @@
 //   PLAYER_MAX_HP, PLAYER_REGEN_DELAY_MS, PLAYER_REGEN_INTERVAL_MS, PLAYER_REGEN_AMOUNT,
 //   CAMPAIGN_START (for respawn safe point), MONSTER_MELEE_ATTACK (monster damage).
 
-import { clamp } from '../utils.js?v=grove_pixi_fixes_0628';
+import { clamp } from '../utils.js';
 
 const MS_PER_SECOND = 1000;
 const PLAYER_RESPAWN_INVULN_SECONDS = 3;

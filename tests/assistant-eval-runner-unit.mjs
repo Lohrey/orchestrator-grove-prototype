@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { assignmentMatchesExpectation, normalizeAssignmentForEval, summarizeEvalRows } from '../src/assistant-eval.js';
-import { parseAssistantRequest, validateDslAssignments } from '../src/assistant.js';
+import { assignmentMatchesExpectation, normalizeAssignmentForEval, summarizeEvalRows } from '../src/assistant/assistant-eval.js';
+import { parseAssistantRequest, validateDslAssignments } from '../src/assistant/assistant.js';
 import { ASSISTANT_KNOWLEDGE_PACKS } from '../src/data.js';
 import { Game } from '../src/world.js';
 

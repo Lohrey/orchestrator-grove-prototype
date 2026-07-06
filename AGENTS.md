@@ -102,7 +102,7 @@ Do not add a new action by only updating one representation. Do not remove or re
 ## Child DOX Index
 - [docs/AGENTS.md](docs/AGENTS.md) — project documentation (guides, prompts)
 - [src/AGENTS.md](src/AGENTS.md) — game runtime ES modules
-  - [src/renderers/AGENTS.md](src/renderers/AGENTS.md) — pluggable renderers (canvas2d, pixi)
+  - [src/renderers/AGENTS.md](src/renderers/AGENTS.md) — pluggable renderers (webgl2 default, pixi, canvas2d)
   - [src/sim/AGENTS.md](src/sim/AGENTS.md) — simulation worker layer
   - [src/ui/AGENTS.md](src/ui/AGENTS.md) — Svelte architecture overlay
 - [tests/AGENTS.md](tests/AGENTS.md) — smoke and integrity tests

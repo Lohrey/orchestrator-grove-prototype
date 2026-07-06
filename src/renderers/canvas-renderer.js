@@ -1,5 +1,5 @@
 // ── Coordinator: re-exports shared constants/helpers and delegates draw to layer modules ──
-import { createDepthDrawable, sortDepthDrawables } from './depth-sort.js?v=t_da28d8dd';
+import { createDepthDrawable, sortDepthDrawables } from './shared/depth-sort.js';
 import {
   BOT_RENDER_MIN_ZOOM,
   DECORATIVE_DETAIL_RENDER_MIN_ZOOM,
@@ -25,7 +25,7 @@ import {
   drawShadow,
   drawNameTag,
   roundedRect
-} from './renderers/shared/renderer-utils.js?v=t_webgl2_full_0705';
+} from './shared/renderer-utils.js';
 
 import {
   drawCampaignArrival,
@@ -33,7 +33,7 @@ import {
   drawMapBase,
   drawMapFeatures,
   drawViewportBackdrop
-} from './renderers/canvas2d/background-layer.js?v=t_renderer_split_0627';
+} from './canvas2d/background-layer.js';
 
 import {
   drawHempPlant,
@@ -44,7 +44,7 @@ import {
   drawStructure,
   drawTree,
   drawZones
-} from './renderers/canvas2d/world-layer.js?v=grove_full_cache_0705';
+} from './canvas2d/world-layer.js';
 
 import {
   drawAssistant,
@@ -53,7 +53,7 @@ import {
   drawPlayerActor,
   drawPlayerTarget,
   pushRemotePlayersToDepth
-} from './renderers/canvas2d/entities-layer.js?v=grove_full_cache_0705';
+} from './canvas2d/entities-layer.js';
 
 import {
   drawFloaters,
@@ -61,15 +61,15 @@ import {
   drawNightTint,
   drawRevealSourceGlows,
   drawStructureLightGlows
-} from './renderers/canvas2d/effects-layer.js?v=t_renderer_split_0627';
+} from './canvas2d/effects-layer.js';
 
 import {
   drawPlacement,
   drawZoneDraft
-} from './renderers/canvas2d/overlay-layer.js?v=t_renderer_split_0627';
+} from './canvas2d/overlay-layer.js';
 
-import { drawHud } from './renderers/canvas2d/hud-layer.js?v=t_health_system_0628';
-import { BUILDING_TYPES } from './data.js?v=t_building_kits_0618';
+import { drawHud } from './canvas2d/hud-layer.js';
+import { BUILDING_TYPES } from '../data.js';
 
 // Re-export public API surface that tests and consumers rely on
 export {
@@ -450,9 +450,9 @@ function drawTreeOverlay(game, c, t, now) {
 // Inline mini-item + held-tool overlays for bots/player (mirrors the overlay
 // pass in entities-layer.js drawBot/drawPlayerActor, minus the sprite body
 // which the WebGL2 batcher renders).
-import { drawHeldToolAsset, drawMiniItemAsset } from './visual-assets.js?v=t_webgl2_full_0705';
-import { isBotHandTool } from './renderers/shared/renderer-utils.js?v=t_webgl2_full_0705';
-import { SPRITE_SIZE as _SPRITE_SIZE, BOT_COLORS as _BOT_COLORS, getSpriteCache as _getSpriteCache } from './renderers/shared/sprite-cache.js?v=t_webgl2_full_0705';
+import { drawHeldToolAsset, drawMiniItemAsset } from '../visual-assets.js';
+import { isBotHandTool } from './shared/renderer-utils.js';
+import { SPRITE_SIZE as _SPRITE_SIZE, BOT_COLORS as _BOT_COLORS, getSpriteCache as _getSpriteCache } from './shared/sprite-cache.js';
 
 function _drawMiniItem(c, x, y, type) {
   c.save();

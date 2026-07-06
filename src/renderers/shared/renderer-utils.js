@@ -1,4 +1,4 @@
-import { clamp as _clamp } from '../../utils.js?v=grove_pixi_fixes_0628';
+import { clamp as _clamp } from '../../utils.js';
 export const clamp = _clamp;
 import {
   fogRevealSources as buildFogRevealSources,
@@ -6,7 +6,7 @@ import {
   isPointCurrentlyVisible,
   isPointExplored as isFogPointExplored,
   structureLightRadius as getFogStructureLightRadius
-} from '../../fog-of-war.js?v=t_building_kits_0618';
+} from './fog-of-war.js';
 
 // ── Zoom-cull thresholds ──────────────────────────────────────────
 export const LOOSE_ITEM_RENDER_MIN_ZOOM = 0.55;

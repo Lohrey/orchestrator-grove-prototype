@@ -2,7 +2,7 @@
 // Player target queue, movement, resource actions, deploy/demolish actions.
 // Part of the Game class composition root — installed via installPlayerSystem(Game, deps).
 
-import { clamp } from '../utils.js?v=grove_tree_chop_0628';
+import { clamp } from '../utils.js';
 
 export function installPlayerSystem(Game, deps) {
   const {
@@ -259,6 +259,10 @@ export function installPlayerSystem(Game, deps) {
       if (!tree || tree.stump || this.player.inventory) return false;
       if (!this.treeSearchAvailable(tree, 'player')) { this.addFloat('Tree already being searched', tree.x, tree.y - 34, '#c86b5f'); return true; }
       this.setPlayerDestination(tree.x, tree.y, { action: 'search_tree', resourceId: tree.id, repeat: true, floatText: 'Search tree for sticks/seeds' });
+      // Record the teach step at interaction-START so the loop captures the attempt
+      // even though auto-continue (repeat:true) suppresses per-completion recording.
+      this.recordTeachStep(this.resourceRadiusStep('search_tree', tree, this.treeDisplayName(tree)));
+      this.syncTeachUi();
       return true;
     },
     queuePlayerHempAction(hemp, { append = false } = {}) {
@@ -369,6 +373,12 @@ export function installPlayerSystem(Game, deps) {
       if (op === 'mine_stone' && this.player.inventory?.type !== 'crude_pickaxe') return false;
       const label = op === 'chop_tree' ? 'Chop tree' : 'Mine stone deposit';
       this.setPlayerDestination(resource.x, resource.y, { action: op, resourceId: resource.id, repeat: true, floatText: label }, { append });
+      // Record the chop_tree teach step at interaction-START so the loop captures the
+      // attempt even though auto-continue (repeat:true) suppresses per-completion recording.
+      if (op === 'chop_tree') {
+        this.recordTeachStep(this.resourceRadiusStep('chop_tree', resource, this.treeDisplayName(resource)));
+        this.syncTeachUi();
+      }
       return true;
     },
     queuePlayerStoneMining(rock, { append = false } = {}) {

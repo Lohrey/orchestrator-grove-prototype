@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { CAMERA_MIN_ZOOM, Game } from '../src/world.js';
-import { createRenderState } from '../src/render-state.js';
+import { createRenderState } from '../src/renderers/shared/render-state.js';
 import {
   BOT_RENDER_MIN_ZOOM,
   DECORATIVE_DETAIL_RENDER_MIN_ZOOM,
@@ -10,7 +10,7 @@ import {
   shouldRenderBots,
   shouldRenderDecorativeDetails,
   shouldRenderLooseGroundItems
-} from '../src/canvas-renderer.js';
+} from '../src/renderers/canvas-renderer.js';
 
 assert.equal(CAMERA_MIN_ZOOM, 0.05, 'camera min zoom constant should allow zooming out to 5%');
 

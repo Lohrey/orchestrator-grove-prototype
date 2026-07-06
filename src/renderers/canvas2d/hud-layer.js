@@ -1,6 +1,6 @@
 import {
   roundedRect
-} from '../shared/renderer-utils.js?v=t_renderer_split_0627';
+} from '../shared/renderer-utils.js';
 
 export function drawHud(game, c) {
   c.save();

@@ -2,7 +2,7 @@
 // Bot creation, teams, display names, bot menu methods, bot drawer rendering.
 // Part of the Game class composition root — installed via installBotSystem(Game, deps).
 
-import { distXY, nearest } from '../utils.js?v=grove_pixi_fixes_0628';
+import { distXY, nearest } from '../utils.js';
 
 export function installBotSystem(Game, deps) {
   const {
@@ -16,7 +16,7 @@ export function installBotSystem(Game, deps) {
     createBot(x, y, program = 'idle', force = false) {
       if (!force && this.bots.length >= this.maxBots) { this.addFloat(`Max bots ${this.maxBots}`, x, y - 18, '#c86b5f'); return null; }
       const id = this.nextBotId++;
-      const bot = { id, ref: `bot:${id}`, name: `Bot ${id}`, kind: 'bot', status: 'worker', managerKnowledgePacks: [], knowledgePacks: [], teamId: null, x, y, r: 11, speed: 118, program, state: program, message: 'Waiting for assistant.', inventory: null, equipment: createEquipment(), ammunition: 0, hp: 10, maxHp: 10, hostile: false, target: null, targetItemId: null, targetItemPurpose: null, targetHoleId: null, targetStructureId: null, sourceStructureId: null, sourcePaletteId: null, targetFactoryId: null, targetWorkbenchId: null, zoneId: null, zoneSpec: null, pickupItemType: 'log', taughtLoopRepeat: true, timer: 0, runtime: { pc: 0, memory: {}, wait: 0 }, dogFetchMemory: { praiseCounts: {}, preferredType: null, lastTargetType: null }, dogFetchState: null, color: ['#80a9c9','#9abf8f','#d3a95f','#c7b683','#8fb9b5'][id % 5] };
+      const bot = { id, ref: `bot:${id}`, name: `Bot ${id}`, kind: 'bot', status: 'worker', managerKnowledgePacks: [], knowledgePacks: [], teamId: null, x, y, r: 11, speed: 118, program, state: program, message: 'Waiting for assistant.', inventory: null, equipment: createEquipment(), ammunition: 0, hp: 10, maxHp: 10, hostile: false, combatMode: 'aggressive', combatEngaged: false, target: null, targetItemId: null, targetItemPurpose: null, targetHoleId: null, targetStructureId: null, sourceStructureId: null, sourcePaletteId: null, targetFactoryId: null, targetWorkbenchId: null, zoneId: null, zoneSpec: null, pickupItemType: 'log', taughtLoopRepeat: true, timer: 0, runtime: { pc: 0, memory: {}, wait: 0 }, dogFetchMemory: { praiseCounts: {}, preferredType: null, lastTargetType: null }, dogFetchState: null, color: ['#80a9c9','#9abf8f','#d3a95f','#c7b683','#8fb9b5'][id % 5] };
       this.bots.push(bot); this.addFloat(`Bot ${id} online`, x, y - 18, '#80a9c9'); this.emitSound('bot_online', { cooldownKey: 'bot_online', minGapMs: 120 }); return bot;
     },
     resolveBotReference(value) {

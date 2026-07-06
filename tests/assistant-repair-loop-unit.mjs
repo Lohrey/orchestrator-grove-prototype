@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { parseWithOpenAiCompatible } from '../src/assistant.js';
+import { parseWithOpenAiCompatible } from '../src/assistant/assistant.js';
 import { ASSISTANT_KNOWLEDGE_PACKS } from '../src/data.js';
 import { Game } from '../src/world.js';
 

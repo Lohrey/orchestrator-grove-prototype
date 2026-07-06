@@ -1,9 +1,9 @@
 import {
   drawNameTag,
   roundedRect
-} from '../shared/renderer-utils.js?v=t_renderer_split_0627';
-import { BUILDING_TYPES } from '../../data.js?v=t_building_kits_0618';
-import { drawBuildingPreviewAsset } from '../../visual-assets.js?v=t_building_kits_0618';
+} from '../shared/renderer-utils.js';
+import { BUILDING_TYPES } from '../../data.js';
+import { drawBuildingPreviewAsset } from '../../visual-assets.js';
 
 export function drawPlacement(game, c) {
   if (!game.placementType) return;

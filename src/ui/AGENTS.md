@@ -30,7 +30,7 @@ Orchestrator Grove prototype maintainers.
 - Modules that need the live `game` object (which is created after the factories) must receive a
   `getGame` accessor (e.g. `createPerformanceUi({ dom, getGame: () => game, PERFORMANCE_PRESETS })`),
   not a captured `null` value. The accessor resolves the current game at call time.
-- Use cache-busting query params on imports (e.g. `?v=ui_fix_boot_0628`).
+- Imports should NOT use cache-busting query params (`?v=...`). The dev server handles caching.
 
 ## Work Guidance
 - Svelte 5 conventions; component composition stays within this folder.

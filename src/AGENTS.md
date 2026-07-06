@@ -52,7 +52,9 @@ source of truth for what action steps are actually possible.
 - Various Python smoke tests under `tests/` exercise runtime behavior.
 
 ## Child DOX Index
-- [renderers/AGENTS.md](renderers/AGENTS.md) — pluggable renderers (canvas2d, pixi)
+- [assistant/AGENTS.md](assistant/AGENTS.md) — in-game AI assistant (LLM chat, knowledge packs, semantic router)
+- [renderers/AGENTS.md](renderers/AGENTS.md) — pluggable renderers (webgl2 default, pixi, canvas2d)
 - [sim/AGENTS.md](sim/AGENTS.md) — simulation worker layer
+- [systems/AGENTS.md](systems/AGENTS.md) — game-logic systems (install-mixin pattern: install*System(Game, deps))
 - [systems/code-loop/AGENTS.md](systems/code-loop/AGENTS.md) — isolated Code Loop WebWorker sandbox for player/AI bot scripts
 - [ui/AGENTS.md](ui/AGENTS.md) — Svelte architecture overlay

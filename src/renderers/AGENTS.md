@@ -3,22 +3,33 @@
 - Parent: [../AGENTS.md](../AGENTS.md)
 
 ## Purpose
-Pluggable renderer backends for the game. `index.js` selects between `canvas2d-renderer.js`
-(the default plain-canvas path) and `pixi-renderer.js` (the optional WebGL/PixiJS path backed by
-`vendor/pixi`).
+Pluggable renderer backends for the game. `index.js` selects between three backends:
+- `webgl2-renderer.js` — **the default** (Tier 3, highest performance for large sprite counts;
+  custom walk-cycle sprite support via `character-sprite-loader.js`).
+- `pixi-renderer.js` — optional WebGL/PixiJS path backed by `vendor/pixi` (enables the
+  campaign intro cinematic).
+- `canvas2d-renderer.js` — legacy plain-canvas fallback (widest compatibility).
+
+All three are selectable in the Settings UI via radio buttons (`#rendererWebgl2`,
+`#rendererPixi`, `#rendererCanvas2d`). If WebGL2 is unsupported or fails to init, selection
+gracefully falls through to Canvas2D.
 
 ## Ownership
 Orchestrator Grove prototype maintainers.
 
 ## Local Contracts
-- The default renderer must keep working with no build step (canvas2d path).
+- **WebGL2 is the default renderer** (`mode = 'webgl2'` in `index.js`). Canvas2D remains the
+  no-build-step fallback and the final graceful-fallback target when WebGL2/Pixi are
+  unavailable.
 - The Pixi renderer depends on `vendor/pixi/pixi.mjs`; do not edit the vendored file (see
   [../../vendor/AGENTS.md](../../vendor/AGENTS.md)). If a Pixi upgrade is needed, update the vendored
   asset deliberately and document it.
 - Selecting the renderer must stay behind `index.js` so callers do not hard-import a backend.
+- The settings UI (`src/ui/renderer-settings.js`) exposes all three modes via radio buttons;
+  `getRendererModeFromUi()` / `syncRendererModeUi()` handle the 3-way selection.
 
 ## Work Guidance
-- Prefer a single selection entry in `index.js`; both backends expose the same surface.
+- Prefer a single selection entry in `index.js`; all three backends expose the same surface.
 - Do not introduce bundler-only code into the canvas2d renderer.
 - Pixi overlay sprites (fog, night/lighting) are parented inside `worldViewport` so the Pixi
   transform pipeline moves/scales them with the camera. Their local position must be set every
@@ -50,6 +61,16 @@ Orchestrator Grove prototype maintainers.
   the bot is moving (`b.target || b.vx || b.vy`) and the static frame when idle. Walk animation
   runs at 140ms per step (~7fps), desynced by `b.id * 0.7`. Dog bots keep their existing static
   path.
+- **Custom 8-frame walk-cycle PNGs**: Patrick's AI-generated character sprites live in
+  `assets/sprites/processed/` (`bot_00..07.png`, `player_00..07.png`, `dog_00..07.png`,
+  each 64×64 RGBA). The Pixi renderer loads them via `loadCustomWalkCycle()` in
+  `pixi-character-assets.js` and uses them as the **highest-priority** sprite path. If they
+  fail to load, rendering falls through to Tiny Swords atlas → vector body. The Canvas2D and
+  WebGL2 renderers have equivalent paths via `character-sprite-loader.js` +
+  `integrateIntoCache()`. Walk animation runs at 100ms per frame (~10fps), desynced per-entity
+  by id offset. Directional flip via `scale.x`. NEAREST filtering via
+  `image-rendering: pixelated`. Only walk-cycle frames exist currently; idle/running/attack
+  states will be added later (idle uses frame 0 as rest pose).
 - **Item caching**: every loose ground item type (logs, stones, tools, seeds, story objects, and
   building-kit items) is pre-rendered to a single static `ImageBitmap` in `sprite-cache.js`.
   `drawItem` (`world-layer.js`) blits the cached sprite via `drawImage` when available; the vector
