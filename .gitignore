@@ -13,12 +13,18 @@ __pycache__/
 .env.*
 !.env.example
 
-# Generated smoke / verification artifacts
-*.png
-*.webm
-*.mp4
+# Generated smoke / verification artifacts (regenerable build output at repo root)
+/*.png
+/*.webm
+/*.mp4
 .kanban-*.html
 wasm/**/target/
+
+# Source sprite/art assets ARE tracked — negation overrides any broader image rule above.
+# Keep assets/, ui-overlays/, public/ sprites committed so a fresh clone + sync is complete.
+!assets/**
+!ui-overlays/**/*.png
+!public/**/*.png
 
 # Local editor files
 .vscode/
