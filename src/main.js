@@ -1345,8 +1345,12 @@ export async function startGame() {
     setLocalAiProvider('ollama', { endpoint: serverProxy, status: 'Server proxy selected. Click Refresh to load VPS Ollama models.' });
   });
   dom.fullscreenToggleBtn?.addEventListener('click', () => { toggleFullscreen(); });
-  document.addEventListener('fullscreenchange', () => syncFullscreenUi());
-  document.addEventListener('webkitfullscreenchange', () => syncFullscreenUi());
+  const handleFullscreenChange = () => {
+    syncFullscreenUi();
+    game?.resizeCanvas?.(true);
+  };
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
   dom.localOllamaBtn?.addEventListener('click', () => {
     setLocalAiProvider('ollama', { endpoint: 'http://127.0.0.1:11434', status: 'Local Ollama selected. Start Ollama on your machine with CORS for https://docs.pau1.cloud, then click Refresh.' });
   });

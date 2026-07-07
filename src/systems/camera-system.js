@@ -64,14 +64,14 @@ export function installCameraSystem(Game, deps) {
       }
     },
     _updateIntegerScale() {
-      // Scale the canvas to fill the parent while preserving 16:9 aspect ratio.
+      // Scale the canvas to fit the parent while preserving 16:9 aspect ratio.
       // The backing store stays 640×360; only the element's CSS size changes.
-      // We use fractional scaling (not strict integer) so the canvas fills the
-      // available space. image-rendering: pixelated in CSS keeps pixels crisp.
+      // Use integer factors above native size; allow fractional downscale below native.
       const parent = (this.canvas.parentElement || this.canvas).getBoundingClientRect();
       const screenW = parent.width || window.innerWidth;
       const screenH = parent.height || window.innerHeight;
-      const scale = Math.max(0.1, Math.min(screenW / 640, screenH / 360));
+      const fitScale = Math.max(0.1, Math.min(screenW / 640, screenH / 360));
+      const scale = fitScale >= 1 ? Math.max(1, Math.floor(fitScale)) : fitScale;
       this.canvas.style.width = `${Math.round(640 * scale)}px`;
       this.canvas.style.height = `${Math.round(360 * scale)}px`;
       this.canvas.style.marginLeft = 'auto';
@@ -101,8 +101,8 @@ export function installCameraSystem(Game, deps) {
     worldToScreen(worldX, worldY) {
       const zoom = this.camera.zoom || 1;
       const rect = this.canvas.getBoundingClientRect();
-      const scaleX = rect.width / Math.max(1, this.canvas.width);
-      const scaleY = rect.height / Math.max(1, this.canvas.height);
+      const scaleX = rect.width / Math.max(1, this.W || this.canvas.width);
+      const scaleY = rect.height / Math.max(1, this.H || this.canvas.height);
       return {
         x: rect.left + ((worldX - this.camera.x) * zoom * scaleX),
         y: rect.top + ((worldY - this.camera.y) * zoom * scaleY)
@@ -128,7 +128,7 @@ export function installCameraSystem(Game, deps) {
       return true;
     },
     canvasToWorld(event) {
-      const p = canvasPoint(this.canvas, event);
+      const p = canvasPoint(this.canvas, event, this.W || this.canvas.width, this.H || this.canvas.height);
       const world = this.screenToWorld(p.x, p.y);
       return {
         ...p,

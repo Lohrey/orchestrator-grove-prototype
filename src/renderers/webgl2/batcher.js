@@ -75,6 +75,9 @@ export function createWebGL2Batcher(canvas) {
 
   const program = createProgram(gl);
   gl.useProgram(program);
+  gl.disable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
   // Uniform locations
   const uViewport = gl.getUniformLocation(program, 'uViewport');

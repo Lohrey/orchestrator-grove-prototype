@@ -1,6 +1,6 @@
 # Orchestrator Grove Prototype v7
 
-A self-contained 2D browser game prototype built with plain HTML, CSS, and JavaScript Canvas. It is inspired by automation loops where bots repeat jobs, but the key twist is that the player **cannot directly program bots**. Instead, an assistant chat panel turns player requests into validated function-call-style program assignments.
+A self-contained 2D browser game prototype built with plain HTML, CSS, and JavaScript Canvas. It is inspired by automation loops where bots repeat jobs, by teaching them or chatting with an assistant chat panel that turns player requests into validated function-call-style program assignments.
 
 v7 adds testable Autonauts-like production requirements on top of the object-registry/zone build: loose sticks, mined stones, tree seeds, crude axes/pickaxes, pole processing, a crude tool bench, and a Basic Bot recipe.
 

@@ -82,7 +82,7 @@ export function installInteractionSystem(Game, deps) {
     bindCanvas() {
       this.canvas.addEventListener('wheel', e => {
         e.preventDefault();
-        const p = canvasPoint(this.canvas, e);
+        const p = canvasPoint(this.canvas, e, this.W || this.canvas.width, this.H || this.canvas.height);
         Object.assign(this.mouse, { ...p, screenX: p.x, screenY: p.y });
         const factor = Math.exp(-e.deltaY * CAMERA_WHEEL_SENSITIVITY);
         this.setCameraZoom((this.camera.zoom || 1) * factor, p.x, p.y);

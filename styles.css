@@ -105,7 +105,7 @@ code { color: #d7e8cf; }
    Phase 1 (DONE): sprite cache normalized to power-of-2 grid (32/64/128/256).
                   CSS image-rendering: pixelated prepared.
    Phase 2 (DONE): canvas backing store → fixed native resolution (640×360),
-                    integer-scaled (×1/×2/×3/...) to fill screen via CSS.
+                    integer-scaled (×1/×2/×3/...) to fit screen via CSS.
                     Letterboxed with black bars when the viewport aspect ≠ 16:9.
                     The Pixi renderer manages its own resolution (autoDensity)
                     and bypasses integer scaling — see camera-system.js. */
