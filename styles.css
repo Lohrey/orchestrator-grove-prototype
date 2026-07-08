@@ -101,14 +101,13 @@ code { color: #d7e8cf; }
 .statline { text-align: right; font-size: 13px; line-height: 1.35; min-width: 190px; }
 .statline b { color: var(--text); }
 
-/* ── Pixel-art pipeline (Moonlighter-style integer scaling) ──
+/* ── Pixel-art pipeline ──
    Phase 1 (DONE): sprite cache normalized to power-of-2 grid (32/64/128/256).
                   CSS image-rendering: pixelated prepared.
-   Phase 2 (DONE): canvas backing store → fixed native resolution (640×360),
-                    integer-scaled (×1/×2/×3/...) to fit screen via CSS.
-                    Letterboxed with black bars when the viewport aspect ≠ 16:9.
-                    The Pixi renderer manages its own resolution (autoDensity)
-                    and bypasses integer scaling — see camera-system.js. */
+   Phase 2 (DONE): Canvas2D uses fixed native resolution (640×360) with integer
+                    CSS scaling. WebGL2 fills the viewport with a high-resolution
+                    backing store and logical viewport scaling. Pixi manages its
+                    own resolution (autoDensity). See camera-system.js. */
 .game-stage {
   display: flex;
   align-items: center;

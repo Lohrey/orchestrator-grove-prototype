@@ -412,8 +412,8 @@ export async function startGame() {
   function toggleChat() { setChatOpen(dom.chatOverlay.classList.contains('is-collapsed')); }
   function isChatOpen() { return !dom.chatOverlay.classList.contains('is-collapsed'); }
   function zoomCameraFromMobile(factor) {
-    const anchorX = dom.canvas?.width ? dom.canvas.width / 2 : game.W / 2;
-    const anchorY = dom.canvas?.height ? dom.canvas.height / 2 : game.H / 2;
+    const anchorX = game.W / 2;
+    const anchorY = game.H / 2;
     game.setCameraZoom((game.camera.zoom || 1) * factor, anchorX, anchorY);
   }
   function bindPressAndHoldKey(button, key) {

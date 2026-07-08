@@ -27,15 +27,22 @@ installCameraSystem(TestGame, {
   CAMERA_WHEEL_SENSITIVITY: 0.0015
 });
 
-function makeGame(parentWidth, parentHeight) {
+function makeGame(parentWidth, parentHeight, renderBackend = null) {
   const canvas = {
+    width: 1,
+    height: 1,
     style: {},
     parentElement: {
       getBoundingClientRect: () => ({ width: parentWidth, height: parentHeight })
     },
     getBoundingClientRect: () => ({ width: parentWidth, height: parentHeight })
   };
-  return Object.assign(new TestGame(), { canvas });
+  return Object.assign(new TestGame(), {
+    canvas,
+    renderBackend,
+    camera: { x: 0, y: 0, zoom: 1 },
+    map: { width: 3600, height: 2400 }
+  });
 }
 
 let game = makeGame(1920, 1080);
@@ -55,5 +62,34 @@ game._updateIntegerScale();
 assert.ok(game._integerScale < 1, 'small viewports downscale fractionally to fit');
 assert.equal(game.canvas.style.width, '500px');
 assert.equal(game.canvas.style.height, '281px');
+
+let resizeArgs = null;
+game = makeGame(1920, 1080, {
+  kind: 'webgl2',
+  resize(args) { resizeArgs = args; }
+});
+game.resizeCanvas(false);
+assert.equal(game.W, 640, 'WebGL2 16:9 keeps 640 logical width');
+assert.equal(game.H, 360, 'WebGL2 16:9 keeps 360 logical height');
+assert.equal(game.canvas.width, 1920, 'WebGL2 1080p backing store fills displayed width');
+assert.equal(game.canvas.height, 1080, 'WebGL2 1080p backing store fills displayed height');
+assert.equal(game.canvas.style.width, '100%');
+assert.equal(game.canvas.style.height, '100%');
+assert.equal(resizeArgs.logicalWidth, 640, 'WebGL2 resize reports logical width');
+assert.equal(resizeArgs.logicalHeight, 360, 'WebGL2 resize reports logical height');
+
+game = makeGame(2560, 1080, { kind: 'webgl2', resize() {} });
+game.resizeCanvas(false);
+assert.equal(game.H, 360, 'WebGL2 ultrawide keeps native logical height');
+assert.ok(game.W > 640, 'WebGL2 ultrawide expands logical width instead of letterboxing');
+assert.equal(game.canvas.width, 2560, 'WebGL2 ultrawide backing store fills displayed width');
+assert.equal(game.canvas.height, 1080, 'WebGL2 ultrawide backing store fills displayed height');
+
+game = makeGame(1024, 768, { kind: 'webgl2', resize() {} });
+game.resizeCanvas(false);
+assert.equal(game.W, 640, 'WebGL2 tall viewport keeps native logical width');
+assert.ok(game.H > 360, 'WebGL2 tall viewport expands logical height instead of letterboxing');
+assert.equal(game.canvas.width, 1024, 'WebGL2 tall backing store fills displayed width');
+assert.equal(game.canvas.height, 768, 'WebGL2 tall backing store fills displayed height');
 
 console.log('canvas coordinate scaling unit tests passed');

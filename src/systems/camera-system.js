@@ -1,5 +1,5 @@
 // src/systems/camera-system.js
-// Camera viewport, zoom, coordinate transforms.
+// Camera viewport, zoom, coordinate transforms, and canvas presentation sizing.
 // Part of the Game class composition root — installed via installCameraSystem(Game, deps).
 
 import { clamp, canvasPoint } from '../utils.js';
@@ -14,11 +14,14 @@ export function installCameraSystem(Game, deps) {
 
   Object.assign(Game.prototype, {
     resizeCanvas(clampEntities = true) {
+      if (this.renderBackend?.kind === 'webgl2' && this._useWebGL2FullscreenPresentation !== false) {
+        this._resizeWebGL2Presentation(clampEntities);
+        return;
+      }
+
       // ── Integer scaling: fixed native resolution ──
-      // The canvas backing store is always 640×360 (16:9 native) for non-Pixi
-      // renderers. CSS scales the element to fill the viewport with an integer
-      // factor (×1, ×2, ×3, ...). The Pixi renderer manages its own resolution
-      // via autoDensity, so it keeps the old dynamic-backing-store behavior.
+      // Canvas2D keeps the 640×360 native backing store and CSS integer scale.
+      // Pixi manages its own resolution, so it keeps the dynamic-backing-store path.
       const useIntegerScaling = this._useIntegerScaling !== false
         && this.renderBackend?.kind !== 'pixi';
       if (!useIntegerScaling) {
@@ -62,6 +65,55 @@ export function installCameraSystem(Game, deps) {
         this.clampCamera();
         this.renderBackend?.resize?.({ width: NATIVE_W, height: NATIVE_H, canvas: this.canvas });
       }
+    },
+    _resizeWebGL2Presentation(clampEntities = true) {
+      const NATIVE_W = 640;
+      const NATIVE_H = 360;
+      const parentEl = this.canvas.parentElement || this.canvas;
+      const parent = parentEl.getBoundingClientRect();
+      const win = typeof window !== 'undefined' ? window : {};
+      const cssW = Math.max(1, Math.round(parentEl.clientWidth || parent.width || win.innerWidth || NATIVE_W));
+      const cssH = Math.max(1, Math.round(parentEl.clientHeight || parent.height || win.innerHeight || NATIVE_H));
+      const pixelRatio = Math.max(1, Math.min(2, Number(win.devicePixelRatio) || 1));
+      const backingW = Math.max(1, Math.round(cssW * pixelRatio));
+      const backingH = Math.max(1, Math.round(cssH * pixelRatio));
+      const aspect = cssW / cssH;
+      const nativeAspect = NATIVE_W / NATIVE_H;
+      const logicalW = aspect >= nativeAspect ? Math.max(NATIVE_W, Math.round(NATIVE_H * aspect)) : NATIVE_W;
+      const logicalH = aspect >= nativeAspect ? NATIVE_H : Math.max(NATIVE_H, Math.round(NATIVE_W / aspect));
+      const changed = this.canvas.width !== backingW
+        || this.canvas.height !== backingH
+        || this.W !== logicalW
+        || this.H !== logicalH;
+
+      this.canvas.style.width = '100%';
+      this.canvas.style.height = '100%';
+      this.canvas.style.marginLeft = '0';
+      this.canvas.style.marginRight = '0';
+      this.canvas.style.display = 'block';
+      this.canvas.width = backingW;
+      this.canvas.height = backingH;
+      this.W = logicalW;
+      this.H = logicalH;
+      this._presentationScaleX = backingW / logicalW;
+      this._presentationScaleY = backingH / logicalH;
+
+      if (!changed) return;
+      if (clampEntities && this.player) {
+        this.player.x = clamp(this.player.x, 20, Math.max(20, this.map.width - 20));
+        this.player.y = clamp(this.player.y, 20, Math.max(20, this.map.height - 20));
+        this.assistant.x = clamp(this.assistant.x, 20, Math.max(20, this.map.width - 20));
+        this.assistant.y = clamp(this.assistant.y, 20, Math.max(20, this.map.height - 20));
+      }
+      this.clampCamera();
+      this.renderBackend?.resize?.({
+        width: backingW,
+        height: backingH,
+        logicalWidth: logicalW,
+        logicalHeight: logicalH,
+        pixelRatio,
+        canvas: this.canvas
+      });
     },
     _updateIntegerScale() {
       // Scale the canvas to fit the parent while preserving 16:9 aspect ratio.

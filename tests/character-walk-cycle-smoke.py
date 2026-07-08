@@ -158,16 +158,31 @@ def test_webgl2_path():
         page.wait_for_function("() => window.getGameState", timeout=15000)
         page.wait_for_timeout(3000)
 
-        # Verify canvas has content (the WebGL2 renderer uses 2 canvases:
-        # a hidden GL canvas + a visible 2D canvas for compositing/overlays).
+        canvas_count = page.evaluate("() => document.querySelectorAll('.game-stage canvas').length")
+        assert canvas_count == 1, f"Expected only the visible game canvas in .game-stage, found {canvas_count}"
+        presentation = page.evaluate(
+            """() => {
+                const canvas = document.querySelector('#game');
+                const rect = canvas.getBoundingClientRect();
+                const state = window.getGameState();
+                return {
+                    backingW: canvas.width,
+                    backingH: canvas.height,
+                    rectW: Math.round(rect.width),
+                    rectH: Math.round(rect.height),
+                    rendererBackend: state.rendererBackend
+                };
+            }"""
+        )
+        assert presentation["rendererBackend"] == "webgl2", presentation
+        assert presentation["backingW"] == presentation["rectW"], presentation
+        assert presentation["backingH"] == presentation["rectH"], presentation
+
+        # Verify the visible composite target has content. The WebGL2 renderer
+        # renders into an off-DOM helper canvas, then composites into #game.
         canvas_info = page.evaluate(
             """() => {
-                // Find the 2D canvas (the visible composite target)
-                const canvases = document.querySelectorAll('canvas');
-                let cv = null;
-                for (const c of canvases) {
-                    try { if (c.getContext('2d')) { cv = c; break; } } catch {}
-                }
+                const cv = document.querySelector('#game');
                 if (!cv) return null;
                 const ctx = cv.getContext('2d');
                 const data = ctx.getImageData(cv.width/2 - 50, cv.height/2 - 50, 100, 100).data;

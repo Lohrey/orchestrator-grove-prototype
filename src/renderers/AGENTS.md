@@ -31,6 +31,9 @@ Orchestrator Grove prototype maintainers.
 ## Work Guidance
 - Prefer a single selection entry in `index.js`; all three backends expose the same surface.
 - Do not introduce bundler-only code into the canvas2d renderer.
+- The WebGL2 renderer's helper `glCanvas` is an off-DOM compositing surface only. Do not insert
+  it into `.game-stage` or elsewhere in the page; `drawWorld(..., compositeCallback)` samples it
+  via `drawImage`, and a live DOM insertion leaks a duplicate moving sprite pass outside `#game`.
 - Pixi overlay sprites (fog, night/lighting) are parented inside `worldViewport` so the Pixi
   transform pipeline moves/scales them with the camera. Their local position must be set every
   frame from the current world-clipped view bounds (`fogView.left/top`), not only when a texture
@@ -84,23 +87,19 @@ Orchestrator Grove prototype maintainers.
   - Structures: 256×256 (bumped from the nominal 128 to 256 because camper_van
     has w=132 > 128; all other structures fit in 128)
   This ensures WebGL texture efficiency (no padding waste), uniform UV mapping
-  for atlas packing, and integer-scaling compatibility for the native-resolution
-  render pipeline (640×360 backing store, integer-scaled to viewport).
+  for atlas packing, and compatibility with both native-resolution integer
+  scaling (Canvas2D) and high-resolution WebGL2 presentation.
   Phase 1 (sprite cache + `image-rendering: pixelated` in `styles.css`) is done;
-  Phase 2 (native backing-store resolution + integer CSS scaling) is done — see
-  the integer-scaling bullet below.
-- **Integer scaling (native resolution)**: For non-Pixi renderers (canvas2d,
-  webgl2), the canvas backing store is fixed at 640×360 (16:9). CSS scales the
-  element with an integer factor (×1, ×2, ×3, ...) computed from the viewport
-  size in `camera-system.js` `_updateIntegerScale()`. This gives pixel-perfect
-  rendering at any display size. `image-rendering: pixelated` ensures crisp
-  upscaling. Letterbox bars (black) fill the remaining viewport when the aspect
-  ratio differs from 16:9; the `.game-stage` parent centers the canvas via
-  flexbox. The **Pixi renderer is exempt**: it manages its own resolution via
-  `autoDensity` and sets `canvas.style.width/height = '100%'` inline, so
-  `resizeCanvas()` detects `renderBackend.kind === 'pixi'` and falls back to the
-  legacy dynamic-backing-store path. The `_useIntegerScaling` flag on the Game
-  instance can also force-disable integer scaling if needed.
+  Phase 2 (native Canvas2D backing-store resolution + integer CSS scaling) is done.
+- **Presentation sizing**: Canvas2D uses fixed 640×360 integer scaling through
+  `_updateIntegerScale()` in `camera-system.js`. WebGL2 fills `.game-stage` and
+  uses a high-resolution backing store sized from the displayed canvas and device
+  pixel ratio. `Game.W/H` remain logical viewport units: 640×360 at 16:9, wider
+  on ultrawide screens, taller on portrait/tall screens. The WebGL2 batcher uses
+  logical viewport dimensions for projection, while Canvas2D overlays are scaled
+  into the backing store. Pixi manages its own resolution via `autoDensity` and
+  the dynamic-backing-store path. The `_useIntegerScaling` flag on the Game
+  instance can force-disable Canvas2D integer scaling if needed.
 
 ## Verification
 - Render behavior is covered by smoke tests under `tests/` (e.g. render-viewport-culling,

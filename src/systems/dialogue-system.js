@@ -10,6 +10,7 @@
 //
 // Public API (on Game.prototype):
 //   triggerDialogue(idOrEntry) — show a speech bubble; accepts an id string or entry object
+//   queueDialogue(idOrEntry)    — show immediately or queue behind the active speech bubble
 //   advanceDialogue()          — fast-forward typewriter, or next page, or dismiss if last page
 //   previousDialoguePage()     — go back to previous page
 //   dismissDialogue()          — remove the active speech bubble
@@ -75,10 +76,13 @@ export function installDialogueSystem(Game, deps = {}) {
       prevBtn.className = 'speech-bubble__nav-btn speech-bubble__nav-btn--prev';
       prevBtn.setAttribute('aria-label', 'Previous page');
       prevBtn.textContent = '◀';
-      prevBtn.addEventListener('click', (ev) => {
+      const handlePrev = (ev) => {
+        ev.preventDefault?.();
         ev.stopPropagation();
         this.previousDialoguePage();
-      });
+      };
+      prevBtn.addEventListener('click', handlePrev);
+      prevBtn.addEventListener('contextmenu', handlePrev);
 
       const pageIndicator = document.createElement('span');
       pageIndicator.className = 'speech-bubble__nav-pages';
@@ -87,10 +91,13 @@ export function installDialogueSystem(Game, deps = {}) {
       nextBtn.className = 'speech-bubble__nav-btn speech-bubble__nav-btn--next';
       nextBtn.setAttribute('aria-label', 'Next page or dismiss');
       nextBtn.textContent = '▶';
-      nextBtn.addEventListener('click', (ev) => {
+      const handleNext = (ev) => {
+        ev.preventDefault?.();
         ev.stopPropagation();
         this.advanceDialogue();
-      });
+      };
+      nextBtn.addEventListener('click', handleNext);
+      nextBtn.addEventListener('contextmenu', handleNext);
 
       navBar.appendChild(prevBtn);
       navBar.appendChild(pageIndicator);
@@ -98,11 +105,14 @@ export function installDialogueSystem(Game, deps = {}) {
       bubble.appendChild(navBar);
 
       // Click anywhere on the bubble body (not nav buttons) to advance
-      bubble.addEventListener('click', (ev) => {
+      const handleAdvance = (ev) => {
         if (ev.target.closest('.speech-bubble__nav-btn')) return;
+        ev.preventDefault?.();
         ev.stopPropagation();
         this.advanceDialogue();
-      });
+      };
+      bubble.addEventListener('click', handleAdvance);
+      bubble.addEventListener('contextmenu', handleAdvance);
 
       const parent = this.dom?.canvas?.parentElement || document.body;
       parent.appendChild(bubble);
@@ -125,6 +135,32 @@ export function installDialogueSystem(Game, deps = {}) {
       };
       this._renderDialoguePage();
       return true;
+    },
+
+    /**
+     * Show a speech bubble immediately when none is active, otherwise queue it.
+     * @param {string|object} idOrEntry
+     * @returns {boolean} true if the dialogue was shown or queued
+     */
+    queueDialogue(idOrEntry) {
+      if (this.activeDialogue) {
+        if (!Array.isArray(this.pendingDialogues)) this.pendingDialogues = [];
+        this.pendingDialogues.push(idOrEntry);
+        return true;
+      }
+      return this.triggerDialogue(idOrEntry);
+    },
+
+    _takeQueuedDialogue() {
+      if (Array.isArray(this.pendingDialogues) && this.pendingDialogues.length > 0) {
+        return this.pendingDialogues.shift();
+      }
+      if (this.pendingDialogueId) {
+        const pending = this.pendingDialogueId;
+        this.pendingDialogueId = null;
+        return pending;
+      }
+      return null;
     },
 
     /** Render the current page text and update nav button states. */
@@ -184,19 +220,13 @@ export function installDialogueSystem(Game, deps = {}) {
     /** Remove the active speech bubble immediately. */
     dismissDialogue() {
       if (!this.activeDialogue) {
-        // Even with no active bubble, fire a deferred dialogue if one is pending.
-        const pending = this.pendingDialogueId;
-        this.pendingDialogueId = null;
-        if (pending) this.triggerDialogue(pending);
+        const pending = this._takeQueuedDialogue();
+        if (pending) return this.triggerDialogue(pending);
         return false;
       }
       this._removeDialogueElement();
       this.activeDialogue = null;
-      // Fire any dialogue that was deferred while this one was active.
-      // This prevents timer-based auto-advance from replacing a multi-page
-      // (controls) dialogue — the player must dismiss first, then the next fires.
-      const pending = this.pendingDialogueId;
-      this.pendingDialogueId = null;
+      const pending = this._takeQueuedDialogue();
       if (pending) this.triggerDialogue(pending);
       return true;
     },
@@ -246,7 +276,17 @@ export function installDialogueSystem(Game, deps = {}) {
     /** Snapshot of dialogue state for testing/debugging. */
     getDialogueState() {
       if (!this.activeDialogue) {
-        return { active: false, id: null, speaker: null, text: '', revealedText: '', typewriterComplete: false, pageIndex: 0, pageCount: 0 };
+        return {
+          active: false,
+          id: null,
+          speaker: null,
+          text: '',
+          revealedText: '',
+          typewriterComplete: false,
+          pageIndex: 0,
+          pageCount: 0,
+          pendingCount: Array.isArray(this.pendingDialogues) ? this.pendingDialogues.length : 0,
+        };
       }
       const d = this.activeDialogue;
       return {
@@ -258,6 +298,7 @@ export function installDialogueSystem(Game, deps = {}) {
         typewriterComplete: !!d.typewriterComplete,
         pageIndex: d.pageIndex,
         pageCount: d.pages.length,
+        pendingCount: Array.isArray(this.pendingDialogues) ? this.pendingDialogues.length : 0,
       };
     },
   });

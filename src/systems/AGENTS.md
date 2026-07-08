@@ -25,7 +25,8 @@ Orchestrator Grove prototype maintainers. The action-step chain in
 
 ## Root-Level System Files
 - `bot-system.js` — bot creation, teams, display names, bot menu methods, bot drawer rendering.
-- `camera-system.js` — camera viewport, zoom, coordinate transforms, integer scaling.
+- `camera-system.js` — camera viewport, zoom, coordinate transforms, Canvas2D integer scaling,
+  and WebGL2 fullscreen presentation sizing.
 - `dialogue-system.js` — speech-bubble dialogue system (DOM overlay with typewriter reveal).
 - `health-system.js` — player health: damage, death, respawn, passive regen.
 - `interaction-system.js` — canvas event binding, tap/context handling, hover detection, context menus.

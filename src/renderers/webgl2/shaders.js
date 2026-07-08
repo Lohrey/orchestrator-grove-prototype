@@ -19,7 +19,7 @@ layout(location = 3) in vec4 aAdditive;   // additive r, g, b, a (0-1)
 layout(location = 4) in float aRotation;  // rotation in radians
 
 // Uniforms
-uniform vec2 uViewport;   // canvas width, height
+uniform vec2 uViewport;   // logical viewport width, height
 uniform vec2 uCamera;     // camera offset x, y
 uniform float uZoom;      // camera zoom
 

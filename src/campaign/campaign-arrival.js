@@ -71,12 +71,12 @@ export function installCampaignArrivalSystem(Game, deps) {
         // Quest 1 begins on arrival — prompt the player to unpack the van.
         if (!this.campaignArrival.arrivalDialogueShown) {
           this.campaignArrival.arrivalDialogueShown = true;
-          this.triggerDialogue('arrival_1');
+          this.queueDialogue('arrival_1');
           // Start quest 1 after a short delay (let arrival dialogue show first)
           const self = this;
           setTimeout(() => {
             if (self.campaignQuest?.active && self.campaignQuest.currentQuest === 1 && !self.campaignQuest.completedQuests.includes(1)) {
-              self.triggerDialogue('quest1_van_prompt');
+              self.queueDialogue('quest1_van_prompt');
             }
           }, 3500);
         }

@@ -30,7 +30,8 @@ Orchestrator Grove prototype maintainers.
 - `npm run test:sim-worker`, `npm run test:architecture`, `npm run test:camera`,
   `npm run test:zoom-culling`, `npm run test:pixi-fog-drift` (see `package.json`).
 - `node tests/canvas-coordinate-scaling-unit.mjs` — verifies CSS-to-logical canvas
-  coordinate mapping and native-resolution integer scaling.
+  coordinate mapping, Canvas2D native-resolution integer scaling, and WebGL2 fullscreen
+  presentation sizing.
 - Run individual smoke tests directly: `python3 tests/<name>-smoke.py`.
 - `python3 tests/canvas2d-sway-transparency-smoke.py` — verifies Canvas2D tree sway frame
   blitting and semi-transparent occlusion via `globalAlpha` (requires `python3 -m http.server 8191`).

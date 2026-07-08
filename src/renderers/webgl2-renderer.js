@@ -232,21 +232,13 @@ export function buildAtlas(spriteCache) {
 export async function createWebGL2Renderer({ canvas }) {
   if (!isWebGL2Supported()) return null;
 
-  // Separate hidden canvas for WebGL rendering. The main canvas keeps its
+  // Separate off-DOM canvas for WebGL rendering. The main canvas keeps its
   // 2D context for background + overlays; the GL canvas is composited in
-  // between via drawImage.
+  // via drawImage and must never be inserted into the page or it will leak
+  // a duplicate sprite pass outside the main game viewport.
   const glCanvas = document.createElement('canvas');
   glCanvas.width = canvas.width;
   glCanvas.height = canvas.height;
-  const glCanvasStyle = glCanvas.style;
-  glCanvasStyle.position = 'absolute';
-  glCanvasStyle.top = '0';
-  glCanvasStyle.left = '0';
-  glCanvasStyle.pointerEvents = 'none';
-  glCanvasStyle.zIndex = '-1';
-  if (canvas.parentNode) {
-    canvas.parentNode.insertBefore(glCanvas, canvas);
-  }
 
   const batcher = createWebGL2Batcher(glCanvas);
   if (!batcher) {
@@ -555,15 +547,20 @@ export async function createWebGL2Renderer({ canvas }) {
     isWebGL2: true,
     atlas,
     uvMap: atlas ? atlas.uvMap : {},
-    resize() {
-      if (canvas.width !== glCanvas.width) glCanvas.width = canvas.width;
-      if (canvas.height !== glCanvas.height) glCanvas.height = canvas.height;
-      batcher.resize(canvas.width, canvas.height);
+    resize({ width = canvas.width, height = canvas.height } = {}) {
+      if (glCanvas.width !== width) glCanvas.width = width;
+      if (glCanvas.height !== height) glCanvas.height = height;
+      batcher.resize(width, height);
     },
     draw(renderState) {
+      const logicalW = Math.max(1, renderState.W || canvas.width);
+      const logicalH = Math.max(1, renderState.H || canvas.height);
+      const scaleX = canvas.width / logicalW;
+      const scaleY = canvas.height / logicalH;
+
       // Phase 1: Render all world sprites via the WebGL2 batcher.
       batcher.clear();
-      batcher.setCamera(canvas.width, canvas.height, renderState.camera?.x || 0, renderState.camera?.y || 0, renderState.camera?.zoom || 1);
+      batcher.setCamera(logicalW, logicalH, renderState.camera?.x || 0, renderState.camera?.y || 0, renderState.camera?.zoom || 1);
       drawSprites(renderState);
       batcher.flush();
 
@@ -588,23 +585,25 @@ export async function createWebGL2Renderer({ canvas }) {
       // runs inside the camera-transformed save block, after the background and
       // before the overlay pass.
 
-      drawWorld(renderState, ctx2d, {
-        spriteDrawMode: 'skip',
-        compositeCallback: (c) => {
-          // Composite the GL canvas inside the camera transform so the
-          // world-space sprites align with the rest of the scene. We undo
-          // the current scale/translate, draw in screen space, then the
-          // caller's save/restore handles cleanup.
-          c.save();
-          c.setTransform(1, 0, 0, 1, 0, 0);
-          c.drawImage(glCanvas, 0, 0);
-          c.restore();
-        }
-      });
+      ctx2d.setTransform(scaleX, 0, 0, scaleY, 0, 0);
+      try {
+        drawWorld(renderState, ctx2d, {
+          spriteDrawMode: 'skip',
+          compositeCallback: (c) => {
+            // Composite the GL canvas in backing-pixel space; drawWorld will
+            // restore its logical camera transform after this callback.
+            c.save();
+            c.setTransform(1, 0, 0, 1, 0, 0);
+            c.drawImage(glCanvas, 0, 0);
+            c.restore();
+          }
+        });
+      } finally {
+        ctx2d.setTransform(1, 0, 0, 1, 0, 0);
+      }
     },
     destroy() {
       batcher.destroy();
-      if (glCanvas.parentNode) glCanvas.parentNode.removeChild(glCanvas);
     }
   };
 }

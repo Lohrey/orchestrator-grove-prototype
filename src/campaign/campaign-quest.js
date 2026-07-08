@@ -78,7 +78,7 @@ export function installCampaignQuestSystem(Game, deps) {
       }
 
       this.emitSound('drop', { cooldownKey: 'van:unpack', minGapMs: 200 });
-      this.triggerDialogue(entry.dialogue);
+      this.queueDialogue(entry.dialogue);
       this.checkCampaignQuest();
       return true;
     },
@@ -96,19 +96,10 @@ export function installCampaignQuestSystem(Game, deps) {
         q.completedQuests.push(n);
         q.currentQuest = n + 1;
         if (nextDialogueId) {
-          // Defer the next dialogue: if a multi-page (controls) dialogue is
-          // currently active, do NOT auto-replace it on a timer. Store it as
-          // pending so it fires only after the player dismisses the current one.
-          // If nothing is active, fire after a short delay as before.
           const self = this;
-          const fire = () => {
-            if (self.activeDialogue) {
-              self.pendingDialogueId = nextDialogueId;
-            } else {
-              self.triggerDialogue(nextDialogueId);
-            }
-          };
-          setTimeout(fire, 800);
+          setTimeout(() => {
+            self.queueDialogue(nextDialogueId);
+          }, 800);
         }
         if (q.currentQuest > 9) {
           q.active = false;
@@ -198,7 +189,7 @@ export function installCampaignQuestSystem(Game, deps) {
       const q = this.campaignQuest;
       if (q.currentQuest === 5) {
         q.quest5StoragePlaced = true;
-        if (!q.completedQuests.includes(5)) this.triggerDialogue('quest5_storage_placed');
+        if (!q.completedQuests.includes(5)) this.queueDialogue('quest5_storage_placed');
         this.checkCampaignQuest();
       }
     }
