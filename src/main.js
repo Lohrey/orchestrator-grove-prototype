@@ -249,7 +249,12 @@ export async function startGame() {
     getAsrMode,
     getBrowserSttModel: () => dom.browserSttModel?.value || DEFAULT_BROWSER_STT_MODEL,
     browserStt,
-    onSubmit: text => handleAssistant(text)
+    onSubmit: text => handleAssistant(text),
+    onError: error => {
+      const message = error instanceof Error ? error.message : String(error || 'Unknown chat error');
+      addChat('error', `Assistant request failed: ${escapeHtml(message)}. Please check the selected provider/model and try again.`);
+      console.warn('[Orchestrator chat AI] submit failed', error);
+    }
   });
   const rendererUrlParam = params.get('renderer');
   const rendererMode = rendererUrlParam || storedRendererMode || 'webgl2';
