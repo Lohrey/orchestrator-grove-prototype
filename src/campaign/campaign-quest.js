@@ -145,9 +145,11 @@ export function installCampaignQuestSystem(Game, deps) {
             self.queueDialogue(nextDialogueId);
           }, 800);
         }
-        // Fire the start dialogue for the next quest (if one exists)
+        // Fire the start dialogue for the next quest — but skip if it's the
+        // same as the completion dialogue (avoids doubling Q1–Q9 transitions
+        // where the completion dialogue IS the next quest's start prompt).
         const nextQuestStart = QUEST_START_DIALOGUES[q.currentQuest];
-        if (nextQuestStart) {
+        if (nextQuestStart && nextQuestStart !== nextDialogueId) {
           const self = this;
           setTimeout(() => {
             self.queueDialogue(nextQuestStart);
