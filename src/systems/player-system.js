@@ -247,6 +247,7 @@ export function installPlayerSystem(Game, deps) {
       this.spawnItem('stone', rock.x, rock.y, 1);
       this.addFloat('Mined stone', rock.x, rock.y - 24, '#d3a95f');
       this.emitSound('mine', { cooldownKey: 'player:mine', minGapMs: 160 });
+      this.onStoneMined?.();
       if (recordTeach) {
         this.recordTeachStep(this.resourceRadiusStep('mine_stone', rock, 'stone deposit'));
         this.syncTeachUi();

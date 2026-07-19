@@ -164,13 +164,14 @@ export function installProductionSystem(Game, deps) {
     },
     finishStructureProcessing(s, job) {
       this.emitSound('craft_done', { cooldownKey: `craft-done:${s.id}`, minGapMs: 180 });
-      if (s.type === 'sawbench' && job.recipe === 'log') { this.dropProducedItem(s, 'plank', 2); this.addFloat('+2 planks dropped', s.x, s.y - 35, '#d3a95f'); return; }
-      if (s.type === 'sawbench' && job.recipe === 'plank') { this.dropProducedItem(s, 'pole', 2); this.addFloat('+2 wood poles dropped', s.x, s.y - 35, '#c7b683'); return; }
+      if (s.type === 'sawbench' && job.recipe === 'log') { this.dropProducedItem(s, 'plank', 2); this.addFloat('+2 planks dropped', s.x, s.y - 35, '#d3a95f'); this.onItemProduced?.('plank'); return; }
+      if (s.type === 'sawbench' && job.recipe === 'plank') { this.dropProducedItem(s, 'pole', 2); this.addFloat('+2 wood poles dropped', s.x, s.y - 35, '#c7b683'); this.onItemProduced?.('pole'); return; }
       if (s.type === 'workbench' && WORKBENCH_TOOL_RECIPES.includes(job.recipe)) {
         const key = job.recipe === 'crude_pickaxe' ? 'pickaxes' : job.recipe === 'crude_shovel' ? 'shovels' : job.recipe === 'crude_hammer' ? 'hammers' : 'axes';
         s[key]++;
         this.dropProducedItem(s, job.recipe, 1);
         this.addFloat(`+ ${itemLabel(job.recipe)} dropped`, s.x, s.y - 35, '#d3a95f');
+        this.onItemProduced?.(job.recipe);
         return;
       }
       if (s.type === 'smithery' && SMITHERY_RECIPES.includes(job.recipe)) {
@@ -178,12 +179,13 @@ export function installProductionSystem(Game, deps) {
         s[key]++;
         this.dropProducedItem(s, job.recipe, 1);
         this.addFloat(`+ ${itemLabel(job.recipe)} dropped`, s.x, s.y - 35, '#d3a95f');
+        this.onItemProduced?.(job.recipe);
         return;
       }
-      if (s.type === 'arrowmaker' && job.recipe === 'arrow_pack') { s.arrow_packs++; this.dropProducedItem(s, 'arrow_pack', 1); this.addFloat('+ arrow pack dropped', s.x, s.y - 35, '#d3a95f'); return; }
-      if (s.type === 'bowmaker' && job.recipe === 'bow') { s.bows++; this.dropProducedItem(s, 'bow', 1); this.addFloat('+ bow dropped', s.x, s.y - 35, '#d3a95f'); return; }
-      if (s.type === 'factory' && job.recipe === 'basic_bot') { const nb = this.createBot(s.x + rand(-30, 30), s.y + 72, 'idle'); if (nb) this.addChat?.('assistant', `Factory created Basic Bot ${nb.id}.`); return; }
-      if (s.type === 'assembler' && BUILDING_KIT_ITEM_TYPES.includes(job.recipe)) { this.dropProducedItem(s, job.recipe, 1); this.addFloat(`+ ${itemLabel(job.recipe)} dropped`, s.x, s.y - 35, '#d3a95f'); }
+      if (s.type === 'arrowmaker' && job.recipe === 'arrow_pack') { s.arrow_packs++; this.dropProducedItem(s, 'arrow_pack', 1); this.addFloat('+ arrow pack dropped', s.x, s.y - 35, '#d3a95f'); this.onItemProduced?.('arrow_pack'); return; }
+      if (s.type === 'bowmaker' && job.recipe === 'bow') { s.bows++; this.dropProducedItem(s, 'bow', 1); this.addFloat('+ bow dropped', s.x, s.y - 35, '#d3a95f'); this.onItemProduced?.('bow'); return; }
+      if (s.type === 'factory' && job.recipe === 'basic_bot') { const nb = this.createBot(s.x + rand(-30, 30), s.y + 72, 'idle'); if (nb) this.addChat?.('assistant', `Factory created Basic Bot ${nb.id}.`); this.onItemProduced?.('basic_bot'); return; }
+      if (s.type === 'assembler' && BUILDING_KIT_ITEM_TYPES.includes(job.recipe)) { this.dropProducedItem(s, job.recipe, 1); this.addFloat(`+ ${itemLabel(job.recipe)} dropped`, s.x, s.y - 35, '#d3a95f'); this.onItemProduced?.(job.recipe); }
     },
     updateProductionStructures(dt) {
       for (const s of this.structures) {

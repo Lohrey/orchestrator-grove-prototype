@@ -784,12 +784,33 @@ export class Game {
       holesDug: 0,
       seedsPlanted: 0,
       completedQuests: [],
+      // Chapter I tracking
       quest2AxePickedUp: false,
       quest2TreeChopped: false,
       quest2AxeDropped: false,
       quest4BotTaught: false,
       quest5StoragePlaced: false,
       quest8ShovelPickedUp: false,
+      // Chapter II tracking (Q10-Q15)
+      planksProduced: 0,
+      polesProduced: 0,
+      craftedPickaxe: false,
+      stoneMined: 0,
+      botSawbenchLoop: false,
+      // Chapter III tracking (Q16-Q19)
+      botHasWoodworking: false,
+      managerDelegationActive: false,
+      managerExists: false,
+      botsAssembled: 0,
+      // Chapter IV tracking (Q20-Q25)
+      playerEquippedSwordShield: false,
+      nightsSurvived: 0,
+      combatBotAggressive: false,
+      combatBots: 0,
+      playerEquippedBow: false,
+      // Chapter V tracking (Q26-Q29)
+      botHasPatrolLoop: false,
+      botOnGuardDuty: false,
     };
 
     this.clampCamera();

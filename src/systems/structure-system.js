@@ -38,7 +38,7 @@ export function installStructureSystem(Game, deps) {
       if (['item_palette', 'power_station', 'robotics_parts_bin'].includes(type)) Object.assign(s, { storageType: null, stored: 0, capacity: def.capacity || 40 });
       this.structures.push(s); this.addFloat(`Built ${s.name}`, x, y - 35, '#d3a95f'); this.emitSound('build', { cooldownKey: `build:${type}`, minGapMs: 120 }); return s;
     },
-    placeStructure(type, x, y) { this.addStructure(type, clamp(x, 70, this.map.width - 70), clamp(y, 80, this.map.height - 70), { placed: true }); this.placementType = null; this.syncBuildUi(); },
+    placeStructure(type, x, y) { this.addStructure(type, clamp(x, 70, this.map.width - 70), clamp(y, 80, this.map.height - 70), { placed: true }); this.placementType = null; this.syncBuildUi(); this.onStructurePlaced?.(type); },
     setPlacement(type) { this.cancelZoneDrawing(false); this.placementType = type; this.syncBuildUi(); },
     cancelPlacement() { this.placementType = null; this.syncBuildUi(); },
     beginZoneDrawing() {
@@ -103,6 +103,7 @@ export function installStructureSystem(Game, deps) {
       if (!buildingType || !BUILDING_TYPES[buildingType]) return null;
       const s = this.addStructure(buildingType, clamp(x, 70, this.map.width - 70), clamp(y, 80, this.map.height - 70), { placed: true, ...options });
       this.addFloat(`Deployed ${itemLabel(kitType)}`, s.x, s.y - 52, '#9abf8f');
+      this.onStructurePlaced?.(buildingType);
       return s;
     },
     zoneAt(x, y) {

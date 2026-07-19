@@ -137,6 +137,7 @@ export function installBotSystem(Game, deps) {
       if (!this.isManagerBot(bot)) return { ok: false, error: `${this.botDisplayName(bot)} is not a manager` };
       bot.managerKnowledgePacks = this.normalizeManagerKnowledgePacks(packs, bot.managerKnowledgePacks?.length ? bot.managerKnowledgePacks : DEFAULT_MANAGER_KNOWLEDGE_PACKS);
       bot.knowledgePacks = bot.managerKnowledgePacks;
+      this.onBotKnowledgeChanged?.(bot);
       this.syncBotDrawerUi?.(true);
       return { ok: true, bot, knowledgePacks: bot.managerKnowledgePacks.slice() };
     },
@@ -148,6 +149,8 @@ export function installBotSystem(Game, deps) {
       bot.knowledgePacks = bot.managerKnowledgePacks;
       bot.message = `Manager online with packs: ${bot.managerKnowledgePacks.join(', ') || 'none'}.`;
       this.addFloat(`${this.botDisplayName(bot)} promoted to manager`, bot.x, bot.y - 34, '#9abf8f');
+      this.onBotKnowledgeChanged?.(bot);
+      this.onManagerAction?.(bot);
       this.emitSound('promote', { cooldownKey: `promote:${bot.id}`, minGapMs: 120 });
       this.syncBotDrawerUi?.(true);
       return { ok: true, bot, knowledgePacks: bot.managerKnowledgePacks.slice() };

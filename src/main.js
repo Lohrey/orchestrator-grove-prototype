@@ -504,15 +504,40 @@ export async function startGame() {
 
   // Quest metadata for the quest log display
   const QUEST_INFO = [
-    { n: 1, title: 'Unpack the Van', desc: 'Right-click the camper van to unpack the first item.' },
-    { n: 2, title: 'First Chop', desc: 'Pick up the axe, chop a tree, then drop the axe (Q).' },
-    { n: 3, title: 'A Helper Arrives', desc: 'Unpack the van again to get a helper bot.' },
-    { n: 4, title: 'Teach the Bot', desc: 'Right-click the bot, teach it to pick up the axe and chop a tree.' },
-    { n: 5, title: 'Storage Solutions', desc: 'Unpack the van, take the storage kit, place it somewhere.' },
-    { n: 6, title: 'Stockpile', desc: 'Chop trees and store 10 logs in the storage building.' },
-    { n: 7, title: 'Dig It', desc: 'Unpack the van to get a shovel.' },
-    { n: 8, title: 'Hole Digger', desc: 'Pick up the shovel, dig 5 holes, then drop the shovel.' },
-    { n: 9, title: 'New Grove', desc: 'Plant seeds from chopped trees into the 5 holes.' },
+    // Chapter I — Tutorial (Q1-Q9)
+    { n: 1, title: 'Unpack the Van', desc: 'Right-click the camper van to unpack the first item.', chapter: 'I — Survival' },
+    { n: 2, title: 'First Chop', desc: 'Pick up the axe, chop a tree, then drop the axe (Q).', chapter: 'I — Survival' },
+    { n: 3, title: 'A Helper Arrives', desc: 'Unpack the van again to get a helper bot.', chapter: 'I — Survival' },
+    { n: 4, title: 'Teach the Bot', desc: 'Right-click the bot, teach it to pick up the axe and chop a tree.', chapter: 'I — Survival' },
+    { n: 5, title: 'Storage Solutions', desc: 'Unpack the van, take the storage kit, place it somewhere.', chapter: 'I — Survival' },
+    { n: 6, title: 'Stockpile', desc: 'Chop trees and store 10 logs in the storage building.', chapter: 'I — Survival' },
+    { n: 7, title: 'Dig It', desc: 'Unpack the van to get a shovel.', chapter: 'I — Survival' },
+    { n: 8, title: 'Hole Digger', desc: 'Pick up the shovel, dig 5 holes, then drop the shovel.', chapter: 'I — Survival' },
+    { n: 9, title: 'New Grove', desc: 'Plant seeds from chopped trees into the 5 holes.', chapter: 'I — Survival' },
+    // Chapter II — Industry (Q10-Q15)
+    { n: 10, title: 'Plank Time', desc: 'Unpack the sawbench kit from the van. Place it, process a log into planks.', chapter: 'II — Industry' },
+    { n: 11, title: 'From Planks to Poles', desc: 'Feed planks back into the sawbench to make poles.', chapter: 'II — Industry' },
+    { n: 12, title: 'A Proper Workbench', desc: 'Unpack the workbench kit and place it.', chapter: 'II — Industry' },
+    { n: 13, title: 'Craft a Pickaxe', desc: 'Deposit sticks and stone into the workbench to craft a crude pickaxe.', chapter: 'II — Industry' },
+    { n: 14, title: 'Strike the Earth', desc: 'Equip the pickaxe and mine stone from a deposit.', chapter: 'II — Industry' },
+    { n: 15, title: 'Automate the Mill', desc: 'Teach a bot to haul logs to the sawbench and deposit them.', chapter: 'II — Industry' },
+    // Chapter III — Automation at Scale (Q16-Q19)
+    { n: 16, title: 'Knowledge Is Power', desc: 'Promote a bot with the Woodworking knowledge pack.', chapter: 'III — Automation' },
+    { n: 17, title: 'The Full Chain', desc: 'Have 2+ bots running active programs simultaneously.', chapter: 'III — Automation' },
+    { n: 18, title: 'Delegate', desc: 'Promote a bot to Manager and delegate a task.', chapter: 'III — Automation' },
+    { n: 19, title: 'Build Your Own Bot', desc: 'Unpack the factory kit, supply materials, assemble a new bot.', chapter: 'III — Automation' },
+    // Chapter IV — Arms & Defense (Q20-Q25)
+    { n: 20, title: 'Forge of Shadows', desc: 'Unpack the smithery kit and place it.', chapter: 'IV — Arms & Defense' },
+    { n: 21, title: 'Arm Yourself', desc: 'Craft a wooden sword and shield at the smithery, equip both.', chapter: 'IV — Arms & Defense' },
+    { n: 22, title: 'The Long Night', desc: 'Survive the first night attack.', chapter: 'IV — Arms & Defense' },
+    { n: 23, title: 'Watchtower', desc: 'Build a defense tower near the camp.', chapter: 'IV — Arms & Defense' },
+    { n: 24, title: 'Combat Pack', desc: 'Give a bot the Combat pack and toggle it to aggressive.', chapter: 'IV — Arms & Defense' },
+    { n: 25, title: 'Bows and Arrows', desc: 'Build bowmaker + arrowmaker, craft and equip bow + arrow pack.', chapter: 'IV — Arms & Defense' },
+    // Chapter V — The Garrison (Q26-Q29)
+    { n: 26, title: 'Patrol Routes', desc: 'Teach a combat bot a patrol route with attack steps.', chapter: 'V — The Garrison' },
+    { n: 27, title: 'Guard the Gate', desc: 'Assign a combat bot to guard_area at a chokepoint.', chapter: 'V — The Garrison' },
+    { n: 28, title: 'Scale the Ranks', desc: 'Build 5+ bots total with 2+ combat bots.', chapter: 'V — The Garrison' },
+    { n: 29, title: 'Hold the Line', desc: 'Survive a sustained wave night assault.', chapter: 'V — The Garrison' },
   ];
 
   function renderQuestLog() {
@@ -520,13 +545,18 @@ export async function startGame() {
     if (!el) return;
     const q = game.campaignQuest;
     if (!q || !q.active) {
-      if (q && q.completedQuests?.length >= 9) {
-        el.innerHTML = '<div class="quest-log-complete"><p>✓ All quests complete!</p><p class="quest-log-subtitle">The camp is self-sustaining.</p></div>';
+      if (q && (q.completedQuests?.length >= 29 || q.campaignComplete)) {
+        el.innerHTML = '<div class="quest-log-complete"><p>✓ Campaign complete!</p><p class="quest-log-subtitle">The grove is yours. A home that feeds itself, defends itself, grows itself.</p></div>';
+      } else if (q && q.completedQuests?.length >= 9) {
+        el.innerHTML = '<div class="quest-log-complete"><p>✓ Tutorial complete!</p><p class="quest-log-subtitle">The camp is self-sustaining.</p></div>';
       } else {
         el.innerHTML = '<p class="empty">No active quest. Start campaign mode to begin.</p>';
       }
       return;
     }
+
+    // Group quests by chapter
+    let lastChapter = null;
     const html = QUEST_INFO.map(info => {
       const done = q.completedQuests.includes(info.n);
       const current = q.currentQuest === info.n;
@@ -537,10 +567,20 @@ export async function startGame() {
         else if (info.n === 8) progress = ` <span class="quest-progress">${q.holesDug}/5 holes</span>`;
         else if (info.n === 9) progress = ` <span class="quest-progress">${q.seedsPlanted}/5 seeds</span>`;
         else if (info.n === 1 || info.n === 3 || info.n === 5 || info.n === 7) progress = ` <span class="quest-progress">van unpacks: ${q.vanUnpackCount}</span>`;
+        else if (info.n === 10) progress = ` <span class="quest-progress">${q.planksProduced || 0}/1 planks</span>`;
+        else if (info.n === 11) progress = ` <span class="quest-progress">${q.polesProduced || 0}/1 poles</span>`;
+        else if (info.n === 14) progress = ` <span class="quest-progress">${q.stoneMined || 0}/1 stone</span>`;
+        else if (info.n === 19) progress = ` <span class="quest-progress">${q.botsAssembled || 0}/1 bots assembled</span>`;
+        else if (info.n === 28) progress = ` <span class="quest-progress">${(game.bots||[]).length}/5 bots · ${q.combatBots || 0}/2 combat</span>`;
       }
       const cls = done ? 'quest-entry quest-entry--done' : (current ? 'quest-entry quest-entry--current' : 'quest-entry quest-entry--locked');
       const icon = done ? '✓' : (current ? '▶' : '🔒');
-      return `<div class="${cls}"><span class="quest-icon">${icon}</span><div class="quest-body"><div class="quest-title">${info.title}</div><div class="quest-desc">${info.desc}</div>${current ? progress : ''}</div></div>`;
+      let chapterHeader = '';
+      if (info.chapter && info.chapter !== lastChapter) {
+        lastChapter = info.chapter;
+        chapterHeader = `<div class="quest-chapter-header">${info.chapter}</div>`;
+      }
+      return `${chapterHeader}<div class="${cls}"><span class="quest-icon">${icon}</span><div class="quest-body"><div class="quest-title">${info.title}</div><div class="quest-desc">${info.desc}</div>${current ? progress : ''}</div></div>`;
     }).join('');
     el.innerHTML = html;
   }

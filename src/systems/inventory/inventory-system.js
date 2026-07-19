@@ -74,6 +74,7 @@ export function installInventorySystem(Game, deps) {
         const currentAmmo = Number(actor.ammunition || 0);
         if (currentAmmo >= 10) return false;
         actor.ammunition = Math.min(10, currentAmmo + 10);
+        if (actor === this.player) this.onPlayerEquipmentChanged?.();
         return true;
       }
       const eq = ensureEquipment(actor);
@@ -101,6 +102,7 @@ export function installInventorySystem(Game, deps) {
       }
       eq.activeWeaponSetId = set?.id || eq.activeWeaponSetId;
       syncActiveEquipmentSet(eq);
+      if (actor === this.player) this.onPlayerEquipmentChanged?.();
       return true;
     },
     carryEquipmentItem(actor, type) {

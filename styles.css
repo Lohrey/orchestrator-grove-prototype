@@ -574,7 +574,23 @@ dd { margin: 0; color: #f3f7f5; font-weight: 700; }
 .quest-log-content {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  max-height: 70vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.quest-chapter-header {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(245, 230, 200, 0.45);
+  margin: 10px 0 2px 4px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(127, 151, 137, 0.15);
+}
+.quest-chapter-header:first-child {
+  margin-top: 0;
 }
 .quest-entry {
   display: flex;

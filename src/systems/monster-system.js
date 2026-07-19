@@ -59,14 +59,18 @@ export function installMonsterSystem(Game, deps) {
       const night = this.isNightTime();
       const state = this.nightSpawns ||= { active: false, timer: 1.5, spawnedThisNight: 0 };
       if (!night) {
-        if (state.active) this.emitSound('dawn', { cooldownKey: 'dawn', minGapMs: 9999 });
+        if (state.active) { this.emitSound('dawn', { cooldownKey: 'dawn', minGapMs: 9999 }); this.onNightSurvived?.(); }
         state.active = false; state.timer = 1.5; state.spawnedThisNight = 0; return;
       }
       if (!state.active) { state.active = true; state.timer = Math.min(state.timer ?? 1.5, 1.5); state.spawnedThisNight = 0; this.emitSound('night_fall', { cooldownKey: 'night_fall', minGapMs: 9999 }); }
       state.timer = (state.timer ?? NIGHT_MONSTER_CONFIG.spawnEverySeconds) - dt;
       if (state.timer > 0) return;
       const activeNightMonsters = this.monsters.filter(m => (m.hp || 0) > 0 && m.type === 'night_monster').length;
-      if (activeNightMonsters < NIGHT_MONSTER_CONFIG.maxActive && state.spawnedThisNight < NIGHT_MONSTER_CONFIG.maxPerNight) {
+      // Wave night: if Q29 is active, spawn more monsters
+      const isWaveNight = this.campaignQuest?.currentQuest === 29 && this.campaignQuest?.active;
+      const waveMaxPerNight = isWaveNight ? Math.floor(NIGHT_MONSTER_CONFIG.maxPerNight * 2.5) : NIGHT_MONSTER_CONFIG.maxPerNight;
+      const waveMaxActive = isWaveNight ? Math.floor(NIGHT_MONSTER_CONFIG.maxActive * 1.5) : NIGHT_MONSTER_CONFIG.maxActive;
+      if (activeNightMonsters < waveMaxActive && state.spawnedThisNight < waveMaxPerNight) {
         this.spawnNightMonster();
         state.spawnedThisNight++;
       }

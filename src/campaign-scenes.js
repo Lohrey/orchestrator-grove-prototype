@@ -204,6 +204,303 @@ export const CAMPAIGN_DIALOGUES = Object.freeze([
     ],
     speaker: 'player',
     trigger: 'quest_9_complete'
+  },
+  // ═════════════════════════════════════════════════════════
+  // Chapter II — Industry (Q10–Q15)
+  // ═════════════════════════════════════════════════════════
+  {
+    id: 'quest10_start',
+    text: 'Raw logs are bulky. A sawbench turns them into planks — the real building blocks. Right-click the van to unpack the sawbench kit.',
+    speaker: 'player',
+    trigger: 'quest_10_start'
+  },
+  {
+    id: 'quest10_van_drop',
+    text: 'A sawbench kit! Pick it up and place it somewhere flat. Then carry a log to it and let it process.',
+    speaker: 'player',
+    trigger: 'quest_10_van_drop'
+  },
+  {
+    id: 'quest10_complete',
+    text: 'Planks! Now we are building. These are the bones of everything from here on.',
+    speaker: 'player',
+    trigger: 'quest_10_complete'
+  },
+  {
+    id: 'quest11_start',
+    text: 'Planks can go further — feed them back into the sawbench to split into poles. Thinner, lighter, perfect for tool handles.',
+    speaker: 'player',
+    trigger: 'quest_11_start'
+  },
+  {
+    id: 'quest11_complete',
+    text: 'Poles. The ingredient chain grows: log → plank → pole. Each step adds refinement.',
+    speaker: 'player',
+    trigger: 'quest_11_complete'
+  },
+  {
+    id: 'quest12_start',
+    text: 'The van has a workbench kit. With planks, poles, and sticks, we can craft proper tools — not just that crude axe.',
+    speaker: 'player',
+    trigger: 'quest_12_start'
+  },
+  {
+    id: 'quest12_van_drop',
+    text: 'A workbench kit. Pick it up and place it near the sawbench.',
+    speaker: 'player',
+    trigger: 'quest_12_van_drop'
+  },
+  {
+    id: 'quest12_complete',
+    text: 'A proper workbench. Now we can craft tools — pickaxes, shovels, hammers. Each one speeds up a different job.',
+    speaker: 'player',
+    trigger: 'quest_12_complete'
+  },
+  {
+    id: 'quest13_start',
+    text: 'A pickaxe! Deposit sticks and stone into the workbench to craft one. Mining stone without it takes forever.',
+    speaker: 'player',
+    trigger: 'quest_13_start'
+  },
+  {
+    id: 'quest13_complete',
+    text: 'A crude pickaxe. Those rock deposits have been sitting there since we arrived — time to crack them open.',
+    speaker: 'player',
+    trigger: 'quest_13_complete'
+  },
+  {
+    id: 'quest14_start',
+    text: 'Equip the pickaxe and right-click a stone deposit. Let\'s see what is inside.',
+    speaker: 'player',
+    trigger: 'quest_14_start'
+  },
+  {
+    id: 'quest14_complete',
+    text: 'Stone! Now we have all three raw resources: wood, stone, and seeds. The full material base.',
+    speaker: 'player',
+    trigger: 'quest_14_complete'
+  },
+  {
+    id: 'quest15_start',
+    text: 'You are hauling logs by hand again. Teach a bot to do it — pick up a log, carry it to the sawbench, deposit. Record that loop and assign it.',
+    speaker: 'player',
+    trigger: 'quest_15_start'
+  },
+  {
+    id: 'quest15_complete',
+    text: 'Automated plank production. The first real supply chain. This is the template for everything ahead.',
+    speaker: 'player',
+    trigger: 'quest_15_complete'
+  },
+  // ═════════════════════════════════════════════════════════
+  // Chapter III — Automation at Scale (Q16–Q19)
+  // ═════════════════════════════════════════════════════════
+  {
+    id: 'quest16_start',
+    text: 'Your bots only know basic tasks. Knowledge packs teach them new skills. Give one the Woodworking pack — it will learn to run the sawbench on its own.',
+    speaker: 'player',
+    trigger: 'quest_16_start'
+  },
+  {
+    id: 'quest16_complete',
+    text: 'A woodworking specialist. This bot can now process planks and poles autonomously. Specialization is the key to scale.',
+    speaker: 'player',
+    trigger: 'quest_16_complete'
+  },
+  {
+    id: 'quest17_start',
+    text: 'Two bots, two jobs: one chops, one mills. Watch the planks pile up without lifting a finger. This is what the camp should feel like.',
+    speaker: 'player',
+    trigger: 'quest_17_start'
+  },
+  {
+    id: 'quest17_complete',
+    text: 'Compound automation. Each bot multiplies the others. The supply chain runs itself now.',
+    speaker: 'player',
+    trigger: 'quest_17_complete'
+  },
+  {
+    id: 'quest18_start',
+    text: 'Too many bots to manage one by one? Make one a Manager. Promote a bot and delegate tasks to it.',
+    speaker: 'player',
+    trigger: 'quest_18_start'
+  },
+  {
+    id: 'quest18_manager_prompt',
+    text: 'Good — you have a manager. Now delegate: tell it to assign work to the other bots.',
+    speaker: 'player',
+    trigger: 'quest_18_manager_prompt'
+  },
+  {
+    id: 'quest18_complete',
+    text: 'Hands-off coordination. The manager handles the details. You design the system, not the steps.',
+    speaker: 'player',
+    trigger: 'quest_18_complete'
+  },
+  {
+    id: 'quest19_start',
+    text: 'The van has one more thing — a bot factory. Feed it logs, planks, poles, and a seed, and it will assemble a brand new worker.',
+    speaker: 'player',
+    trigger: 'quest_19_start'
+  },
+  {
+    id: 'quest19_van_drop',
+    text: 'A factory kit. Place it, supply it with materials, and it will build bots for you.',
+    speaker: 'player',
+    trigger: 'quest_19_van_drop'
+  },
+  {
+    id: 'quest19_complete',
+    text: 'A self-replicating workforce. Bots gather materials → factory builds more bots → more bots gather more. This is exponential growth.',
+    speaker: 'player',
+    trigger: 'quest_19_complete'
+  },
+  // ═════════════════════════════════════════════════════════
+  // Chapter IV — Arms & Defense (Q20–Q25)
+  // ═════════════════════════════════════════════════════════
+  {
+    id: 'quest20_start',
+    pages: [
+      'Something is out there. I have heard it at night.',
+      'We need to be ready. The van has a smithery — set it up.'
+    ],
+    speaker: 'player',
+    trigger: 'quest_20_start'
+  },
+  {
+    id: 'quest20_van_drop',
+    text: 'A smithery kit. Place it near the workbench. Stone is the key ingredient for weapons.',
+    speaker: 'player',
+    trigger: 'quest_20_van_drop'
+  },
+  {
+    id: 'quest20_complete',
+    text: 'The smithery is ready. Planks and stone go in — swords and shields come out.',
+    speaker: 'player',
+    trigger: 'quest_20_complete'
+  },
+  {
+    id: 'quest21_start',
+    text: 'Deposit planks and stone into the smithery. Craft a sword to strike, a shield to block. Equip both — you will attack automatically when enemies get close.',
+    speaker: 'player',
+    trigger: 'quest_21_start'
+  },
+  {
+    id: 'quest21_complete',
+    text: 'Armed and ready. The auto-attack will trigger when threats are in range. But defense is more than a sword...',
+    speaker: 'player',
+    trigger: 'quest_21_complete'
+  },
+  {
+    id: 'quest22_start',
+    text: 'They come at night. Stay near the fire, keep your sword ready. Just survive until dawn.',
+    speaker: 'player',
+    trigger: 'quest_22_start'
+  },
+  {
+    id: 'quest22_survived',
+    pages: [
+      'Dawn. They are gone. But they will be back.',
+      'We need walls. We need towers. We need to be ready for next time.'
+    ],
+    speaker: 'player',
+    trigger: 'quest_22_survived'
+  },
+  {
+    id: 'quest23_start',
+    text: 'A defense tower fires arrows on its own — no bot needed. Place one where the monsters came from last night.',
+    speaker: 'player',
+    trigger: 'quest_23_start'
+  },
+  {
+    id: 'quest23_complete',
+    text: 'The tower watches. Passive defense — always on, always vigilant. The first layer of our perimeter.',
+    speaker: 'player',
+    trigger: 'quest_23_complete'
+  },
+  {
+    id: 'quest24_start',
+    text: 'Bots can fight too. Give one the Combat pack and a sword. Toggle it to aggressive — it will break from work to fight, then pick up where it left off.',
+    speaker: 'player',
+    trigger: 'quest_24_start'
+  },
+  {
+    id: 'quest24_complete',
+    text: 'A combat bot. It works when it is safe, fights when it is not. The camp is starting to defend itself.',
+    speaker: 'player',
+    trigger: 'quest_24_complete'
+  },
+  {
+    id: 'quest25_start',
+    text: 'Swords are close-range. For distance, we need bows. Build a bowmaker and an arrowmaker. Craft a bow and arrow pack — equip the pack to load 10 arrows.',
+    speaker: 'player',
+    trigger: 'quest_25_start'
+  },
+  {
+    id: 'quest25_complete',
+    text: 'Ranged combat ready. Melee for close, bow for distance, ammunition as a consumable. The full weapons tree.',
+    speaker: 'player',
+    trigger: 'quest_25_complete'
+  },
+  // ═════════════════════════════════════════════════════════
+  // Chapter V — The Garrison (Q26–Q29)
+  // ═════════════════════════════════════════════════════════
+  {
+    id: 'quest26_start',
+    text: 'Towers are static. A patrol bot moves. Teach one to walk a route around the camp and attack anything hostile it finds.',
+    speaker: 'player',
+    trigger: 'quest_26_start'
+  },
+  {
+    id: 'quest26_complete',
+    text: 'Mobile defense. The patrol sweeps the perimeter and engages threats on the move.',
+    speaker: 'player',
+    trigger: 'quest_26_complete'
+  },
+  {
+    id: 'quest27_start',
+    text: 'A patrol sweeps. A guard holds. Assign a bot to guard a chokepoint — it will stay put and intercept anything in its zone.',
+    speaker: 'player',
+    trigger: 'quest_27_start'
+  },
+  {
+    id: 'quest27_complete',
+    text: 'Three defense layers now: towers for passive fire, guards for chokepoints, patrols for the perimeter.',
+    speaker: 'player',
+    trigger: 'quest_27_complete'
+  },
+  {
+    id: 'quest28_start',
+    text: 'The factory is the key. Build more bots. Some work, some fight. A manager can coordinate them all. Scale up — the camp needs to run itself while you command the defense.',
+    speaker: 'player',
+    trigger: 'quest_28_start'
+  },
+  {
+    id: 'quest28_complete',
+    text: 'A self-defending, self-sustaining camp with a military wing. Production feeds the war effort; the war effort protects production.',
+    speaker: 'player',
+    trigger: 'quest_28_complete'
+  },
+  {
+    id: 'quest29_start',
+    pages: [
+      'This is the big one.',
+      'They are coming in waves tonight — more than before.',
+      'Hold the line. Every tower, every guard, every patrol. This is what we built for.'
+    ],
+    speaker: 'player',
+    trigger: 'quest_29_start'
+  },
+  {
+    id: 'quest29_finale',
+    pages: [
+      'Dawn. And the camp stands.',
+      'Towers intact, bots still working, not a single structure lost.',
+      'You have built something real here. A home that feeds itself, defends itself, grows itself.',
+      'The grove is yours now.'
+    ],
+    speaker: 'player',
+    trigger: 'quest_29_finale'
   }
 ]);
 

@@ -1,6 +1,7 @@
 # Orchestrator Grove — Quest Plan v2 (Next 20 Quests)
 
-> **Status:** Draft / Proposal — not yet implemented.
+> **Status:** Implemented — Q10–Q29 are live in the campaign.
+> **Implementation:** Commit pending — see `src/campaign/campaign-quest.js` (quest engine), `src/campaign-scenes.js` (dialogues), `src/main.js` (QUEST_INFO + quest log UI).
 > **Follows:** Quests 1–9 (tag `grove_quests_0705`), which end with the camp "self-sustaining": logs stored, a chopping bot running, and seeds planted in a new grove.
 > **Scope:** 20 new quests (Q10–Q29) organized into 4 chapters, introducing every major game system not covered by the tutorial.
 
