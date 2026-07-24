@@ -60,6 +60,13 @@ export function installInteractionSystem(Game, deps) {
       if (item) return isBuildingKitItemType(item.type) ? (this.showBuildingKitItemMenu(item, p.clientX, p.clientY), true) : this.queuePlayerItemPickup(item, { append });
       const s = this.structureAt(p.x, p.y);
       if (s) {
+        // Quest construction structure (e.g. bridge): right-click deposits a
+        // held material or assigns the player to help build. See construction
+        // system. Checked before the demolish/deposit fallbacks because the
+        // bridge is `questOnly` and shouldn't be demolished.
+        if (s.buildWorkTotal && !s.constructionComplete) {
+          if (this.playerAssistConstruction?.(s)) return true;
+        }
         if (this.queuePlayerDemolishStructure(s, { append })) return true;
         if (STORAGE_STRUCTURE_TYPES.includes(s.type)) return this.queuePlayerPaletteInteraction(s, { append });
         if (this.queuePlayerThroneAttack(s, { append })) return true;

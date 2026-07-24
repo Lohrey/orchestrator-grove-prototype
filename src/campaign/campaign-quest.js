@@ -39,6 +39,7 @@ const QUEST_START_DIALOGUES = {
   27: 'quest27_start',
   28: 'quest28_start',
   29: 'quest29_start',
+  30: 'quest30_start',
 };
 
 export function installCampaignQuestSystem(Game, deps) {
@@ -155,7 +156,7 @@ export function installCampaignQuestSystem(Game, deps) {
             self.queueDialogue(nextQuestStart);
           }, 2400);
         }
-        if (q.currentQuest > 29) {
+        if (q.currentQuest > 30) {
           q.active = false;
           q.campaignComplete = true;
         }
@@ -351,6 +352,15 @@ export function installCampaignQuestSystem(Game, deps) {
           // Quest 29: survive the wave night with structures intact
           if ((q.nightsSurvived || 0) >= 2) {
             completeQuest(29, 'quest29_finale');
+          }
+          break;
+        // ═════════════════════════════════════════════════════════
+        // Chapter VI — Beyond the Chasm (Q30)
+        // ═════════════════════════════════════════════════════════
+        case 30:
+          // Quest 30: bridge construction must be fully complete
+          if (q.bridgeComplete) {
+            completeQuest(30, 'quest30_complete');
           }
           break;
       }
@@ -586,6 +596,19 @@ export function installCampaignQuestSystem(Game, deps) {
         q.playerEquippedBow = true;
       }
       this.checkCampaignQuest();
+    },
+
+    /**
+     * Called when a quest construction structure completes building.
+     * Used by Q30 bridge tracking.
+     */
+    onConstructionComplete(structure) {
+      if (!this.campaignQuest?.active) return;
+      const q = this.campaignQuest;
+      if (structure?.type === 'bridge') {
+        q.bridgeComplete = true;
+        this.checkCampaignQuest();
+      }
     }
   });
 }

@@ -7,7 +7,7 @@ Game runtime ES modules loaded by `index.html` (via `src/main.js`). This is the 
 world model, assistant chat, rendering entry points, and the action-step registry that the
 repo-wide Action Step Mechanism Chain depends on.
 
-Key files (not exhaustive): `main.js`, `world.js`, `action-steps.js`, `data.js`, `assistant.js`,
+Key files (not exhaustive): `main.js`, `world.js`, `action-steps.js`, `data.js`,
 `chat.js`, `audio.js`, `browser-runtime.js`, `canvas-renderer.js`, `campaign-scenes.js`,
 `campaign-intro-cinematic.js`, `depth-sort.js`, `fog-of-war.js`, `render-state.js`,
 `savegames.js`, `multiplayer.js`, `utils.js`, `visual-assets.js`.
@@ -33,7 +33,7 @@ source of truth for what action steps are actually possible.
 ## Work Guidance
 - ES modules; the entry point is `src/main.js`, imported by `index.html`/`game.js`.
 - Keep the plain-HTML run path working without a bundler for these modules.
-- Bundler/TypeScript/Svelte-only surfaces live under `src/ui/` and the worker under `src/sim/`.
+- Bundler/TypeScript/Svelte-only surfaces live under `src/ui/`, typed runtime contracts under `src/core/`, and the worker under `src/sim/`.
 - Campaign intro is rendered by the **canvas cinematic** module
   (`campaign-intro-cinematic.js`) **only when using the Pixi renderer**.
   `showCampaignIntro()` in `main.js` checks `rendererMode === 'pixi'` before
@@ -53,6 +53,7 @@ source of truth for what action steps are actually possible.
 
 ## Child DOX Index
 - [assistant/AGENTS.md](assistant/AGENTS.md) — in-game AI assistant (LLM chat, knowledge packs, semantic router)
+- [core/AGENTS.md](core/AGENTS.md) — TypeScript/Zod contracts for DSL, assistant responses, and knowledge packs
 - [renderers/AGENTS.md](renderers/AGENTS.md) — pluggable renderers (webgl2 default, pixi, canvas2d)
 - [sim/AGENTS.md](sim/AGENTS.md) — simulation worker layer
 - [systems/AGENTS.md](systems/AGENTS.md) — game-logic systems (install-mixin pattern: install*System(Game, deps))

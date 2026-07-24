@@ -36,6 +36,20 @@ export function installStructureSystem(Game, deps) {
       if (type === 'smithery') s.smitheryRecipe = DEFAULT_SMITHERY_RECIPE;
       if (type === 'defensetower') Object.assign(s, { hp: 20, maxHp: 20, ownerId: null, ownerLabel: 'neutral', rangedAttack: createRangedAttackComponent({ range: def.attackRange, damage: def.attackDamage, cooldown: def.attackCooldown }) });
       if (['item_palette', 'power_station', 'robotics_parts_bin'].includes(type)) Object.assign(s, { storageType: null, stored: 0, capacity: def.capacity || 40 });
+      // Quest construction buildings (e.g. bridge) start unbuilt and require
+      // deposited materials + accumulated work from assigned bots before they
+      // are usable. See construction-system.js.
+      if (def.buildWorkTotal) {
+        Object.assign(s, {
+          buildWorkTotal: def.buildWorkTotal,
+          buildWorkDone: 0,
+          constructionMaterialsMet: false,
+          constructionComplete: false,
+          workers: [],
+          materialsRequired: clone(def.materialsRequired || {}),
+          materialsDeposited: clone(Object.fromEntries(Object.keys(def.materialsRequired || {}).map(k => [k, 0])))
+        });
+      }
       this.structures.push(s); this.addFloat(`Built ${s.name}`, x, y - 35, '#d3a95f'); this.emitSound('build', { cooldownKey: `build:${type}`, minGapMs: 120 }); return s;
     },
     placeStructure(type, x, y) { this.addStructure(type, clamp(x, 70, this.map.width - 70), clamp(y, 80, this.map.height - 70), { placed: true }); this.placementType = null; this.syncBuildUi(); this.onStructurePlaced?.(type); },

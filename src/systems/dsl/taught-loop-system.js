@@ -209,6 +209,25 @@ export function installTaughtLoopSystem(Game, deps) {
         advance();
         return;
       }
+      if (step.op === 'work_on_structure') {
+        // Assign this bot to a quest construction site (e.g. bridge). The bot
+        // walks to the site via the construction overlay in updateBot; once
+        // assigned it stays there indefinitely until the structure completes.
+        // The taught loop does NOT advance — the bot is "consumed" by the
+        // construction assignment. See construction-system.js.
+        const s = this.resolveRecordedStructure(step, bot);
+        if (!s) { bot.message = `Taught loop cannot find ${step.structureName || 'construction site'}.`; return; }
+        if (!s.buildWorkTotal) { bot.message = `${s.name} is not a construction site.`; advance(); return; }
+        if (s.constructionComplete) { bot.message = `${s.name} already built.`; advance(); return; }
+        // If already assigned, treat as complete so a subsequent loop step can
+        // re-evaluate (rare; mostly the bot stays assigned forever).
+        if (bot.constructionTarget === s.id) { advance(); return; }
+        if (!this.moveBotTo(bot, s, dt, 56)) { bot.message = `Taught loop: walk to ${s.name} construction site.`; return; }
+        this.assignBotToConstruction(bot, s);
+        bot.message = `Taught loop: assigned to build ${s.name}.`;
+        // Do NOT advance — the construction overlay now owns this bot's behavior.
+        return;
+      }
       if (step.op === 'deposit_to_structure') {
         const s = this.resolveRecordedStructure(step, bot);
         if (!s) { bot.message = `Taught loop cannot find ${step.structureName || 'structure'}.`; return; }

@@ -64,7 +64,8 @@ const DEFAULT_STEP_ALIASES_BY_OP = Object.freeze({
   plant_seed: ['sow seed', 'plant tree seed'],
   use_held_item: ['use tool', 'use held tool', 'use carried item'],
   deposit_to_player: ['bring to player', 'give to me', 'deliver to player'],
-  take_from_player: ['take from player', 'take from me', 'collect from player']
+  take_from_player: ['take from player', 'take from me', 'collect from player'],
+  work_on_structure: ['build structure', 'construct', 'help build', 'work on bridge', 'build bridge']
 });
 
 function normalizeAliasList(values) {
@@ -125,7 +126,7 @@ export const KNOWLEDGE_PACK_IDS = freezeList(['starter_automation', 'woodworking
 
 export const KNOWLEDGE_PACK_OP_ORDER = Object.freeze({
   starter_automation: freezeList(['pick_up', 'drop_item', 'deploy_building_kit', 'move_to_structure', 'disassemble_building_to_kit', 'use_held_item', 'assign_template', 'rename_bot', 'promote_to_manager', 'delegate_to_manager', 'follow', 'deposit_to_player', 'take_from_player', 'loop', 'wait']),
-  woodworking: freezeList(['pick_up', 'deposit_to_structure', 'use_held_item', 'chop_tree', 'search_tree', 'loop']),
+  woodworking: freezeList(['pick_up', 'deposit_to_structure', 'use_held_item', 'chop_tree', 'search_tree', 'work_on_structure', 'loop']),
   logistics: freezeList(['pick_up_from_storage', 'deposit_to_structure', 'drop_item', 'use_held_item', 'loop']),
   farming: freezeList(['pick_up', 'plant_seed', 'use_held_item', 'search_tree', 'loop']),
   mining_tools: freezeList(['mine_stone', 'chop_hemp', 'use_held_item', 'search_hemp', 'loop']),
@@ -140,7 +141,7 @@ export const ACTION_STEP_ORDER = freezeList([
   'deliver_to_workbench', 'craft_workbench', 'craft_smithery', 'craft_bowmaker', 'craft_arrowmaker', 'deliver_to_factory', 'assemble_bot',
   'idle_parking', 'wait', 'loop', 'if_inventory', 'assign_template', 'rename_bot', 'promote_to_manager', 'delegate_to_manager', 'follow', 'guard_area', 'patrol_route', 'attack', 'equip_item',
   'move_to_structure', 'deposit_to_structure', 'drop_item', 'deploy_building_kit', 'disassemble_building_to_kit', 'find_dug_hole', 'plant_seed', 'use_held_item',
-  'deposit_to_player', 'take_from_player'
+  'deposit_to_player', 'take_from_player', 'work_on_structure'
 ]);
 
 function step(definition) {
@@ -611,6 +612,15 @@ const RAW_ACTION_STEP_REGISTRY = Object.freeze({
     packs: ['starter_automation'],
     customLoop: true,
     uiCard: 'type field'
+  }),
+  work_on_structure: step({
+    label: 'Work on structure',
+    args: ['target'],
+    description: 'Walk to a quest construction site (e.g. an unbuilt bridge) and help build it. The bot stays at the site and contributes work each tick once materials are deposited.',
+    signature: 'work_on_structure(target/structureId) - assign this bot to help build a quest construction structure',
+    packs: ['woodworking'],
+    customLoop: true,
+    uiCard: 'structure selector'
   })
 });
 

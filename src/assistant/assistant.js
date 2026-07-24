@@ -1,4 +1,5 @@
 import { PROGRAMS, ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT } from '../data.js';
+import { parseAssistantResponsePayload, parseDslAssignmentList } from '../core/index.js';
 import {
   normalizeAssistantLoadout,
   summarizeAssistantLoadout
@@ -632,12 +633,12 @@ export function validateToolCalls(rawCalls, game, { loadout, knowledgePacks = AS
 }
 
 export function validateDslAssignments(rawAssignments, game, { loadout, knowledgePacks = ASSISTANT_KNOWLEDGE_PACKS } = {}) {
-  if (!Array.isArray(rawAssignments)) throw new Error('dsl_assignments must be an array');
+  const parsedAssignments = parseDslAssignmentList(rawAssignments);
   const valid = [];
   const errors = [];
   const validationDetails = [];
   const allowedOps = loadout ? new Set(summarizeAssistantLoadout(loadout, knowledgePacks).unlockedOps) : null;
-  for (const raw of rawAssignments.slice(0, 10)) {
+  for (const raw of parsedAssignments) {
     const botId = Number(raw.botId || String(raw.bot || '').replace(/^bot:/, ''));
     const assigneeStrategy = String(raw.assignee?.strategy || '').trim();
     const hasBotId = game.bots.some(b => b.id === botId);
@@ -670,7 +671,7 @@ export function validateDslAssignments(rawAssignments, game, { loadout, knowledg
     if (hasAnyEligibleAssignee) assignment.assignee = { strategy: 'any_eligible' };
     valid.push(assignment);
   }
-  if (!valid.length && rawAssignments.length) throw attachValidationMetadata(new Error(errors[0] || 'no valid DSL assignments'), errors[0] || 'no valid DSL assignments', validationDetails);
+  if (!valid.length && parsedAssignments.length) throw attachValidationMetadata(new Error(errors[0] || 'no valid DSL assignments'), errors[0] || 'no valid DSL assignments', validationDetails);
   return valid;
 }
 
@@ -776,10 +777,10 @@ export async function parseWithOllama(text, game, { endpoint, model, enableTempl
     returned = { status: res.status, statusText: res.statusText, response: data, rawHttpBody: httpBody, rawResponse: content, content };
     let json = null;
     try {
-      json = parseJsonObject(content);
+      json = parseAssistantResponsePayload(parseJsonObject(content));
     } catch (err) {
       returned = { ...returned, parseError: err.message, error: err.message };
-      err.validationDetails = [{ code: 'invalid_json', field: 'response', value: content }];
+      err.validationDetails ||= [{ code: 'invalid_json', field: 'response', value: content }];
       throw markModelResponseFailure(err);
     }
     const rawCalls = json.tool_calls || json.calls || [];
@@ -884,10 +885,10 @@ export async function parseWithOpenAiCompatible(text, game, { endpoint, model, e
     returned = { status: res.status, statusText: res.statusText, response: data, rawHttpBody: httpBody, rawResponse: content, content };
     let json = null;
     try {
-      json = parseJsonObject(content);
+      json = parseAssistantResponsePayload(parseJsonObject(content));
     } catch (err) {
       returned = { ...returned, parseError: err.message, error: err.message };
-      err.validationDetails = [{ code: 'invalid_json', field: 'response', value: content }];
+      err.validationDetails ||= [{ code: 'invalid_json', field: 'response', value: content }];
       throw markModelResponseFailure(err);
     }
     const rawCalls = json.tool_calls || json.calls || [];

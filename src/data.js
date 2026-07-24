@@ -278,5 +278,22 @@ export const BUILDING_TYPES = {
   camper_van: { label: 'Simple White Camper Van', category: 'camp', w: 132, h: 64, color: '#edf3ef', cost: 'story kit' },
   hammock_camp: { label: 'Hammock Camp', category: 'camp', w: 118, h: 72, color: '#4b6b52', cost: 'story kit' },
   ultrabook_desk: { label: 'Ultrabook Field Desk', category: 'camp', w: 88, h: 62, color: '#766a58', cost: 'story kit' },
-  solar_array: { label: 'Fold-Out Solar Panels', category: 'camp', w: 118, h: 70, color: '#4b6f78', cost: 'story kit' }
+  solar_array: { label: 'Fold-Out Solar Panels', category: 'camp', w: 118, h: 70, color: '#4b6f78', cost: 'story kit' },
+  // ── Quest building types ────────────────────────────────────────
+  // Quest-only buildings are not selectable in the build drawer (filtered by
+  // `questOnly` / `playerBuildable === false` in the build menu rendering).
+  // They are placed automatically by the campaign quest system at predefined
+  // positions and require deposited materials + multi-bot construction work.
+  bridge: {
+    label: 'Bridge',
+    category: 'quest',
+    questOnly: true,
+    playerBuildable: false,
+    w: 240,
+    h: 60,
+    color: '#5a4a35',
+    cost: 'quest construction',
+    materialsRequired: { logs: 60, planks: 50, poles: 40, stones: 30 },
+    buildWorkTotal: 600 // 600 work-seconds = 10 minutes for 1 bot
+  }
 };

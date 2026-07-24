@@ -1,5 +1,5 @@
 import { BUILDING_TYPES, PROGRAMS, PROGRAM_TEMPLATES, ALLOWED_OPS, DEFAULT_WORLD_ZONES } from './data.js';
-import { CAMPAIGN_MAP_FEATURES, CAMPAIGN_MAP_SIZE, CAMPAIGN_START, CAMPAIGN_DIALOGUES, getCampaignArrivalScene } from './campaign-scenes.js';
+import { CAMPAIGN_MAP_FEATURES, CAMPAIGN_MAP_SIZE, CAMPAIGN_START, CAMPAIGN_DIALOGUES, CANYON_CONFIG, CANYON_BRIDGE_POSITION, generateCanyonPolygon, getCampaignArrivalScene } from './campaign-scenes.js';
 import { createCanvas2dRenderer } from './renderers/canvas2d-renderer.js';
 import { createRenderState } from './renderers/shared/render-state.js';
 import { installCombatSystem, IDLE_BOT_AUTO_ATTACK_RANGE, PLAYER_AUTO_ENGAGE_RANGE, DEFAULT_BOT_COMBAT_MODE } from './systems/combat/combat-system.js';
@@ -24,6 +24,8 @@ import { installDogSystem } from './systems/dog-system.js';
 import { installMenuSystem } from './systems/menu-system.js';
 import { installMultiplayerSystem } from './systems/multiplayer-system.js';
 import { installDslProgramSystem } from './systems/dsl-program-system.js';
+import { installCollisionSystem } from './systems/collision-system.js';
+import { installConstructionSystem } from './systems/construction-system.js';
 import { installSaveSystem } from './systems/save-system.js';
 import { installCampaignArrivalSystem } from './campaign/campaign-arrival.js';
 import { installCampaignQuestSystem } from './campaign/campaign-quest.js';
@@ -33,7 +35,14 @@ const rectCenter = z => ({ x: z.x + z.w / 2, y: z.y + z.h / 2 });
 const FACTORY_BOT_RECIPE = { log: 1, plank: 3, pole: 1, tree_seed: 1 };
 const BOW_RECIPE = { stick: 2, hemp: 3 };
 const BUILDING_KIT_EXCLUDED_TYPES = ['throne', 'assembler'];
-const BUILDING_KIT_BUILDING_TYPES = Object.freeze(Object.keys(BUILDING_TYPES).filter(type => !BUILDING_KIT_EXCLUDED_TYPES.includes(type)));
+// Quest-only building types (e.g. bridge) are placed automatically by the
+// campaign quest system, never via building kits. They have no kit form.
+const QUEST_ONLY_BUILDING_TYPES = Object.freeze(
+  Object.keys(BUILDING_TYPES).filter(type => BUILDING_TYPES[type]?.questOnly || BUILDING_TYPES[type]?.playerBuildable === false)
+);
+const BUILDING_KIT_BUILDING_TYPES = Object.freeze(
+  Object.keys(BUILDING_TYPES).filter(type => !BUILDING_KIT_EXCLUDED_TYPES.includes(type) && !QUEST_ONLY_BUILDING_TYPES.includes(type))
+);
 const BUILDING_KIT_ITEM_TYPES = Object.freeze(BUILDING_KIT_BUILDING_TYPES.map(type => `${type}_kit`));
 const ASSEMBLER_KIT_RECIPE = Object.freeze({ plank: 2, pole: 1 });
 const DEFAULT_ASSEMBLER_RECIPE = 'sawbench_kit';
@@ -223,6 +232,8 @@ export class Game {
     this.dayNight = { cycleSeconds: DAY_NIGHT_CYCLE_SECONDS };
     this.fogOfWar = createFogOfWar();
     this.nightSpawns = { active: false, timer: 1.5, spawnedThisNight: 0 };
+    this.impassableZones = [];
+    this.canyonPolygons = []; // render cache: array of polygon point arrays
     this.paused = false;
     this.multiplayer = { enabled: false, sessionId: null, role: 'solo', playerId: 'p1', status: 'Solo prototype', players: {}, winner: null, syncTimer: 0 };
     this.recorder = { recording: false, steps: [], lastAssignedBotId: null, targetBotId: null, status: '' };
@@ -668,7 +679,30 @@ export class Game {
   zoneLabel(zone) { if (!zone) return 'anywhere'; if (zone.kind === 'nearby') return zone.name || `${zone.radius || DEFAULT_NEARBY_RADIUS}px nearby around bot`; if (zone.kind === 'radius') { const s = zone.centerStructureId ? this.structures.find(st => st.id === zone.centerStructureId) : null; return zone.name || `${zone.radius || DEFAULT_RESOURCE_RADIUS}px around ${s?.name || 'point'}`; } return zone.name || zone.id; }
 
 
-  moveToward(entity, tx, ty, dt, speed = entity.speed || 100, close = 14) { const d = distXY(entity.x, entity.y, tx, ty); if (d <= close) return true; const dx = (tx - entity.x) / d, dy = (ty - entity.y) / d; entity.facingX = dx; entity.facingY = dy; entity.x += dx * speed * dt; entity.y += dy * speed * dt; return false; }
+  moveToward(entity, tx, ty, dt, speed = entity.speed || 100, close = 14) {
+    const d = distXY(entity.x, entity.y, tx, ty);
+    if (d <= close) return true;
+    const dx = (tx - entity.x) / d, dy = (ty - entity.y) / d;
+    let nx = entity.x + dx * speed * dt;
+    let ny = entity.y + dy * speed * dt;
+    // Collision check: if the target tile is impassable, try sliding on each
+    // axis separately before giving up. Lets entities slide along canyon walls
+    // instead of getting stuck. See installCollisionSystem for zone registration.
+    if (this.isImpassable?.(nx, ny)) {
+      const xSlide = entity.x + dx * speed * dt;
+      const ySlide = entity.y + dy * speed * dt;
+      if (!this.isImpassable?.(xSlide, entity.y)) {
+        nx = xSlide; ny = entity.y;
+      } else if (!this.isImpassable?.(entity.x, ySlide)) {
+        nx = entity.x; ny = ySlide;
+      } else {
+        return false; // fully blocked
+      }
+    }
+    entity.facingX = dx; entity.facingY = dy;
+    entity.x = nx; entity.y = ny;
+    return false;
+  }
   releaseReservation(bot) { for (const i of this.items) if (i.reservedBy === bot.id) i.reservedBy = null; for (const h of this.holes) if (h.reservedBy === bot.id) h.reservedBy = null; for (const t of this.trees) if (t.searchReservedBy === bot.id) t.searchReservedBy = null; bot.targetItemId = null; bot.targetItemPurpose = null; bot.targetHoleId = null; }
 
   treeSearchAvailable(tree, actorId) { return !!tree && !tree.stump && (!tree.searchReservedBy || tree.searchReservedBy === actorId); }
@@ -700,6 +734,7 @@ export class Game {
     this.worldTime = 0;
     this.fogOfWar = createFogOfWar();
     this.nightSpawns = { active: false, timer: 1.5, spawnedThisNight: 0 };
+    this.impassableZones = [];
   }
 
   setPaused(paused) {
@@ -765,9 +800,9 @@ export class Game {
     this.idleDepot = { x: 1190, y: CAMPAIGN_MAP_SIZE.height - 610, label: 'trusty camper van' };
     this.placementType = null; this.zoneDraft = null; this.zoneDrag = null; this.zoneResize = null; this.justDrewZone = false; this.justDraggedZone = false;
 
-    [[910, 2790], [1220, 2830], [1500, 3000], [1730, 2540], [2080, 2760], [2460, 2440], [2920, 2720], [3400, 2380], [3920, 2820], [4580, 2500], [5100, 3060], [760, 2250], [1360, 2140], [2240, 1960], [3200, 1840], [4300, 1720]].forEach(([x, y]) => this.spawnTree(x, y));
-    [[1340, 3060], [1660, 3180], [2420, 2920], [3050, 2620], [3800, 2920], [4800, 2750], [1850, 2320], [4200, 2120]].forEach(([x, y]) => this.spawnHemp(x, y));
-    [[1480, 3240], [2080, 3120], [2700, 2860], [3480, 3060], [4320, 2860], [5000, 3220], [2380, 2180], [3760, 2060]].forEach(([x, y]) => this.spawnStoneDeposit(x, y));
+    [[910, 7990], [1220, 8030], [1500, 8200], [1730, 7740], [2080, 7960], [2460, 7640], [2920, 7920], [3400, 7580], [3920, 8020], [4580, 7700], [5100, 8260], [760, 7450], [1360, 7340], [2240, 7160], [3200, 7040], [4300, 6920]].forEach(([x, y]) => this.spawnTree(x, y));
+    [[1340, 8260], [1660, 8380], [2420, 8120], [3050, 7820], [3800, 8120], [4800, 7950], [1850, 7520], [4200, 7320]].forEach(([x, y]) => this.spawnHemp(x, y));
+    [[1480, 8440], [2080, 8320], [2700, 8060], [3480, 8260], [4320, 8060], [5000, 8420], [2380, 7380], [3760, 7260]].forEach(([x, y]) => this.spawnStoneDeposit(x, y));
     // Natural resources stay (trees, hemp, stone) — part of the landscape.
     // All buildings and loose items removed: Paul arrives with only the camper van.
     // The van is now an interactable "unpack" progression gate (see unpackVan / campaignQuest).
@@ -811,7 +846,53 @@ export class Game {
       // Chapter V tracking (Q26-Q29)
       botHasPatrolLoop: false,
       botOnGuardDuty: false,
+      // Chapter VI tracking (Q30)
+      bridgeComplete: false,
+      // Epilogue (Q30) — bridge construction
+      bridgeStructureId: null,
+      bridgeConstructionComplete: false,
     };
+
+    // === Canyon terrain feature (epilogue: blocks far lands until Q30 bridge) ===
+    // Generate the two canyon band polygons (with the bridge gap already carved)
+    // and register them as impassable zones. A separate `canyon_bridge_gap`
+    // impassable zone covers the gap itself until the bridge is built — it is
+    // removed by onConstructionComplete(structure) when the bridge finishes.
+    this.impassableZones = [];
+    const canyonPolys = generateCanyonPolygon(CANYON_CONFIG, { withBridgeGap: true });
+    this.canyonPolygons = canyonPolys; // cached for renderer
+    canyonPolys.forEach((poly, index) => {
+      this.addImpassableZone(`canyon_band_${String.fromCharCode(97 + index)}`, poly);
+    });
+    // The bridge gap zone: a small polygon centered on CANYON_BRIDGE_POSITION
+    // that blocks the gap between the two canyon bands until the bridge is built.
+    const gapPolys = generateCanyonPolygon(CANYON_CONFIG, { withBridgeGap: false });
+    if (gapPolys.length === 1) {
+      // Filter the solid band to just the angular slice around the bridge.
+      const gap = CANYON_BRIDGE_POSITION;
+      const r = (CANYON_CONFIG.innerRadius + CANYON_CONFIG.outerRadius) / 2;
+      const bandHalf = (CANYON_CONFIG.outerRadius - CANYON_CONFIG.innerRadius) / 2 + 30;
+      // Build a small rectangle (oriented along the gap tangent) blocking the
+      // gap. Width spans the band thickness; length spans the angular width at
+      // this radius.
+      const arcLen = r * (CANYON_CONFIG.bridgeHalfWidth * 2) + 40;
+      const cx = gap.x, cy = gap.y;
+      // Tangent direction at bridgeAngle = perpendicular to radial.
+      const tx = -Math.sin(CANYON_CONFIG.bridgeAngle);
+      const ty = Math.cos(CANYON_CONFIG.bridgeAngle);
+      // Radial direction.
+      const rx = Math.cos(CANYON_CONFIG.bridgeAngle);
+      const ry = Math.sin(CANYON_CONFIG.bridgeAngle);
+      const halfLen = arcLen / 2;
+      const halfWide = bandHalf;
+      const gapPoints = [
+        { x: cx + tx * halfLen + rx * halfWide, y: cy + ty * halfLen + ry * halfWide },
+        { x: cx - tx * halfLen + rx * halfWide, y: cy - ty * halfLen + ry * halfWide },
+        { x: cx - tx * halfLen - rx * halfWide, y: cy - ty * halfLen - ry * halfWide },
+        { x: cx + tx * halfLen - rx * halfWide, y: cy + ty * halfLen - ry * halfWide }
+      ];
+      this.addImpassableZone('canyon_bridge_gap', gapPoints);
+    }
 
     this.clampCamera();
     this.syncBuildUi(); this.syncTeachUi?.(); this.syncZonesUi?.(); this.syncTemplateDrawerUi?.(); this.syncBotDrawerUi?.(); this.updateHover();
@@ -825,6 +906,7 @@ export class Game {
     this.updateFogOfWar();
     this.updatePlayerHealth(dt);
     this.updatePlayer(dt); this.updateProductionStructures(dt); this.updateRangedAttackStructures(dt); this.updateProjectiles(dt); this.updateAssistant(dt); for (const bot of this.bots) this.updateBot(bot, dt);
+    this.updateConstruction?.(dt);
     this.advanceCodeLoopSessions(dt);
     this.updateAiWaves(dt);
     this.updateNightMonsterSpawns(dt);
@@ -976,6 +1058,23 @@ export class Game {
   updateBot(bot, dt) {
     if (bot.paused) { bot.state = 'paused'; bot.message = `Paused ${bot.program} workflow.`; return; }
     if (this.updateBotProductionBusy(bot)) return;
+    // ── Construction overlay ──────────────────────────────────────────
+    // When a bot is assigned to a quest construction site (e.g. the bridge),
+    // it walks to the structure and stays there. The construction system
+    // update loop accumulates work based on assigned-worker proximity, so the
+    // bot just needs to reach the site and hold position.
+    if (bot.constructionTarget) {
+      const structure = this.structures.find(s => s.id === bot.constructionTarget);
+      if (!structure) { this.unassignBotFromConstruction?.(bot); }
+      else {
+        bot.state = 'constructing';
+        const reached = this.moveToward(bot, structure.x, structure.y, dt, bot.speed || 100, 56);
+        bot.message = reached
+          ? `Building ${structure.name} (${Math.floor(structure.buildWorkDone || 0)}/${structure.buildWorkTotal || 0}).`
+          : `Walking to ${structure.name} construction site.`;
+        return;
+      }
+    }
     // ── Combat overlay (Patrick: aggressive auto-attack, even while working a loop) ──
     // Runs BEFORE the program dispatch. When combatEngaged is true the program/loop step
     // is skipped this tick — the bot fights instead. When the attack disengages (enemy
@@ -1592,6 +1691,16 @@ installDslProgramSystem(Game, {
   PROGRAMS,
   PROGRAM_TEMPLATES,
   buildingKitItemTypeFor,
+  clamp,
+  clone,
+  itemLabel
+});
+
+installCollisionSystem(Game);
+
+installConstructionSystem(Game, {
+  BUILDING_TYPES,
+  CANYON_BRIDGE_POSITION,
   clamp,
   clone,
   itemLabel

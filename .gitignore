@@ -29,3 +29,8 @@ wasm/**/target/
 # Local editor files
 .vscode/
 .idea/
+
+# Local refactor scratch
+*.bak
+*.refactored
+*.tmp

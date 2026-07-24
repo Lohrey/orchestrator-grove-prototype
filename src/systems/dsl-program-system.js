@@ -298,13 +298,13 @@ export function installDslProgramSystem(Game, deps) {
           else if (!placeholder) recordError(`Step ${index + 1}: attack target must resolve to an existing hostile actor`, { code: 'unknown_actor_ref', field: 'target', stepIndex: index + 1, value: targetRaw });
         }
       }
-      if (op === 'pick_up_from_storage' || op === 'move_to_structure' || op === 'deposit_to_structure' || op === 'craft_smithery' || op === 'craft_bowmaker' || op === 'craft_arrowmaker' || op === 'disassemble_building_to_kit') {
+      if (op === 'pick_up_from_storage' || op === 'move_to_structure' || op === 'deposit_to_structure' || op === 'craft_smithery' || op === 'craft_bowmaker' || op === 'craft_arrowmaker' || op === 'disassemble_building_to_kit' || op === 'work_on_structure') {
         const sourceRaw = raw.sourceStructureId ?? raw.sourceId ?? raw.source;
         const targetRaw = raw.structureId ?? raw.targetStructureId ?? raw.targetId ?? raw.target ?? raw.structureName;
         const wantedType = op === 'pick_up_from_storage' ? 'item_palette' : op === 'craft_smithery' ? 'smithery' : op === 'craft_bowmaker' ? 'bowmaker' : op === 'craft_arrowmaker' ? 'arrowmaker' : (raw.structureType || null);
         const lookup = op === 'pick_up_from_storage' ? (sourceRaw ?? targetRaw) : targetRaw;
         const placeholder = typeof lookup === 'string' && lookup.startsWith('$');
-        const structureId = placeholder ? null : this.normalizeStructureId(lookup, wantedType) || ((op === 'craft_smithery' || op === 'craft_bowmaker' || op === 'craft_arrowmaker') ? null : this.normalizeStructureId(lookup, null));
+        const structureId = placeholder ? null : this.normalizeStructureId(lookup, wantedType) || ((op === 'craft_smithery' || op === 'craft_bowmaker' || op === 'craft_arrowmaker' || op === 'work_on_structure') ? null : this.normalizeStructureId(lookup, null));
         const structure = structureId ? this.structures.find(s => s.id === structureId) : null;
         if (!placeholder && lookup != null && lookup !== '' && !structure) recordError(`Step ${index + 1}: ${op} requires an existing ${wantedType || 'structure'} target/source`, { code: 'unknown_structure_ref', field: op === 'pick_up_from_storage' ? 'source' : 'target', stepIndex: index + 1, value: lookup });
         if (!placeholder && op === 'disassemble_building_to_kit' && !this.canDisassembleStructure(structure)) recordError(`Step ${index + 1}: disassemble_building_to_kit requires a disassemblable building`, { code: 'structure_not_disassemblable', field: 'target', stepIndex: index + 1, value: lookup });

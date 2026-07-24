@@ -3,23 +3,22 @@
 - Parent: [../AGENTS.md](../AGENTS.md)
 
 ## Purpose
-Standalone UI overlay assets shipped separately from the in-game canvas UI: the
-`orchestrator-grove-prototype.css` overlay stylesheet and the `ui-overlays.js` overlay script.
+Generated, standalone Svelte UI overlay assets shipped separately from the in-game canvas UI: the `orchestrator-grove-prototype.css` stylesheet and `ui-overlays.js` script.
 
 ## Ownership
 Orchestrator Grove prototype maintainers.
 
 ## Local Contracts
-- These overlays are self-contained (one CSS + one JS); do not couple them to internal `src/`
-  module APIs without documenting the dependency here.
-- Keep overlay CSS scoped to overlay selectors; do not let it leak global rules into the game
-  canvas stylesheets (`styles.css`, `styles-interactions.css` at repo root).
+- Runtime assets are generated from `src/ui/` by `npm run build:ui`; do not hand-edit generated CSS or JS.
+- `vite.config.js` must keep `emptyOutDir: false` so a UI build preserves this binding `AGENTS.md` contract.
+- Keep overlay CSS scoped to overlay selectors; do not let it leak global rules into the game canvas stylesheets (`styles.css`, `styles-interactions.css` at repo root).
 
 ## Work Guidance
-- Edit the CSS and JS directly; no build step for this folder.
+- Edit sources under `src/ui/`, then rebuild with `npm run build:ui`.
 
 ## Verification
-- Manual verification against the served game. No dedicated automated check targets this folder.
+- `npm run build:ui` must preserve this file.
+- `python3 tests/architecture-overlay-smoke.py` verifies the built overlay against the served game.
 
 ## Child DOX Index
 - None.

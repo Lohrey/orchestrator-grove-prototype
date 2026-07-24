@@ -1,4 +1,5 @@
 import { ASSISTANT_KNOWLEDGE_PACKS, DEFAULT_ASSISTANT_LOADOUT } from './assistant-pack-catalog.js';
+import { parseKnowledgePackSource } from '../core/index.js';
 import { actionStepDetailsForOps, normalizeActionStepAliasOverrides, validActionStepOps } from '../action-steps.js';
 
 function packCatalog(knowledgePacks = ASSISTANT_KNOWLEDGE_PACKS) {
@@ -42,23 +43,24 @@ function derivePackVocabulary(pack, actions) {
 }
 
 export function normalizeAssistantKnowledgePack(pack = {}) {
-  const id = String(pack.id || '').trim();
-  const selectedOps = validActionStepOps(pack.unlockedOps || pack.selectedOps || pack.ops || []);
-  const actionPartAliases = normalizeActionStepAliasOverrides(pack.actionPartAliases || pack.partAliases || {}, selectedOps);
+  const source = parseKnowledgePackSource(pack);
+  const id = String(source.id || '').trim();
+  const selectedOps = validActionStepOps(source.unlockedOps || source.selectedOps || source.ops || []);
+  const actionPartAliases = normalizeActionStepAliasOverrides(source.actionPartAliases || source.partAliases || {}, selectedOps);
   const actions = actionStepDetailsForOps(selectedOps, { actionPartAliases });
   const normalized = {
     id,
-    name: String(pack.name || id || 'Custom Action Pack').trim(),
-    custom: !!pack.custom,
-    concepts: derivePackConcepts(pack, actions),
-    vocabulary: derivePackVocabulary(pack, actions),
-    optionalContext: parseTextList(pack.optionalContext || pack.contextVariables),
-    contextVariables: parseTextList(pack.contextVariables || pack.optionalContext),
+    name: String(source.name || id || 'Custom Action Pack').trim(),
+    custom: !!source.custom,
+    concepts: derivePackConcepts(source, actions),
+    vocabulary: derivePackVocabulary(source, actions),
+    optionalContext: parseTextList(source.optionalContext || source.contextVariables),
+    contextVariables: parseTextList(source.contextVariables || source.optionalContext),
     unlockedOps: selectedOps,
     actionPartAliases,
     actions,
     actionDetails: actions,
-    examples: Array.isArray(pack.examples) ? pack.examples : parseTextList(pack.examples)
+    examples: Array.isArray(source.examples) ? source.examples : parseTextList(source.examples)
   };
   return {
     ...normalized,

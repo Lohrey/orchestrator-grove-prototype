@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [svelte()],
   build: {
     outDir: 'ui-overlays',
-    emptyOutDir: true,
+    emptyOutDir: false,
     cssCodeSplit: false,
     lib: {
       entry: 'src/ui/main.js',

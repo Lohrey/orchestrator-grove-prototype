@@ -28,6 +28,7 @@ steps derived from the canonical registry in `../action-steps.js`.
 ## Local Contracts
 - Knowledge packs derive their action-step ops from `../action-steps.js`. Changes
   to the action-step registry must propagate here (see Action Step Mechanism Chain).
+- LLM response envelopes and knowledge-pack source objects cross the TypeScript/Zod boundary in `../core/index.js` before assistant/game-specific validation.
 - The semantic router runs in a WebWorker spawned via Blob URL
   (`assistant-router.worker.js`). Bot code and router code must not run on the
   main thread except for orchestration.

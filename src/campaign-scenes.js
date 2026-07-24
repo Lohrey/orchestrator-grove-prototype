@@ -1,8 +1,86 @@
-export const CAMPAIGN_MAP_SIZE = Object.freeze({ width: 5600, height: 3800 });
+export const CAMPAIGN_MAP_SIZE = Object.freeze({ width: 12000, height: 9000 });
 
 export const CAMPAIGN_START = Object.freeze({
   x: 1080,
   y: CAMPAIGN_MAP_SIZE.height - 860
+});
+
+/**
+ * Canyon terrain feature — a semicircular band (ring segment) centered on the
+ * spawn area, cutting off the lands beyond the playable region. The impassable
+ * band runs from inner radius to outer radius around an arc that faces away
+ * from the spawn corner (bottom-left). A small gap is left for the bridge quest.
+ *
+ * `generateCanyonPolygon` produces a closed polygon approximation (~60 inner +
+ * ~60 outer points) suitable for the collision system and canvas rendering.
+ *
+ * Angles are measured from east (+x), increasing clockwise in screen space
+ * (because +y points "down"). Spawn is at bottom-left (θ ∈ (π, 3π/2)); the
+ * canyon arc sweeps from north (top edge, θ = -π/2) through east (right edge)
+ * and south (bottom-right area) to west (left edge, θ = π) — i.e. the half
+ * of the circle NOT containing the spawn corner.
+ */
+export const CANYON_CONFIG = Object.freeze({
+  center: Object.freeze({ x: CAMPAIGN_START.x, y: CAMPAIGN_START.y }),
+  innerRadius: 4400,
+  outerRadius: 4600,
+  startAngle: -Math.PI / 2, // north (top edge of map)
+  endAngle: Math.PI,        // west (left edge of map)
+  segments: 60,
+  // Bridge gap — a small angular window where the impassable zone is split
+  // into two polygons. The bridge structure sits in the gap.
+  bridgeAngle: -Math.PI / 4, // 45° up-right from center (toward far corner)
+  bridgeHalfWidth: 0.045    // radians (~2.6°) — narrow gap
+});
+
+/**
+ * Build canyon polygon(s) from config. Returns an array of polygons (each a
+ * list of `{x, y}` points). With the bridge gap enabled (default), returns
+ * two polygons split around the gap. Pass `withBridgeGap: false` for a single
+ * solid band polygon.
+ */
+export function generateCanyonPolygon(config = CANYON_CONFIG, options = {}) {
+  const { center, innerRadius, outerRadius, segments, bridgeAngle, bridgeHalfWidth } = config;
+  const withBridgeGap = options.withBridgeGap !== false;
+  const startAngle = config.startAngle;
+  const endAngle = config.endAngle;
+  const span = endAngle - startAngle;
+  const buildArc = (r, fromAngle, toAngle, segs, reverse) => {
+    const pts = [];
+    const count = Math.max(1, segs);
+    const step = (toAngle - fromAngle) / count;
+    for (let i = 0; i <= count; i++) {
+      const t = reverse ? count - i : i;
+      const a = fromAngle + t * step;
+      pts.push({ x: center.x + Math.cos(a) * r, y: center.y + Math.sin(a) * r });
+    }
+    return pts;
+  };
+  if (!withBridgeGap) {
+    const inner = buildArc(innerRadius, startAngle, endAngle, segments, false);
+    const outer = buildArc(outerRadius, startAngle, endAngle, segments, true);
+    return [inner.concat(outer)];
+  }
+  // Split into two polygons around the bridge gap.
+  const aEnd = bridgeAngle - bridgeHalfWidth;
+  const bStart = bridgeAngle + bridgeHalfWidth;
+  const segsA = Math.max(8, Math.round(segments * (aEnd - startAngle) / span));
+  const segsB = Math.max(8, Math.round(segments * (endAngle - bStart) / span));
+  const polyA = buildArc(innerRadius, startAngle, aEnd, segsA, false)
+    .concat(buildArc(outerRadius, startAngle, aEnd, segsA, true));
+  const polyB = buildArc(innerRadius, bStart, endAngle, segsB, false)
+    .concat(buildArc(outerRadius, bStart, endAngle, segsB, true));
+  return [polyA, polyB];
+}
+
+/**
+ * World position of the bridge across the canyon gap. Sits at the midpoint
+ * radius between inner and outer, at the bridge angle.
+ */
+export const CANYON_BRIDGE_POSITION = Object.freeze({
+  x: CANYON_CONFIG.center.x + Math.cos(CANYON_CONFIG.bridgeAngle) * ((CANYON_CONFIG.innerRadius + CANYON_CONFIG.outerRadius) / 2),
+  y: CANYON_CONFIG.center.y + Math.sin(CANYON_CONFIG.bridgeAngle) * ((CANYON_CONFIG.innerRadius + CANYON_CONFIG.outerRadius) / 2),
+  angle: CANYON_CONFIG.bridgeAngle
 });
 
 export const CAMPAIGN_MAP_FEATURES = Object.freeze([
@@ -501,6 +579,27 @@ export const CAMPAIGN_DIALOGUES = Object.freeze([
     ],
     speaker: 'player',
     trigger: 'quest_29_finale'
+  },
+  // ═════════════════════════════════════════════════════════
+  // Epilogue — The Bridge (Q30)
+  // ═════════════════════════════════════════════════════════
+  {
+    id: 'quest30_start',
+    pages: [
+      'The canyon cuts off the lands beyond.',
+      'A bridge must be built. Gather logs, planks, poles, and stones — then assign your bots to build.'
+    ],
+    speaker: 'player',
+    trigger: 'quest_30_start'
+  },
+  {
+    id: 'quest30_complete',
+    pages: [
+      'The bridge stands.',
+      'New lands lie open beyond the chasm.'
+    ],
+    speaker: 'player',
+    trigger: 'quest_30_complete'
   }
 ]);
 

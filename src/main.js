@@ -538,6 +538,8 @@ export async function startGame() {
     { n: 27, title: 'Guard the Gate', desc: 'Assign a combat bot to guard_area at a chokepoint.', chapter: 'V — The Garrison' },
     { n: 28, title: 'Scale the Ranks', desc: 'Build 5+ bots total with 2+ combat bots.', chapter: 'V — The Garrison' },
     { n: 29, title: 'Hold the Line', desc: 'Survive a sustained wave night assault.', chapter: 'V — The Garrison' },
+    // Chapter VI — Beyond the Chasm (Q30)
+    { n: 30, title: 'Bridge the Chasm', desc: 'Deposit logs, planks, poles, and stones at the bridge site. Assign bots to build — the more workers, the faster it goes.', chapter: 'VI — Beyond the Chasm' },
   ];
 
   function renderQuestLog() {
@@ -572,6 +574,16 @@ export async function startGame() {
         else if (info.n === 14) progress = ` <span class="quest-progress">${q.stoneMined || 0}/1 stone</span>`;
         else if (info.n === 19) progress = ` <span class="quest-progress">${q.botsAssembled || 0}/1 bots assembled</span>`;
         else if (info.n === 28) progress = ` <span class="quest-progress">${(game.bots||[]).length}/5 bots · ${q.combatBots || 0}/2 combat</span>`;
+        else if (info.n === 30) {
+          const bridge = game.structures?.find(s => s.type === 'bridge');
+          if (bridge) {
+            const mat = bridge.buildWorkTotal ? `${Math.floor(bridge.buildWorkDone || 0)}/${bridge.buildWorkTotal}s` : '';
+            const workers = bridge.workers?.length || 0;
+            progress = ` <span class="quest-progress">${workers} workers · ${mat}</span>`;
+          } else {
+            progress = ` <span class="quest-progress">bridge not yet placed</span>`;
+          }
+        }
       }
       const cls = done ? 'quest-entry quest-entry--done' : (current ? 'quest-entry quest-entry--current' : 'quest-entry quest-entry--locked');
       const icon = done ? '✓' : (current ? '▶' : '🔒');

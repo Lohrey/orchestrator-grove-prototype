@@ -27,6 +27,7 @@ Orchestrator Grove prototype maintainers.
 
 ## Verification
 - `npm run test:steps` → `node tests/action-step-chain-integrity.mjs`.
+- `npm run typecheck:core`, `npm run build:core`, and `npm run test:core` verify the TypeScript/Zod DSL, assistant-response, and knowledge-pack boundary.
 - `npm run test:sim-worker`, `npm run test:architecture`, `npm run test:camera`,
   `npm run test:zoom-culling`, `npm run test:pixi-fog-drift` (see `package.json`).
 - `node tests/canvas-coordinate-scaling-unit.mjs` — verifies CSS-to-logical canvas

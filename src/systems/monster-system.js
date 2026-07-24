@@ -52,10 +52,18 @@ export function installMonsterSystem(Game, deps) {
       });
       monster.spawnedAtNight = true;
       monster.homeX = point.x; monster.homeY = point.y;
-      this.emitSound('monster_spawn', { cooldownKey: 'night_spawn', minGapMs: 200 });
+      // Spawn sound intentionally suppressed — too noisy during wave nights.
+      // The audio recipe ('monster_spawn') remains in audio.js for future use.
       return monster;
     },
     updateNightMonsterSpawns(dt) {
+      // Quest gate: night monsters are introduced narratively in Q20
+      // ("Something is out there. I have heard it at night.").
+      // Before Q20, nights are peaceful — no hostile spawns.
+      // Non-campaign modes (test, local_ai) are unaffected.
+      if (this.gameMode === 'campaign' && this.campaignQuest?.active) {
+        if ((this.campaignQuest.currentQuest || 1) < 20) return;
+      }
       const night = this.isNightTime();
       const state = this.nightSpawns ||= { active: false, timer: 1.5, spawnedThisNight: 0 };
       if (!night) {

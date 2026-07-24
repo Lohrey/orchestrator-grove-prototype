@@ -14,7 +14,7 @@ Orchestrator Grove prototype maintainers.
 ## Local Contracts
 - This subtree is the bundler-only surface for Svelte/Vite; do not import Svelte/Vite artifacts
   from the plain-HTML runtime path under `src/` (root runtime modules must stay bundler-free).
-- Build via `npm run build:ui` (Vite). Config is `vite.config.js` at repo root.
+- Build via `npm run build:ui` (Vite). Config is `vite.config.js` at repo root; it keeps `emptyOutDir: false` so generated assets do not delete `ui-overlays/AGENTS.md`.
 - Keep `main.js` as the Vite entry; do not introduce alternative entry points without updating
   `vite.config.js`.
 - UI helper modules (`dom-helpers.js`, `chat-ui.js`, `renderer-settings.js`, `performance-ui.js`,
