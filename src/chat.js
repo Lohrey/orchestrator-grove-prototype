@@ -7,7 +7,8 @@ export function createChatController({
   getAsrMode = () => 'zipformer_whisper',
   getBrowserSttModel = () => 'whisper-tiny.en',
   browserStt = null,
-  onSubmit
+  onSubmit,
+  onError = null
 }) {
   let lastSelection = { start: 0, end: 0 };
   let transcriptDraft = null;
@@ -318,7 +319,21 @@ export function createChatController({
   document.addEventListener('selectionchange', () => { if (document.activeElement === chatInput) remember(); });
   micButton?.addEventListener('mousedown', e => { e.preventDefault(); remember(); });
   micButton?.addEventListener('click', toggleVoice);
-  chatForm.addEventListener('submit', e => { e.preventDefault(); resetDraft(true); const text = chatInput.value.trim(); if (!text) return; chatInput.value = ''; remember(); onSubmit(text); });
+  chatForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    resetDraft(true);
+    const text = chatInput.value.trim();
+    if (!text) return;
+    chatInput.value = '';
+    remember();
+    try {
+      await onSubmit?.(text);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error || 'Unknown chat error');
+      setStatus(`Chat request failed: ${message}`, true);
+      onError?.(error, { text });
+    }
+  });
   quickCommands?.addEventListener('mousedown', e => { if (e.target.closest('button')) { e.preventDefault(); markBoundary(); remember(); } });
   quickCommands?.addEventListener('click', e => { const btn = e.target.closest('button[data-command],button[data-insert]'); if (!btn) return; markBoundary(); if (btn.dataset.insert) { insertAtCursor(btn.dataset.insert); asr.boundary = asr.lastPartial || asr.boundary; return; } chatInput.value = btn.dataset.command; chatInput.focus(); chatInput.setSelectionRange(chatInput.value.length, chatInput.value.length); remember(); });
 
